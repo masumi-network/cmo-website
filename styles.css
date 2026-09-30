@@ -1,6 +1,5 @@
 /* ============================================================
    CMO.XYZ — styles (dual theme: light + dark, auto by system)
-   Structure/feel modeled on modern AI-product sites (workos.com/atlas).
 
    THEME: light is the default; dark is applied automatically via
    @media (prefers-color-scheme: dark). No color is hardcoded in rules;

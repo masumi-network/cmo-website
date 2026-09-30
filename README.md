@@ -4,8 +4,7 @@ Marketing site for **CMO.XYZ**, an AI agent that automates a business's
 marketing, end to end, in one system.
 
 Built against the CMO.XYZ Style Guide `DESIGN.md` (version: alpha). Visual
-direction is **premium dark**, with structure inspired by
-[workos.com/atlas](https://workos.com/atlas).
+direction is **premium dark** and dual theme (light + dark).
 
 ## Run it
 
