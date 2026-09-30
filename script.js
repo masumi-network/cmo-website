@@ -5,6 +5,52 @@
 // site is fully usable if the animation libraries fail to load.
 // Nothing hardcodes an agent name (per DESIGN.md).
 
+// ---- Theme toggle (self-contained; independent of the animation libs) ----
+(function () {
+  var root = document.documentElement;
+  var toggles = [].slice.call(document.querySelectorAll("[data-theme-toggle]"));
+
+  function currentTheme() {
+    return root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
+  function sync() {
+    var t = currentTheme();
+    toggles.forEach(function (b) {
+      b.setAttribute("aria-label", t === "dark" ? "Switch to light theme" : "Switch to dark theme");
+      b.setAttribute("aria-pressed", String(t === "dark"));
+      var label = b.querySelector(".theme-toggle__label");
+      if (label) label.textContent = t === "dark" ? "Dark" : "Light";
+    });
+    // Keep the browser UI bar color in step with the active theme.
+    var meta = document.querySelector('meta[name="theme-color"]:not([media])');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute("name", "theme-color");
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute("content", t === "dark" ? "#0a0b0e" : "#f4f6f7");
+  }
+  function setTheme(t) {
+    root.setAttribute("data-theme", t);
+    try { localStorage.setItem("theme", t); } catch (e) {}
+    sync();
+  }
+  toggles.forEach(function (b) {
+    b.addEventListener("click", function () {
+      setTheme(currentTheme() === "dark" ? "light" : "dark");
+    });
+  });
+  // Keep following the system live until the visitor makes a manual choice.
+  if (window.matchMedia) {
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (e) {
+      var saved;
+      try { saved = localStorage.getItem("theme"); } catch (_) {}
+      if (!saved) { root.setAttribute("data-theme", e.matches ? "dark" : "light"); sync(); }
+    });
+  }
+  sync();
+})();
+
 (function () {
   "use strict";
   var root = document.documentElement;
@@ -53,38 +99,74 @@
     });
   });
 
-  // Hand the hero start-states to GSAP (stops the CSS pre-hide).
-  root.classList.remove("has-anim");
-
-  // ---- Hero entrance ----
-  gsap
-    .timeline({ defaults: { ease: "power3.out", duration: 0.9 } })
-    .from(".nav", { y: -18, autoAlpha: 0, duration: 0.7 })
-    .from(".hero .pill", { y: 18, autoAlpha: 0, duration: 0.6 }, "-=0.2")
-    .from(".hero h1", { y: 30, autoAlpha: 0 }, "-=0.35")
-    .from(".hero .lead", { y: 22, autoAlpha: 0 }, "-=0.6")
-    .from(".hero__cta", { y: 20, autoAlpha: 0 }, "-=0.65")
-    .from(".hero__meta", { y: 16, autoAlpha: 0 }, "-=0.7")
-    .from(".hero__visual", { scale: 0.9, autoAlpha: 0, duration: 1.1, ease: "power2.out" }, "-=0.95");
-
-  // ---- Mascot: idle float, glow pulse, pointer tracking ----
-  var mascot = document.querySelector(".hero__visual img");
+  // ---- Intro: the mascot flies from the splash into the hero ----
+  var loaderEl = document.getElementById("loader");
+  var loaderMascot = document.querySelector(".loader__mascot");
+  var heroImg = document.querySelector(".hero__visual img");
   var visual = document.querySelector(".hero__visual");
-  if (mascot) {
-    gsap.to(mascot, { y: 14, duration: 2.6, ease: "sine.inOut", repeat: -1, yoyo: true });
-  }
-  gsap.to(".hero .orb", { scale: 1.08, opacity: 0.85, duration: 3.2, ease: "sine.inOut", repeat: -1, yoyo: true });
 
-  if (visual && matchMedia("(pointer:fine)").matches) {
-    var qx = gsap.quickTo(visual, "x", { duration: 0.6, ease: "power2.out" });
-    var qy = gsap.quickTo(visual, "y", { duration: 0.6, ease: "power2.out" });
-    var qr = gsap.quickTo(visual, "rotation", { duration: 0.6, ease: "power2.out" });
-    window.addEventListener("pointermove", function (e) {
-      var dx = e.clientX / window.innerWidth - 0.5;
-      var dy = e.clientY / window.innerHeight - 0.5;
-      qx(dx * 26); qy(dy * 20); qr(dx * 3);
-    });
+  function startMascotMotion() {
+    if (heroImg) gsap.to(heroImg, { y: 14, duration: 2.6, ease: "sine.inOut", repeat: -1, yoyo: true });
+    gsap.to(".hero .orb", { scale: 1.08, opacity: 0.85, duration: 3.2, ease: "sine.inOut", repeat: -1, yoyo: true });
+    if (visual && matchMedia("(pointer:fine)").matches) {
+      var qx = gsap.quickTo(visual, "x", { duration: 0.6, ease: "power2.out" });
+      var qy = gsap.quickTo(visual, "y", { duration: 0.6, ease: "power2.out" });
+      var qr = gsap.quickTo(visual, "rotation", { duration: 0.6, ease: "power2.out" });
+      window.addEventListener("pointermove", function (e) {
+        var dx = e.clientX / window.innerWidth - 0.5;
+        var dy = e.clientY / window.innerHeight - 0.5;
+        qx(dx * 26); qy(dy * 20); qr(dx * 3);
+      });
+    }
   }
+
+  function revealHero() {
+    gsap
+      .timeline({ defaults: { ease: "power3.out", duration: 0.9 } })
+      .from(".nav", { y: -18, autoAlpha: 0, duration: 0.7 })
+      .from(".hero .pill", { y: 18, autoAlpha: 0, duration: 0.6 }, "-=0.2")
+      .from(".hero h1", { y: 30, autoAlpha: 0 }, "-=0.35")
+      .from(".hero .lead", { y: 22, autoAlpha: 0 }, "-=0.6")
+      .from(".hero__cta", { y: 20, autoAlpha: 0 }, "-=0.65")
+      .from(".hero__meta", { y: 16, autoAlpha: 0 }, "-=0.7")
+      .add(startMascotMotion, "-=0.4");
+  }
+
+  var introRan = false, introDone = false;
+
+  function finishIntro() {
+    if (introDone) return;
+    introDone = true;
+    root.classList.remove("has-anim");
+    if (visual) gsap.set(visual, { clearProps: "opacity,visibility" });
+    if (loaderEl) loaderEl.style.display = "none";
+    revealHero();
+  }
+
+  function runIntro() {
+    if (introRan) return;
+    introRan = true;
+    if (!loaderEl || !loaderMascot || !heroImg) { finishIntro(); return; }
+    var lr = loaderMascot.getBoundingClientRect();
+    var hr = heroImg.getBoundingClientRect();
+    var scale = hr.width / lr.width;
+    var dx = (hr.left + hr.width / 2) - (lr.left + lr.width / 2);
+    var dy = (hr.top + hr.height / 2) - (lr.top + lr.height / 2);
+    gsap.set(loaderMascot, { transformOrigin: "center center" });
+    gsap
+      .timeline({ onComplete: finishIntro })
+      .to(loaderMascot, { scale: 1.04, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 1 }, 0)
+      .to(".loader__word", { autoAlpha: 0, duration: 0.4, ease: "power2.out" }, 0.55)
+      .to(".loader__glow", { autoAlpha: 0, duration: 0.6 }, 0.7)
+      .to(loaderMascot, { x: dx, y: dy, scale: scale, duration: 1.1, ease: "power3.inOut" }, 0.75)
+      .to(".loader__bg", { autoAlpha: 0, duration: 0.7, ease: "power2.inOut" }, 1.0);
+  }
+
+  var introStart = Date.now();
+  function kickIntro() { setTimeout(runIntro, Math.max(0, 650 - (Date.now() - introStart))); }
+  if (document.readyState === "complete") kickIntro();
+  else window.addEventListener("load", kickIntro);
+  setTimeout(finishIntro, 4200); // safety: never hang the splash
 
   // ---- Cursor companion: the mascot trails the real pointer ----
   var pet = document.querySelector(".cursor-pet");
@@ -126,36 +208,45 @@
     });
   });
 
-  // ---- Tool strip ----
-  gsap.from(".strip__label", {
-    x: -12, autoAlpha: 0, duration: 0.6,
-    scrollTrigger: { trigger: ".strip", start: "top 90%" },
+  // ---- Channels ----
+  gsap.from(".channels-sec__label", {
+    y: 10, autoAlpha: 0, duration: 0.6,
+    scrollTrigger: { trigger: ".channels-sec", start: "top 88%" },
   });
-  gsap.from(".strip li", {
-    y: 14, autoAlpha: 0, duration: 0.6, stagger: 0.06,
-    scrollTrigger: { trigger: ".strip", start: "top 90%" },
+  gsap.from(".channel", {
+    y: 16, autoAlpha: 0, duration: 0.5, stagger: 0.06, ease: "power3.out",
+    scrollTrigger: { trigger: ".channels-sec", start: "top 86%" },
   });
 
   // ---- Chat mockup: messages arrive in sequence ----
   gsap
     .timeline({ scrollTrigger: { trigger: ".chat", start: "top 74%" } })
     .from(".chat", { y: 34, autoAlpha: 0, duration: 0.8, ease: "power3.out" })
-    .from(".chat .msg", { y: 16, autoAlpha: 0, duration: 0.5, stagger: 0.4, ease: "power2.out" }, "-=0.2")
-    .from(".chat__input", { y: 12, autoAlpha: 0, duration: 0.5 }, "-=0.05");
+    .from(".chat__input", { y: 12, autoAlpha: 0, duration: 0.5 }, "-=0.3");
 
-  // ---- Capability cards (batched stagger) ----
-  ScrollTrigger.batch(".feat", {
-    start: "top 86%",
-    onEnter: function (batch) {
-      gsap.from(batch, {
-        y: 28, autoAlpha: 0, duration: 0.7, stagger: 0.09, ease: "power3.out", overwrite: true,
-      });
-    },
+  // ---- Statement ----
+  gsap.from(".statement .eyebrow, .statement__grid > *", {
+    y: 24, autoAlpha: 0, duration: 0.8, stagger: 0.08, ease: "power3.out",
+    scrollTrigger: { trigger: ".statement", start: "top 85%" },
+  });
+
+  // ---- Capabilities tabs reveal ----
+  gsap.from(".tabs__list .tab", {
+    y: 18, autoAlpha: 0, duration: 0.6, stagger: 0.07, ease: "power3.out",
+    scrollTrigger: { trigger: ".tabs", start: "top 84%" },
+  });
+  gsap.from(".tabs__panels", {
+    y: 24, autoAlpha: 0, duration: 0.8, ease: "power3.out",
+    scrollTrigger: { trigger: ".tabs", start: "top 84%" },
   });
 
   // ---- Steps ----
-  gsap.from(".steps li", {
-    y: 26, autoAlpha: 0, duration: 0.7, stagger: 0.12, ease: "power3.out",
+  gsap.from(".step", {
+    y: 28, autoAlpha: 0, duration: 0.7, stagger: 0.14, ease: "power3.out",
+    scrollTrigger: { trigger: ".steps", start: "top 82%" },
+  });
+  gsap.from(".step__icon", {
+    scale: 0.6, autoAlpha: 0, duration: 0.5, stagger: 0.14, ease: "back.out(2)",
     scrollTrigger: { trigger: ".steps", start: "top 82%" },
   });
 
@@ -188,4 +279,160 @@
 
   // Recalculate once fonts and images have settled.
   window.addEventListener("load", function () { ScrollTrigger.refresh(); });
+})();
+
+// ---- Loading splash fallback (reduced motion or no GSAP): simple fade ----
+(function () {
+  var loader = document.getElementById("loader");
+  if (!loader) return;
+  var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduced && window.gsap) return; // the animated intro (in the main block) handles it
+  var start = Date.now();
+  function done() {
+    loader.classList.add("is-done");
+    setTimeout(function () { loader.style.display = "none"; }, 600);
+  }
+  if (document.readyState === "complete") setTimeout(done, 400);
+  else window.addEventListener("load", function () { setTimeout(done, Math.max(0, 700 - (Date.now() - start))); });
+  setTimeout(done, 4000);
+})();
+
+// ---- Chat player: live-texting feel, the mascot "solving" ----
+(function () {
+  var body = document.querySelector("[data-chat]");
+  if (!body) return;
+  var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced || !("IntersectionObserver" in window)) return; // leave static for reduced motion
+  if (!window.gsap) return; // needs GSAP for smooth playback
+  var msgs = [].slice.call(body.querySelectorAll(".msg"));
+  gsap.set(msgs, { display: "none" });
+  var played = false;
+
+  function typingBubble(src) {
+    var w = document.createElement("div");
+    w.className = "msg msg--agent msg--typing";
+    w.innerHTML = '<img src="' + src + '" alt="" /><p class="typing"><span></span><span></span><span></span></p>';
+    return w;
+  }
+  function reveal(el) {
+    body.appendChild(el);
+    gsap.fromTo(el, { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.5, ease: "power2.out" });
+  }
+  function play() {
+    if (played) return;
+    played = true;
+    var i = 0;
+    (function step() {
+      if (i >= msgs.length) return;
+      var m = msgs[i];
+      if (m.classList.contains("msg--agent")) {
+        var img = m.querySelector("img");
+        var t = typingBubble(img ? img.getAttribute("src") : "");
+        reveal(t);
+        gsap.delayedCall(parseInt(m.getAttribute("data-typing") || "1200", 10) / 1000, function () {
+          gsap.to(t, {
+            autoAlpha: 0, duration: 0.25,
+            onComplete: function () {
+              if (t.parentNode) t.parentNode.removeChild(t);
+              m.style.display = "";
+              reveal(m);
+              i++;
+              gsap.delayedCall(0.5, step);
+            },
+          });
+        });
+      } else {
+        m.style.display = "";
+        reveal(m);
+        i++;
+        gsap.delayedCall(0.75, step);
+      }
+    })();
+  }
+  new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) play(); });
+  }, { threshold: 0.35 }).observe(body);
+})();
+
+// ---- Capabilities tabs (self-contained; works even without GSAP) ----
+(function () {
+  var root = document.querySelector(".tabs");
+  if (!root) return;
+  var tabs = [].slice.call(root.querySelectorAll(".tab"));
+  var panels = [].slice.call(root.querySelectorAll(".panel"));
+  if (!tabs.length) return;
+
+  var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var DURATION = 5200;
+  var current = 0, timer = null, barTween = null;
+
+  function resetBars() {
+    if (barTween) { barTween.kill(); barTween = null; }
+    tabs.forEach(function (t) {
+      var b = t.querySelector(".tab__bar");
+      if (!b) return;
+      if (window.gsap) gsap.set(b, { scaleX: 0 });
+      else b.style.transform = "scaleX(0)";
+    });
+  }
+
+  function runBar() {
+    if (reduced || !window.gsap) return;
+    var bar = tabs[current].querySelector(".tab__bar");
+    if (bar) barTween = gsap.fromTo(bar, { scaleX: 0 }, { scaleX: 1, duration: DURATION / 1000, ease: "none" });
+  }
+
+  function activate(i) {
+    current = i;
+    tabs.forEach(function (t, idx) {
+      var on = idx === i;
+      t.classList.toggle("is-active", on);
+      t.setAttribute("aria-selected", String(on));
+      t.tabIndex = on ? 0 : -1;
+    });
+    panels.forEach(function (p, idx) {
+      var on = idx === i;
+      p.classList.toggle("is-active", on);
+      p.hidden = !on;
+    });
+    resetBars();
+  }
+
+  function next() { activate((current + 1) % tabs.length); runBar(); }
+
+  function stop() {
+    if (timer) { clearInterval(timer); timer = null; }
+    if (barTween) barTween.pause();
+  }
+  function start() {
+    if (reduced) return;
+    stop();
+    runBar();
+    timer = setInterval(next, DURATION);
+  }
+
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { activate(i); start(); });
+    t.addEventListener("keydown", function (e) {
+      var k = e.key;
+      if (k === "ArrowDown" || k === "ArrowRight") {
+        e.preventDefault(); activate((i + 1) % tabs.length); tabs[current].focus(); start();
+      } else if (k === "ArrowUp" || k === "ArrowLeft") {
+        e.preventDefault(); activate((i - 1 + tabs.length) % tabs.length); tabs[current].focus(); start();
+      }
+    });
+  });
+
+  root.addEventListener("mouseenter", stop);
+  root.addEventListener("mouseleave", start);
+
+  activate(0);
+
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) start(); else stop(); });
+    }, { threshold: 0.3 }).observe(root);
+  } else {
+    start();
+  }
 })();
