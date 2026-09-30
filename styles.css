@@ -52,7 +52,7 @@
     0 12px 30px -18px rgba(16, 24, 40, 0.20);
   --shadow-lg: 0 34px 70px -34px rgba(16, 24, 40, 0.30);
 
-  --maxw: 1140px;
+  --maxw: 1280px;
   --pad: clamp(1.15rem, 3vw, 2rem);
   --r: 16px;
   --r-lg: 24px;
