@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CMO.XYZ · Marketing on autopilot</title>
+  <meta
+    name="description"
+    content="CMO.XYZ is an AI agent that automates a business's marketing, end to end, in one system. Give it your domain and it builds and runs the strategy."
+  />
+  <meta name="theme-color" content="#0a0b0e" />
+  <meta name="robots" content="index, follow" />
+  <!-- Social / Open Graph. Share image is a placeholder mascot asset. -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="CMO.XYZ · Marketing on autopilot" />
+  <meta
+    property="og:description"
+    content="One AI agent that runs your marketing end to end. Give it your domain and it builds and runs the strategy."
+  />
+  <meta property="og:image" content="assets/mascot-hero.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="CMO.XYZ · Marketing on autopilot" />
+  <meta
+    name="twitter:description"
+    content="One AI agent that runs your marketing end to end."
+  />
+  <meta name="twitter:image" content="assets/mascot-hero.png" />
+  <link rel="icon" href="assets/var-1.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Pre-hide the hero only while JS + motion are active, to cover the
+    // script-load gap. Reduced motion or no-JS shows everything as-is.
+    document.documentElement.classList.add("has-anim");
+    if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)
+      document.documentElement.classList.add("reduced");
+  </script>
+</head>
+<body>
+  <!-- ============================================================
+       CMO.XYZ marketing site — premium dark theme.
+       Structure inspired by workos.com/atlas; execution aims for a
+       refined, high-contrast, modern AI-product feel.
+       Built against DESIGN.md (version: alpha).
+       Locked: product positioning, voice/tone, typeface (PP Mori).
+       OPEN per the guide: colors, logo, shapes, layout, components,
+       avatars. The dark palette and the "The Cursor" mascot are a
+       PLACEHOLDER direction chosen with the user, NOT final brand.
+       Flagged as temporary in styles.css.
+       ============================================================ -->
+
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="nav" id="top">
+    <a class="nav__brand" href="#top" aria-label="CMO.XYZ home">
+      <img src="assets/var-1.png" alt="" />
+      <span>CMO.XYZ</span>
+    </a>
+    <nav class="nav__links" aria-label="Primary">
+      <a href="#work">Product</a>
+      <a href="#features">Capabilities</a>
+      <a href="#how">How it works</a>
+      <a href="#agent">Your agent</a>
+    </nav>
+    <div class="nav__actions">
+      <a class="link-quiet" href="#">Sign in</a>
+      <a class="btn" href="#start">Get started</a>
+    </div>
+    <button class="nav__toggle" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+
+  <main>
+    <!-- ===================== HERO ===================== -->
+    <section class="hero">
+      <div class="hero__text">
+        <span class="pill">AI marketing agent</span>
+        <h1>Marketing, on autopilot.</h1>
+        <p class="lead">
+          CMO.XYZ is one agent that runs your marketing end to end. Not a chatbot
+          you prompt. Not a stack of separate tools. Give it your domain and it
+          builds and runs the strategy.
+        </p>
+        <div class="hero__cta">
+          <a class="btn btn--lg" href="#start">Get started</a>
+          <a class="btn btn--ghost btn--lg" href="#work">See it work</a>
+        </div>
+        <p class="hero__meta">Built on your data. Every move ties to what it knows.</p>
+      </div>
+      <div class="hero__visual">
+        <div class="orb" aria-hidden="true"></div>
+        <img src="assets/mascot-hero.png" alt="The CMO.XYZ agent, waving"
+             width="400" height="525" fetchpriority="high" decoding="async" />
+      </div>
+    </section>
+
+    <!-- ===================== TOOL STRIP ===================== -->
+    <section class="strip" aria-label="Works across your channels">
+      <span class="strip__label">Runs across</span>
+      <ul>
+        <li>Google Ads</li>
+        <li>Meta Ads</li>
+        <li>Instagram</li>
+        <li>LinkedIn</li>
+        <li>X</li>
+        <li>TikTok</li>
+        <li>Website SEO</li>
+      </ul>
+    </section>
+
+    <!-- ===================== SEE IT WORK ===================== -->
+    <section id="work" class="section">
+      <div class="section__head">
+        <span class="eyebrow">See it work</span>
+        <h2>Talk to it like a teammate. It gets to work.</h2>
+        <p>Every reply ties to your data and what is on screen. No invented confidence.</p>
+      </div>
+
+      <div class="chat">
+        <div class="chat__bar">
+          <span></span><span></span><span></span>
+          <p>Your agent</p>
+        </div>
+        <div class="chat__body">
+          <div class="msg msg--agent">
+            <img src="assets/expr-happy.png" alt="" loading="lazy" decoding="async" />
+            <p>
+              Here's my proposed strategy for you. Built from your setup answers
+              and your shop data. I'll use it to guide every post, ad and email.
+              Take a look, then I'll get started.
+            </p>
+          </div>
+          <div class="msg msg--user"><p>Looks good. Draft the launch posts.</p></div>
+          <div class="msg msg--agent">
+            <img src="assets/act-creating.png" alt="" loading="lazy" decoding="async" />
+            <p>
+              On it. I'll draft that now and put anything that needs approval in
+              your Approvals. You'll get a note when it's ready.
+            </p>
+          </div>
+        </div>
+        <div class="chat__input"><span>Ask anything...</span><i aria-hidden="true">&rarr;</i></div>
+      </div>
+    </section>
+
+    <!-- ===================== CAPABILITIES ===================== -->
+    <section id="features" class="section">
+      <div class="section__head">
+        <span class="eyebrow">Capabilities</span>
+        <h2>One agent. The whole marketing job.</h2>
+        <p>You register, give your domain, and it builds and runs the strategy end to end.</p>
+      </div>
+
+      <div class="bento">
+        <article class="feat">
+          <span class="feat__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>
+          </span>
+          <h3>Manages social media</h3>
+          <p>Plans and runs your channels so posting stays consistent.</p>
+        </article>
+
+        <article class="feat">
+          <span class="feat__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </span>
+          <h3>Creates and posts content</h3>
+          <p>Drafts, schedules, and publishes. You approve what matters.</p>
+        </article>
+
+        <article class="feat">
+          <span class="feat__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
+          </span>
+          <h3>Runs ads</h3>
+          <p>Sets up and manages campaigns across Google and Meta.</p>
+        </article>
+
+        <article class="feat">
+          <span class="feat__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </span>
+          <h3>Handles website SEO</h3>
+          <p>Keeps your site aligned with what people are searching for.</p>
+        </article>
+
+        <article class="feat">
+          <span class="feat__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          </span>
+          <h3>Generates images and graphics</h3>
+          <p>Produces the visuals each post and ad needs.</p>
+        </article>
+
+        <article class="feat feat--soon">
+          <span class="feat__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+          </span>
+          <h3>Newsletter <span class="tag">Roadmap</span></h3>
+          <p>Coming later. Not part of the current launch.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===================== HOW IT WORKS ===================== -->
+    <section id="how" class="section">
+      <div class="section__head">
+        <span class="eyebrow">How it works</span>
+        <h2>Set it up once. Then it runs.</h2>
+      </div>
+      <ol class="steps">
+        <li>
+          <span class="steps__num">01</span>
+          <h3>Register</h3>
+          <p>Create your account and name your agent whatever you want.</p>
+        </li>
+        <li>
+          <span class="steps__num">02</span>
+          <h3>Give your domain</h3>
+          <p>The agent reads your site and data to understand the business.</p>
+        </li>
+        <li>
+          <span class="steps__num">03</span>
+          <h3>It runs the strategy</h3>
+          <p>Content, ads, SEO, and visuals, managed end to end.</p>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ===================== YOUR AGENT ===================== -->
+    <section id="agent" class="section section--split">
+      <div class="split__text">
+        <span class="eyebrow">Your agent</span>
+        <h2>Name it. Make it yours.</h2>
+        <p>
+          You name your instance and choose how it shows up across your screens.
+          Same agent, different moods.
+        </p>
+      </div>
+      <ul class="avatars">
+        <li><img src="assets/var-1.png" alt="Agent avatar option" loading="lazy" decoding="async" /></li>
+        <li><img src="assets/var-2.png" alt="Agent avatar with sunglasses" loading="lazy" decoding="async" /></li>
+        <li><img src="assets/var-3.png" alt="Agent avatar with a cap" loading="lazy" decoding="async" /></li>
+        <li><img src="assets/var-4.png" alt="Agent avatar with headphones" loading="lazy" decoding="async" /></li>
+        <li><img src="assets/var-5.png" alt="Agent avatar with coffee" loading="lazy" decoding="async" /></li>
+        <li><img src="assets/var-6.png" alt="Agent avatar with a sparkle" loading="lazy" decoding="async" /></li>
+      </ul>
+    </section>
+
+    <!-- ===================== WHO IT'S FOR ===================== -->
+    <section class="section">
+      <div class="section__head">
+        <span class="eyebrow">Who it's for</span>
+        <h2>Built for people who can't run marketing full time.</h2>
+      </div>
+      <div class="who">
+        <div><h3>Solo founders</h3><p>Ship product while the agent handles the marketing.</p></div>
+        <div><h3>Small businesses</h3><p>No marketing team, no problem. Put it on autopilot.</p></div>
+        <div><h3>Builders</h3><p>Focus on what you're making. Let the agent get it seen.</p></div>
+      </div>
+    </section>
+
+    <!-- ===================== CTA ===================== -->
+    <section id="start" class="cta">
+      <div class="orb orb--sm" aria-hidden="true"></div>
+      <img class="cta__art" src="assets/expr-excited.png" alt="" loading="lazy" decoding="async" />
+      <h2>Hand your marketing to an agent that works from your data.</h2>
+      <p>Register, add your domain, and let it build the strategy.</p>
+      <a class="btn btn--lg" href="#">Get started</a>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__top">
+      <div class="footer__brand">
+        <a class="nav__brand" href="#top"><img src="assets/var-1.png" alt="" /><span>CMO.XYZ</span></a>
+        <p>An AI agent that automates a business's marketing, end to end, in one system.</p>
+      </div>
+      <nav class="footer__cols" aria-label="Footer">
+        <div>
+          <h4>Product</h4>
+          <a href="#features">Capabilities</a>
+          <a href="#how">How it works</a>
+          <a href="#agent">Your agent</a>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <a href="#">About</a>
+          <a href="#">Contact</a>
+        </div>
+        <div>
+          <h4>Get started</h4>
+          <a href="#start">Sign up</a>
+          <a href="#">Sign in</a>
+        </div>
+      </nav>
+    </div>
+    <div class="footer__bottom">
+      <small>&copy; 2026 CMO.XYZ</small>
+      <small>Marketing, on autopilot.</small>
+    </div>
+  </footer>
+
+  <!-- Cursor companion: a small mascot trails the real pointer. -->
+  <div class="cursor-pet" aria-hidden="true"><img src="assets/var-1.png" alt="" /></div>
+
+  <script src="vendor/lenis.min.js"></script>
+  <script src="vendor/gsap.min.js"></script>
+  <script src="vendor/ScrollTrigger.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
