@@ -587,10 +587,11 @@ img { max-width: 100%; display: block; }
 .who p { color: var(--ink-soft); }
 
 /* ---------------- Waitlist form ---------------- */
-.waitlist { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 2rem 0 0.75rem; max-width: 460px; }
+.waitlist { display: flex; gap: 0.6rem; flex-wrap: nowrap; margin: 2rem 0 0.75rem; max-width: 460px; }
 .waitlist--center { margin-left: auto; margin-right: auto; justify-content: center; }
+.waitlist .btn { flex: 0 0 auto; white-space: nowrap; }
 .waitlist__input {
-  flex: 1 1 220px;
+  flex: 1 1 auto;
   min-width: 0;
   padding: 0.82rem 1.1rem;
   font: inherit;
@@ -605,7 +606,6 @@ img { max-width: 100%; display: block; }
 .waitlist__input::placeholder { color: var(--ink-soft); }
 .waitlist__input:focus-visible { border-color: var(--ink); }
 .waitlist__input[aria-invalid="true"] { border-color: #c0392b; }
-.waitlist .btn { flex: none; }
 .waitlist__msg { font-size: 0.9rem; color: var(--ink-soft); min-height: 1.2em; margin: 0 0 0.5rem; }
 .waitlist__msg.is-ok { color: var(--ink); font-weight: 500; }
 .waitlist__msg.is-err { color: #c0392b; }
