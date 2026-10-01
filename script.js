@@ -5,6 +5,52 @@
 // site is fully usable if the animation libraries fail to load.
 // Nothing hardcodes an agent name (per DESIGN.md).
 
+// ---- Waitlist capture (self-contained) ----
+// Set window.WAITLIST_ENDPOINT (or data-endpoint on the form) to POST emails
+// to a real backend (Formspree/Vercel/etc.). With no endpoint it validates
+// and shows a success state only (demo); it does not deliver anywhere.
+(function () {
+  var forms = [].slice.call(document.querySelectorAll("[data-waitlist]"));
+  if (!forms.length) return;
+  var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  forms.forEach(function (form) {
+    var input = form.querySelector('input[type="email"]');
+    var msg = form.parentNode.querySelector("[data-waitlist-msg]");
+    function setMsg(text, kind) {
+      if (!msg) return;
+      msg.textContent = text;
+      msg.classList.remove("is-ok", "is-err");
+      if (kind) msg.classList.add(kind);
+    }
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var email = (input.value || "").trim();
+      if (!re.test(email)) {
+        input.setAttribute("aria-invalid", "true");
+        setMsg("Please enter a valid email.", "is-err");
+        input.focus();
+        return;
+      }
+      input.removeAttribute("aria-invalid");
+      var endpoint = form.getAttribute("data-endpoint") || window.WAITLIST_ENDPOINT;
+      function ok() {
+        form.reset();
+        setMsg("You're on the list. We'll be in touch.", "is-ok");
+      }
+      if (!endpoint) { ok(); return; } // demo mode, no backend wired
+      setMsg("Adding you...", null);
+      fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ email: email }),
+      })
+        .then(function (r) { if (r.ok) ok(); else setMsg("Something went wrong. Try again.", "is-err"); })
+        .catch(function () { setMsg("Something went wrong. Try again.", "is-err"); });
+    });
+  });
+})();
+
 // ---- Theme toggle (self-contained; independent of the animation libs) ----
 (function () {
   var root = document.documentElement;

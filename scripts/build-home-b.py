@@ -21,18 +21,20 @@ src = src.replace('"assets/', '"/assets/').replace('"vendor/', '"/vendor/')
 # 2) centered hero variant
 old_hero = '''    <section class="hero">
       <div class="hero__text">
-        <span class="pill">AI marketing agent</span>
+        <span class="pill">Meet Cuso, your AI CMO</span>
         <h1>Marketing, on autopilot.</h1>
         <p class="lead">
-          CMO.XYZ is one agent that runs your marketing end to end. Not a chatbot
-          you prompt. Not a stack of separate tools. Give it your domain and it
-          builds and runs the strategy.
+          Cuso is the only marketing hire you need. He learns your brand, builds
+          the strategy, and runs it end to end. Social, ads, SEO, and newsletter,
+          in one system.
         </p>
-        <div class="hero__cta">
-          <a class="btn btn--lg" href="#start">Get started</a>
-          <a class="btn btn--ghost btn--lg" href="#work">See it work</a>
-        </div>
-        <p class="hero__meta">Built on your data. Every move ties to what it knows.</p>
+        <form class="waitlist" id="waitlist" data-waitlist novalidate>
+          <input class="waitlist__input" type="email" name="email" required
+                 placeholder="Enter your email" aria-label="Email address" />
+          <button class="btn btn--lg" type="submit">Join the waitlist</button>
+        </form>
+        <p class="waitlist__msg" data-waitlist-msg role="status" aria-live="polite"></p>
+        <p class="hero__meta">Be first in line when Cuso opens up.</p>
       </div>
       <div class="hero__visual">
         <div class="orb" aria-hidden="true"></div>
@@ -43,12 +45,12 @@ old_hero = '''    <section class="hero">
 
 new_hero = '''    <section class="hero hero--center">
       <div class="hero__text">
-        <span class="pill">AI marketing agent</span>
+        <span class="pill">Meet Cuso, your AI CMO</span>
         <h1>Marketing, on autopilot.</h1>
         <p class="lead">
-          CMO.XYZ is one agent that runs your marketing end to end. Not a chatbot
-          you prompt. Not a stack of separate tools. Give it your domain and it
-          builds and runs the strategy.
+          Cuso is the only marketing hire you need. He learns your brand, builds
+          the strategy, and runs it end to end. Social, ads, SEO, and newsletter,
+          in one system.
         </p>
       </div>
       <div class="hero__visual">
@@ -56,11 +58,13 @@ new_hero = '''    <section class="hero hero--center">
         <img src="/assets/mascot-hero.png" alt="The CMO.XYZ agent, waving"
              width="400" height="525" fetchpriority="high" decoding="async" />
       </div>
-      <div class="hero__cta">
-        <a class="btn btn--lg" href="#start">Get started</a>
-        <a class="btn btn--ghost btn--lg" href="#work">See it work</a>
-      </div>
-      <p class="hero__meta">Built on your data. Every move ties to what it knows.</p>
+      <form class="waitlist waitlist--center" id="waitlist" data-waitlist novalidate>
+        <input class="waitlist__input" type="email" name="email" required
+               placeholder="Enter your email" aria-label="Email address" />
+        <button class="btn btn--lg" type="submit">Join the waitlist</button>
+      </form>
+      <p class="waitlist__msg" data-waitlist-msg role="status" aria-live="polite"></p>
+      <p class="hero__meta">Be first in line when Cuso opens up.</p>
     </section>'''
 
 assert old_hero in src, "hero block not found; index.html hero markup changed"
