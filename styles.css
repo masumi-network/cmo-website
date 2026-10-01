@@ -17,6 +17,23 @@
    voice/tone (in copy).
    ============================================================ */
 
+/* PP Mori — the locked brand typeface (DESIGN.md). Self-hosted woff2.
+   Weights in use: 400 regular, 600 semibold. */
+@font-face {
+  font-family: "PP Mori";
+  src: url("assets/fonts/mori-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "PP Mori";
+  src: url("assets/fonts/mori-semibold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --font: "PP Mori", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, Helvetica, Arial, sans-serif;
