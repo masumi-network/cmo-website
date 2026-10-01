@@ -115,8 +115,18 @@
       </div>
       <div class="hero__visual">
         <div class="orb" aria-hidden="true"></div>
-        <img src="assets/mascot-hero.png" alt="The CMO.XYZ agent, waving"
-             width="400" height="525" fetchpriority="high" decoding="async" />
+        <!-- Interactive 3D mascot. Falls back to the poster image if the
+             model-viewer module or WebGL is unavailable. -->
+        <model-viewer class="hero__model" src="assets/3d/mascot.glb"
+          camera-controls disable-zoom disable-pan auto-rotate
+          auto-rotate-delay="0" rotation-per-second="16deg" interaction-prompt="none"
+          camera-orbit="0deg 82deg 115%" min-camera-orbit="auto 0deg auto"
+          max-camera-orbit="auto 180deg auto" field-of-view="30deg"
+          environment-image="neutral" exposure="1.15" shadow-intensity="0.5" shadow-softness="1"
+          loading="eager" aria-label="Interactive 3D CMO.XYZ mascot">
+          <img slot="poster" class="hero__model-poster" src="assets/mascot-hero.png"
+               alt="The CMO.XYZ agent, Cuso" width="400" height="525" fetchpriority="high" />
+        </model-viewer>
       </div>
     </section>
 
@@ -500,6 +510,7 @@
   <!-- Cursor companion: a small mascot trails the real pointer. -->
   <div class="cursor-pet" aria-hidden="true"><img src="assets/var-1.png" alt="" /></div>
 
+  <script type="module" src="vendor/model-viewer.min.js"></script>
   <script src="vendor/lenis.min.js"></script>
   <script src="vendor/gsap.min.js"></script>
   <script src="vendor/ScrollTrigger.min.js"></script>

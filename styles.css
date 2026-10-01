@@ -279,6 +279,26 @@ img { max-width: 100%; display: block; }
   width: min(380px, 78vw);
   filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.45));
 }
+
+/* Interactive 3D mascot */
+.hero__model {
+  position: relative;
+  z-index: 1;
+  width: min(440px, 84vw);
+  height: min(540px, 90vw);
+  --poster-color: transparent;
+  background: transparent;
+  cursor: grab;
+}
+.hero__model:active { cursor: grabbing; }
+.hero__model-poster {
+  width: 72%;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.45));
+}
+/* model-viewer's default AR/controls UI — keep it minimal */
+.hero__model::part(default-progress-bar) { display: none; }
 .orb {
   position: absolute;
   width: min(440px, 88vw);

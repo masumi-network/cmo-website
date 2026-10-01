@@ -5,6 +5,14 @@
 // site is fully usable if the animation libraries fail to load.
 // Nothing hardcodes an agent name (per DESIGN.md).
 
+// ---- 3D mascot: respect reduced motion (stop auto-rotate) ----
+(function () {
+  if (!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+  document.querySelectorAll("model-viewer[auto-rotate]").forEach(function (mv) {
+    mv.removeAttribute("auto-rotate");
+  });
+})();
+
 // ---- Waitlist capture (self-contained) ----
 // Set window.WAITLIST_ENDPOINT (or data-endpoint on the form) to POST emails
 // to a real backend (Formspree/Vercel/etc.). With no endpoint it validates
@@ -148,7 +156,9 @@
   // ---- Intro: the mascot flies from the splash into the hero ----
   var loaderEl = document.getElementById("loader");
   var loaderMascot = document.querySelector(".loader__mascot");
-  var heroImg = document.querySelector(".hero__visual img");
+  // Flip target: the 3D model if present, else the 2D hero image.
+  var heroImg = document.querySelector(".hero__visual model-viewer") ||
+    document.querySelector(".hero__visual img");
   var visual = document.querySelector(".hero__visual");
 
   function startMascotMotion() {
@@ -195,7 +205,9 @@
     if (!loaderEl || !loaderMascot || !heroImg) { finishIntro(); return; }
     var lr = loaderMascot.getBoundingClientRect();
     var hr = heroImg.getBoundingClientRect();
-    var scale = hr.width / lr.width;
+    // model-viewer box is wider than the visible mascot; aim ~72% of it.
+    var isModel = heroImg.tagName.toLowerCase() === "model-viewer";
+    var scale = (hr.width * (isModel ? 0.72 : 1)) / lr.width;
     var dx = (hr.left + hr.width / 2) - (lr.left + lr.width / 2);
     var dy = (hr.top + hr.height / 2) - (lr.top + lr.height / 2);
     gsap.set(loaderMascot, { transformOrigin: "center center" });
