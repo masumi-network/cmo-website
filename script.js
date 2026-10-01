@@ -5,11 +5,15 @@
 // site is fully usable if the animation libraries fail to load.
 // Nothing hardcodes an agent name (per DESIGN.md).
 
-// ---- 3D mascot: respect reduced motion (stop auto-rotate) ----
+// ---- 3D mascot: dismiss poster on load + respect reduced motion ----
 (function () {
-  if (!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
-  document.querySelectorAll("model-viewer[auto-rotate]").forEach(function (mv) {
-    mv.removeAttribute("auto-rotate");
+  var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  document.querySelectorAll("model-viewer").forEach(function (mv) {
+    if (reduced) mv.removeAttribute("auto-rotate");
+    // As soon as the 3D is ready, reveal it so the poster image never lingers.
+    var reveal = function () { try { mv.dismissPoster(); } catch (e) {} };
+    if (mv.loaded) reveal();
+    else mv.addEventListener("load", reveal, { once: true });
   });
 })();
 
