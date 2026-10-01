@@ -28,6 +28,9 @@
   <meta name="twitter:image" content="/assets/mascot-hero.png" />
   <link rel="icon" href="/assets/var-1.png" />
   <link rel="stylesheet" href="/styles.css" />
+  <!-- Preload the 3D mascot + viewer so it shows fast instead of the poster -->
+  <link rel="modulepreload" href="/vendor/model-viewer.min.js" />
+  <link rel="preload" href="/assets/3d/mascot.glb" as="fetch" type="model/gltf-binary" crossorigin="anonymous" />
   <script>
     (function () {
       var root = document.documentElement;
