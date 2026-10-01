@@ -236,6 +236,7 @@ img { max-width: 100%; display: block; }
 .section--tight { padding-top: clamp(1.5rem, 4vw, 3rem); }
 
 .section__head { max-width: 620px; margin-bottom: 3rem; }
+.section__head--center { margin-left: auto; margin-right: auto; text-align: center; }
 .section__head h2 { font-size: clamp(1.9rem, 4vw, 2.9rem); margin-bottom: 0.7rem; }
 .section__head p { font-size: 1.05rem; color: var(--ink-soft); }
 
@@ -548,6 +549,68 @@ img { max-width: 100%; display: block; }
 .who h3 { font-size: 1.2rem; margin-bottom: 0.5rem; padding-top: 1.2rem; border-top: 1px solid var(--line-2); }
 .who p { color: var(--ink-soft); }
 
+/* ---------------- Proof / trust (v2) ---------------- */
+.proof {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(2.5rem, 5vw, 4rem) var(--pad);
+  text-align: center;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.proof__label { text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.78rem; color: var(--ink-soft); margin: 0 0 1.5rem; }
+.proof__logos { list-style: none; margin: 0 0 2.5rem; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 1.25rem 2.5rem; }
+.proof__logos li { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; color: var(--ink-soft); opacity: 0.7; }
+.proof__markers { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+.proof__markers li { text-align: left; padding: 1.1rem 1.2rem; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); box-shadow: var(--shadow-card); }
+.proof__markers strong { display: block; font-size: 1rem; margin-bottom: 0.3rem; }
+.proof__markers span { font-size: 0.9rem; color: var(--ink-soft); }
+
+/* ---------------- Problem framing (v2) ---------------- */
+.problem { max-width: var(--maxw); margin: 0 auto; padding: clamp(4rem, 9vw, 7rem) var(--pad); }
+.problem__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+.problem__col { padding: 1.9rem; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); box-shadow: var(--shadow-card); }
+.problem__col--fix { border-color: var(--line-2); }
+.problem__col h3 { font-size: 1.2rem; margin: 0 0 1.1rem; }
+.problem__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.problem__list li { display: flex; align-items: flex-start; gap: 0.65rem; color: var(--ink-mid); font-size: 0.98rem; }
+.problem__list li::before {
+  flex: none;
+  width: 19px; height: 19px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  font-size: 11px;
+  border: 1px solid var(--line);
+}
+.problem__list--pain li::before { content: "\2013"; background: var(--surface-2); color: var(--ink-soft); }
+.problem__list--win li::before { content: "\2713"; background: var(--ink); color: var(--btn-ink); border-color: var(--ink); }
+
+/* ---------------- Pricing (v2, placeholder) ---------------- */
+.pricing { max-width: var(--maxw); margin: 0 auto; padding: clamp(4rem, 9vw, 7rem) var(--pad); }
+.tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; align-items: start; }
+.tier {
+  position: relative;
+  padding: 2rem 1.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.tier--featured { border-color: var(--line-2); }
+.tier__tag { position: absolute; top: -11px; left: 1.75rem; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; background: var(--btn-bg); color: var(--btn-ink); border-radius: 999px; padding: 0.25rem 0.7rem; }
+.tier h3 { font-size: 1.15rem; margin: 0; }
+.tier__price { font-size: 2rem; font-weight: 600; letter-spacing: -0.03em; margin: 0.2rem 0 0; }
+.tier__for { color: var(--ink-soft); font-size: 0.92rem; margin: 0 0 0.6rem; }
+.tier__list { list-style: none; margin: 0 0 1.5rem; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
+.tier__list li { display: flex; align-items: center; gap: 0.6rem; color: var(--ink-mid); font-size: 0.95rem; }
+.tier__list li::before { content: "\2713"; flex: none; width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); }
+.tier .btn { width: 100%; }
+
 /* ---------------- CTA ---------------- */
 .cta {
   position: relative;
@@ -652,6 +715,9 @@ html.lenis, html.lenis body { height: auto; }
   .panel { grid-template-columns: 1fr; gap: 1.5rem; }
   .steps { grid-template-columns: 1fr; }
   .step:not(:last-child)::after { display: none; }
+  .proof__markers { grid-template-columns: repeat(2, 1fr); }
+  .problem__grid { grid-template-columns: 1fr; }
+  .tiers { grid-template-columns: 1fr; }
   .section--split { grid-template-columns: 1fr; }
   .who { grid-template-columns: 1fr; gap: 1.5rem; }
   .footer__top { grid-template-columns: 1fr; gap: 2rem; }
