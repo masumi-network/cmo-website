@@ -173,16 +173,6 @@
     var fin = function () { model.removeEventListener("finished", fin); if (then) then(); };
     model.addEventListener("finished", fin);
   }
-  function wireHover() {
-    if (!hasClip("Hop")) return;
-    var busy = false;
-    model.addEventListener("mouseenter", function () {
-      if (busy) return;
-      busy = true;
-      playOnce("Hop", function () { busy = false; loopIdle(); });
-    });
-  }
-
   function startMascotMotion() {
     gsap.to(".hero .orb", { scale: 1.08, opacity: 0.85, duration: 3.2, ease: "sine.inOut", repeat: -1, yoyo: true });
     if (!model) return;
@@ -256,7 +246,6 @@
     gsap.set(model, { x: dx, y: dy, scale: scale, transformOrigin: "center center" });
 
     // Greet while centered, then settle into the idle loop.
-    wireHover();
     if (hasClip("Hello")) playOnce("Hello", loopIdle); else loopIdle();
 
     gsap
@@ -267,8 +256,11 @@
       .to(model, { x: 0, y: 0, scale: 1, duration: 1.15, ease: "power3.inOut" }, 0.9)
       // reveal the hero text as it travels
       .add(function () { root.classList.remove("has-anim"); revealText(); }, 1.05)
-      // hand over to the idle float + pointer-follow once it has landed
-      .add(function () { startMascotMotion(); }, 2.0);
+      // once it lands: one hop, then settle into idle float + pointer-follow
+      .add(function () {
+        startMascotMotion();
+        if (hasClip("Hop")) playOnce("Hop", loopIdle); else loopIdle();
+      }, 2.05);
   }
 
   var introRan = false;
