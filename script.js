@@ -129,16 +129,6 @@
   // No-animation path: guarantee everything is visible, then stop.
   if (reduced || !window.gsap) {
     root.classList.remove("has-anim");
-    // If the 3D viewer can't run, reveal the fallback image.
-    var m0 = document.querySelector(".hero__visual model-viewer");
-    var fb0 = document.querySelector(".hero__fallback");
-    var ok0 = (function () { try { var c = document.createElement("canvas");
-      return !!(window.WebGLRenderingContext && (c.getContext("webgl") || c.getContext("experimental-webgl"))); }
-      catch (e) { return false; } })();
-    if (fb0 && (!m0 || !ok0 || !customElements.get("model-viewer"))) {
-      if (m0) m0.style.display = "none";
-      fb0.hidden = false;
-    }
     return;
   }
 
@@ -171,23 +161,10 @@
   //      the hero with the 3D already showing (never the flat image). ----
   var loaderEl = document.getElementById("loader");
   var model = document.querySelector(".hero__visual model-viewer");
-  var fallback = document.querySelector(".hero__fallback");
   var visual = document.querySelector(".hero__visual");
 
-  var webglOK = (function () {
-    try { var c = document.createElement("canvas");
-      return !!(window.WebGLRenderingContext && (c.getContext("webgl") || c.getContext("experimental-webgl"))); }
-    catch (e) { return false; }
-  })();
-
-  function useFallback() {
-    if (model) model.style.display = "none";
-    if (fallback) fallback.hidden = false;
-  }
-
   function startMascotMotion() {
-    var target = (model && model.style.display !== "none") ? model : fallback;
-    if (target) gsap.to(target, { y: 14, duration: 2.6, ease: "sine.inOut", repeat: -1, yoyo: true });
+    if (model) gsap.to(model, { y: 14, duration: 2.6, ease: "sine.inOut", repeat: -1, yoyo: true });
     gsap.to(".hero .orb", { scale: 1.08, opacity: 0.85, duration: 3.2, ease: "sine.inOut", repeat: -1, yoyo: true });
     if (visual && matchMedia("(pointer:fine)").matches) {
       var qx = gsap.quickTo(visual, "x", { duration: 0.6, ease: "power2.out" });
@@ -202,7 +179,6 @@
   }
 
   function revealHero() {
-    var vis = (model && model.style.display !== "none") ? model : fallback;
     var tl = gsap
       .timeline({ defaults: { ease: "power3.out", duration: 0.9 } })
       .from(".nav", { y: -18, autoAlpha: 0, duration: 0.7 })
@@ -211,7 +187,7 @@
       .from(".hero .lead", { y: 22, autoAlpha: 0 }, "-=0.6")
       .from(".hero .waitlist", { y: 20, autoAlpha: 0 }, "-=0.65")
       .from(".hero__meta", { y: 16, autoAlpha: 0 }, "-=0.7");
-    if (vis) tl.from(vis, { scale: 0.9, autoAlpha: 0, duration: 1.0, ease: "power2.out" }, "-=1.05");
+    if (model) tl.from(model, { scale: 0.9, autoAlpha: 0, duration: 1.0, ease: "power2.out" }, "-=1.05");
     tl.add(startMascotMotion, "-=0.4");
   }
 
@@ -229,9 +205,7 @@
   function runIntro() {
     if (introRan) return;
     introRan = true;
-    // No 3D support -> show the fallback image and reveal.
-    if (!model || !webglOK || !customElements.get("model-viewer")) { useFallback(); finishIntro(); return; }
-    if (model.loaded) { finishIntro(); return; }
+    if (!model || model.loaded) { finishIntro(); return; }
     var done = false;
     model.addEventListener("load", function () { if (done) return; done = true; finishIntro(); }, { once: true });
     // Safety: if the model is slow, reveal anyway (it will pop in when ready).

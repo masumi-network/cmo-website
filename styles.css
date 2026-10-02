@@ -293,13 +293,6 @@ img { max-width: 100%; display: block; }
 .hero__model:active { cursor: grabbing; }
 /* model-viewer's default UI — keep it minimal */
 .hero__model::part(default-progress-bar) { display: none; }
-/* Fallback image (only shown if the 3D viewer can't run) */
-.hero__fallback {
-  position: relative;
-  z-index: 1;
-  width: min(360px, 76vw);
-  filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.45));
-}
 .orb {
   position: absolute;
   width: min(440px, 88vw);
