@@ -62,13 +62,14 @@
        Flagged as temporary in styles.css.
        ============================================================ -->
 
-  <!-- Loading splash: mascot starts large/centered, then flies into the hero. -->
+  <!-- Loading splash: brand fade held until the 3D mascot is ready, so the
+       first thing shown is the 3D model, never the flat image. -->
   <div class="loader" id="loader" aria-hidden="true">
     <div class="loader__bg"></div>
     <div class="loader__inner">
       <div class="loader__glow"></div>
-      <img class="loader__mascot" src="/assets/mascot-hero.png" alt="" />
       <span class="loader__word">CMO.XYZ</span>
+      <span class="loader__dots" aria-hidden="true"><i></i><i></i><i></i></span>
     </div>
   </div>
 
@@ -126,10 +127,10 @@
           camera-orbit="0deg 82deg 115%" min-camera-orbit="auto 0deg auto"
           max-camera-orbit="auto 180deg auto" field-of-view="30deg"
           environment-image="neutral" exposure="1.15" shadow-intensity="0.5" shadow-softness="1"
-          loading="eager" aria-label="Interactive 3D CMO.XYZ mascot">
-          <img slot="poster" class="hero__model-poster" src="/assets/mascot-hero.png"
-               alt="The CMO.XYZ agent, Cuso" width="400" height="525" fetchpriority="high" />
-        </model-viewer>
+          loading="eager" reveal="auto" aria-label="Interactive 3D CMO.XYZ mascot"></model-viewer>
+        <!-- Fallback shown only if WebGL / the 3D viewer is unavailable. -->
+        <img class="hero__fallback" src="/assets/mascot-hero.png" alt="The CMO.XYZ agent, Cuso"
+             width="400" height="525" hidden />
       </div>
     </section>
 

@@ -129,6 +129,16 @@
   // No-animation path: guarantee everything is visible, then stop.
   if (reduced || !window.gsap) {
     root.classList.remove("has-anim");
+    // If the 3D viewer can't run, reveal the fallback image.
+    var m0 = document.querySelector(".hero__visual model-viewer");
+    var fb0 = document.querySelector(".hero__fallback");
+    var ok0 = (function () { try { var c = document.createElement("canvas");
+      return !!(window.WebGLRenderingContext && (c.getContext("webgl") || c.getContext("experimental-webgl"))); }
+      catch (e) { return false; } })();
+    if (fb0 && (!m0 || !ok0 || !customElements.get("model-viewer"))) {
+      if (m0) m0.style.display = "none";
+      fb0.hidden = false;
+    }
     return;
   }
 
@@ -157,16 +167,27 @@
     });
   });
 
-  // ---- Intro: the mascot flies from the splash into the hero ----
+  // ---- Intro: hold the splash until the 3D mascot is ready, then reveal
+  //      the hero with the 3D already showing (never the flat image). ----
   var loaderEl = document.getElementById("loader");
-  var loaderMascot = document.querySelector(".loader__mascot");
-  // Flip target: the 3D model if present, else the 2D hero image.
-  var heroImg = document.querySelector(".hero__visual model-viewer") ||
-    document.querySelector(".hero__visual img");
+  var model = document.querySelector(".hero__visual model-viewer");
+  var fallback = document.querySelector(".hero__fallback");
   var visual = document.querySelector(".hero__visual");
 
+  var webglOK = (function () {
+    try { var c = document.createElement("canvas");
+      return !!(window.WebGLRenderingContext && (c.getContext("webgl") || c.getContext("experimental-webgl"))); }
+    catch (e) { return false; }
+  })();
+
+  function useFallback() {
+    if (model) model.style.display = "none";
+    if (fallback) fallback.hidden = false;
+  }
+
   function startMascotMotion() {
-    if (heroImg) gsap.to(heroImg, { y: 14, duration: 2.6, ease: "sine.inOut", repeat: -1, yoyo: true });
+    var target = (model && model.style.display !== "none") ? model : fallback;
+    if (target) gsap.to(target, { y: 14, duration: 2.6, ease: "sine.inOut", repeat: -1, yoyo: true });
     gsap.to(".hero .orb", { scale: 1.08, opacity: 0.85, duration: 3.2, ease: "sine.inOut", repeat: -1, yoyo: true });
     if (visual && matchMedia("(pointer:fine)").matches) {
       var qx = gsap.quickTo(visual, "x", { duration: 0.6, ease: "power2.out" });
@@ -181,54 +202,48 @@
   }
 
   function revealHero() {
-    gsap
+    var vis = (model && model.style.display !== "none") ? model : fallback;
+    var tl = gsap
       .timeline({ defaults: { ease: "power3.out", duration: 0.9 } })
       .from(".nav", { y: -18, autoAlpha: 0, duration: 0.7 })
       .from(".hero .pill", { y: 18, autoAlpha: 0, duration: 0.6 }, "-=0.2")
       .from(".hero h1", { y: 30, autoAlpha: 0 }, "-=0.35")
       .from(".hero .lead", { y: 22, autoAlpha: 0 }, "-=0.6")
-      .from(".hero__cta", { y: 20, autoAlpha: 0 }, "-=0.65")
-      .from(".hero__meta", { y: 16, autoAlpha: 0 }, "-=0.7")
-      .add(startMascotMotion, "-=0.4");
+      .from(".hero .waitlist", { y: 20, autoAlpha: 0 }, "-=0.65")
+      .from(".hero__meta", { y: 16, autoAlpha: 0 }, "-=0.7");
+    if (vis) tl.from(vis, { scale: 0.9, autoAlpha: 0, duration: 1.0, ease: "power2.out" }, "-=1.05");
+    tl.add(startMascotMotion, "-=0.4");
   }
 
-  var introRan = false, introDone = false;
-
+  var introDone = false;
   function finishIntro() {
     if (introDone) return;
     introDone = true;
     root.classList.remove("has-anim");
     if (visual) gsap.set(visual, { clearProps: "opacity,visibility" });
-    if (loaderEl) loaderEl.style.display = "none";
+    if (loaderEl) gsap.to(loaderEl, { autoAlpha: 0, duration: 0.45, onComplete: function () { loaderEl.style.display = "none"; } });
     revealHero();
   }
 
+  var introRan = false;
   function runIntro() {
     if (introRan) return;
     introRan = true;
-    if (!loaderEl || !loaderMascot || !heroImg) { finishIntro(); return; }
-    var lr = loaderMascot.getBoundingClientRect();
-    var hr = heroImg.getBoundingClientRect();
-    // model-viewer box is wider than the visible mascot; aim ~72% of it.
-    var isModel = heroImg.tagName.toLowerCase() === "model-viewer";
-    var scale = (hr.width * (isModel ? 0.72 : 1)) / lr.width;
-    var dx = (hr.left + hr.width / 2) - (lr.left + lr.width / 2);
-    var dy = (hr.top + hr.height / 2) - (lr.top + lr.height / 2);
-    gsap.set(loaderMascot, { transformOrigin: "center center" });
-    gsap
-      .timeline({ onComplete: finishIntro })
-      .to(loaderMascot, { scale: 1.04, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 1 }, 0)
-      .to(".loader__word", { autoAlpha: 0, duration: 0.4, ease: "power2.out" }, 0.55)
-      .to(".loader__glow", { autoAlpha: 0, duration: 0.6 }, 0.7)
-      .to(loaderMascot, { x: dx, y: dy, scale: scale, duration: 1.1, ease: "power3.inOut" }, 0.75)
-      .to(".loader__bg", { autoAlpha: 0, duration: 0.7, ease: "power2.inOut" }, 1.0);
+    // No 3D support -> show the fallback image and reveal.
+    if (!model || !webglOK || !customElements.get("model-viewer")) { useFallback(); finishIntro(); return; }
+    if (model.loaded) { finishIntro(); return; }
+    var done = false;
+    model.addEventListener("load", function () { if (done) return; done = true; finishIntro(); }, { once: true });
+    // Safety: if the model is slow, reveal anyway (it will pop in when ready).
+    setTimeout(function () { if (done) return; done = true; finishIntro(); }, 3500);
   }
 
+  // Hold a short minimum splash, then run once the page is loaded.
   var introStart = Date.now();
-  function kickIntro() { setTimeout(runIntro, Math.max(0, 650 - (Date.now() - introStart))); }
+  function kickIntro() { setTimeout(runIntro, Math.max(0, 500 - (Date.now() - introStart))); }
   if (document.readyState === "complete") kickIntro();
   else window.addEventListener("load", kickIntro);
-  setTimeout(finishIntro, 4200); // safety: never hang the splash
+  setTimeout(finishIntro, 6000); // absolute safety: never hang the splash
 
   // ---- Cursor companion: the mascot trails the real pointer ----
   var pet = document.querySelector(".cursor-pet");
