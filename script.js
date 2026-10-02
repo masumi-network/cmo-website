@@ -164,18 +164,35 @@
   var visual = document.querySelector(".hero__visual");
 
   function startMascotMotion() {
-    if (model) gsap.to(model, { y: 14, duration: 2.6, ease: "sine.inOut", repeat: -1, yoyo: true });
     gsap.to(".hero .orb", { scale: 1.08, opacity: 0.85, duration: 3.2, ease: "sine.inOut", repeat: -1, yoyo: true });
-    if (visual && matchMedia("(pointer:fine)").matches) {
-      var qx = gsap.quickTo(visual, "x", { duration: 0.6, ease: "power2.out" });
-      var qy = gsap.quickTo(visual, "y", { duration: 0.6, ease: "power2.out" });
-      var qr = gsap.quickTo(visual, "rotation", { duration: 0.6, ease: "power2.out" });
+    if (!model) return;
+
+    // Gentle vertical float (idle bob).
+    gsap.to(model, { y: 12, duration: 2.6, ease: "sine.inOut", repeat: -1, yoyo: true });
+
+    // Replace the turntable spin with a lively pointer-follow + idle sway:
+    // drive camera-orbit ourselves so the mascot "looks" toward the cursor.
+    model.removeAttribute("auto-rotate");
+    model.removeAttribute("camera-controls");
+    model.setAttribute("interpolation-decay", "0"); // we smooth it ourselves
+
+    var fine = matchMedia("(pointer:fine)").matches;
+    var tTheta = 0, tPhi = 80, cTheta = 0, cPhi = 80, start = performance.now();
+    if (fine) {
       window.addEventListener("pointermove", function (e) {
         var dx = e.clientX / window.innerWidth - 0.5;
         var dy = e.clientY / window.innerHeight - 0.5;
-        qx(dx * 26); qy(dy * 20); qr(dx * 3);
+        tTheta = dx * 44;        // turn left/right toward the cursor
+        tPhi = 80 - dy * 14;     // tip up/down a little
       });
     }
+    (function loop(now) {
+      var idle = Math.sin((now - start) / 1500) * 7;   // slow sway
+      cTheta += (tTheta + idle - cTheta) * 0.06;        // ease toward target
+      cPhi += (tPhi - cPhi) * 0.06;
+      model.setAttribute("camera-orbit", cTheta.toFixed(2) + "deg " + cPhi.toFixed(2) + "deg 115%");
+      requestAnimationFrame(loop);
+    })(performance.now());
   }
 
   function revealHero() {
@@ -187,8 +204,9 @@
       .from(".hero .lead", { y: 22, autoAlpha: 0 }, "-=0.6")
       .from(".hero .waitlist", { y: 20, autoAlpha: 0 }, "-=0.65")
       .from(".hero__meta", { y: 16, autoAlpha: 0 }, "-=0.7");
-    if (model) tl.from(model, { scale: 0.9, autoAlpha: 0, duration: 1.0, ease: "power2.out" }, "-=1.05");
-    tl.add(startMascotMotion, "-=0.4");
+    if (model)
+      tl.from(model, { scale: 0.6, y: 60, rotationZ: -8, autoAlpha: 0, duration: 1.1, ease: "back.out(1.6)" }, "-=1.1");
+    tl.add(startMascotMotion, "-=0.3");
   }
 
   var introDone = false;
