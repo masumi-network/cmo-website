@@ -163,11 +163,31 @@
   var model = document.querySelector(".hero__visual model-viewer");
   var visual = document.querySelector(".hero__visual");
 
+  // ---- Baked animation clips (Idle / Hello / Hop / Blink / Spin) ----
+  function clipList() { return (model && model.availableAnimations) || []; }
+  function hasClip(n) { return clipList().indexOf(n) !== -1; }
+  function loopIdle() { if (hasClip("Idle")) { model.animationName = "Idle"; model.play(); } }
+  function playOnce(name, then) {
+    model.animationName = name;
+    model.play({ repetitions: 1 });
+    var fin = function () { model.removeEventListener("finished", fin); if (then) then(); };
+    model.addEventListener("finished", fin);
+  }
+  function wireHover() {
+    if (!hasClip("Hop")) return;
+    var busy = false;
+    model.addEventListener("mouseenter", function () {
+      if (busy) return;
+      busy = true;
+      playOnce("Hop", function () { busy = false; loopIdle(); });
+    });
+  }
+
   function startMascotMotion() {
     gsap.to(".hero .orb", { scale: 1.08, opacity: 0.85, duration: 3.2, ease: "sine.inOut", repeat: -1, yoyo: true });
     if (!model) return;
 
-    // Gentle vertical float (idle bob) on top of the baked animation.
+    // Gentle float (idle bob) on top of the baked animation.
     gsap.to(model, { y: 10, duration: 2.8, ease: "sine.inOut", repeat: -1, yoyo: true });
 
     // Subtle pointer-follow for depth; baked clips lead the motion.
@@ -190,37 +210,10 @@
       model.setAttribute("camera-orbit", cTheta.toFixed(2) + "deg " + cPhi.toFixed(2) + "deg 115%");
       requestAnimationFrame(loop);
     })(performance.now());
-
-    setupClips();
   }
 
-  // Play baked clips: wave "Hello" once, then loop "Idle"; "Hop" on hover.
-  function setupClips() {
-    if (!model) return;
-    var go = function () {
-      var clips = model.availableAnimations || [];
-      if (!clips.length) return;
-      var has = function (n) { return clips.indexOf(n) !== -1; };
-      var toIdle = function () { if (has("Idle")) { model.animationName = "Idle"; model.play(); } };
-      var once = function (name, then) {
-        model.animationName = name;
-        model.play({ repetitions: 1 });
-        var fin = function () { model.removeEventListener("finished", fin); then(); };
-        model.addEventListener("finished", fin);
-      };
-      if (has("Hello")) once("Hello", toIdle); else toIdle();
-      var busy = false;
-      model.addEventListener("mouseenter", function () {
-        if (busy || !has("Hop")) return;
-        busy = true;
-        once("Hop", function () { busy = false; toIdle(); });
-      });
-    };
-    if (model.loaded) go(); else model.addEventListener("load", go, { once: true });
-  }
-
-  function revealHero() {
-    var tl = gsap
+  function revealText() {
+    gsap
       .timeline({ defaults: { ease: "power3.out", duration: 0.9 } })
       .from(".nav", { y: -18, autoAlpha: 0, duration: 0.7 })
       .from(".hero .pill", { y: 18, autoAlpha: 0, duration: 0.6 }, "-=0.2")
@@ -228,30 +221,65 @@
       .from(".hero .lead", { y: 22, autoAlpha: 0 }, "-=0.6")
       .from(".hero .waitlist", { y: 20, autoAlpha: 0 }, "-=0.65")
       .from(".hero__meta", { y: 16, autoAlpha: 0 }, "-=0.7");
-    if (model)
-      tl.from(model, { scale: 0.6, y: 60, rotationZ: -8, autoAlpha: 0, duration: 1.1, ease: "back.out(1.6)" }, "-=1.1");
-    tl.add(startMascotMotion, "-=0.3");
   }
 
   var introDone = false;
-  function finishIntro() {
+
+  // Plain reveal (no model): just drop the splash and show the hero.
+  function revealSimple() {
     if (introDone) return;
     introDone = true;
     root.classList.remove("has-anim");
     if (visual) gsap.set(visual, { clearProps: "opacity,visibility" });
-    if (loaderEl) gsap.to(loaderEl, { autoAlpha: 0, duration: 0.45, onComplete: function () { loaderEl.style.display = "none"; } });
-    revealHero();
+    if (loaderEl) gsap.to(loaderEl, { autoAlpha: 0, duration: 0.4, onComplete: function () { loaderEl.style.display = "none"; } });
+    revealText();
+    startMascotMotion();
+  }
+
+  // The intro: the mascot appears centered (waves Hello), then flies into
+  // its hero spot while the text reveals (classic FLIP, single element).
+  function introFlip() {
+    if (introDone) return;
+    introDone = true;
+
+    // Reveal the model layer (still hidden behind the loader for a moment).
+    if (visual) gsap.set(visual, { opacity: 1, visibility: "visible" });
+
+    // Measure where the model should end up (its hero slot), then place it
+    // big and centered on screen to start.
+    var hr = model.getBoundingClientRect();
+    var dx = window.innerWidth / 2 - (hr.left + hr.width / 2);
+    var dy = window.innerHeight * 0.46 - (hr.top + hr.height / 2);
+    var scale = (window.innerHeight * 0.62) / hr.height;
+    if (!isFinite(scale)) scale = 1.3;
+    scale = Math.max(1.2, Math.min(scale, 1.8));
+    gsap.set(model, { x: dx, y: dy, scale: scale, transformOrigin: "center center" });
+
+    // Greet while centered, then settle into the idle loop.
+    wireHover();
+    if (hasClip("Hello")) playOnce("Hello", loopIdle); else loopIdle();
+
+    gsap
+      .timeline()
+      // fade the splash to reveal the centered mascot
+      .to(loaderEl, { autoAlpha: 0, duration: 0.45, onComplete: function () { loaderEl.style.display = "none"; } }, 0)
+      // hold center for a beat, then fly it into the hero slot
+      .to(model, { x: 0, y: 0, scale: 1, duration: 1.15, ease: "power3.inOut" }, 0.9)
+      // reveal the hero text as it travels
+      .add(function () { root.classList.remove("has-anim"); revealText(); }, 1.05)
+      // hand over to the idle float + pointer-follow once it has landed
+      .add(function () { startMascotMotion(); }, 2.0);
   }
 
   var introRan = false;
   function runIntro() {
     if (introRan) return;
     introRan = true;
-    if (!model || model.loaded) { finishIntro(); return; }
+    if (!model) { revealSimple(); return; }
+    if (model.loaded) { introFlip(); return; }
     var done = false;
-    model.addEventListener("load", function () { if (done) return; done = true; finishIntro(); }, { once: true });
-    // Safety: if the model is slow, reveal anyway (it will pop in when ready).
-    setTimeout(function () { if (done) return; done = true; finishIntro(); }, 3500);
+    model.addEventListener("load", function () { if (done) return; done = true; introFlip(); }, { once: true });
+    setTimeout(function () { if (done) return; done = true; introFlip(); }, 4000);
   }
 
   // Hold a short minimum splash, then run once the page is loaded.
@@ -259,7 +287,7 @@
   function kickIntro() { setTimeout(runIntro, Math.max(0, 500 - (Date.now() - introStart))); }
   if (document.readyState === "complete") kickIntro();
   else window.addEventListener("load", kickIntro);
-  setTimeout(finishIntro, 6000); // absolute safety: never hang the splash
+  setTimeout(function () { if (!introDone) revealSimple(); }, 7000); // absolute safety
 
   // ---- Cursor companion: the mascot trails the real pointer ----
   var pet = document.querySelector(".cursor-pet");
