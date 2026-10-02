@@ -9,6 +9,8 @@
   <meta name="theme-color" content="#0a0b0e" media="(prefers-color-scheme: dark)" />
   <link rel="icon" href="/assets/var-1.png" />
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="modulepreload" href="/vendor/model-viewer.min.js" />
+  <link rel="preload" href="/assets/3d/mascot.glb" as="fetch" type="model/gltf-binary" crossorigin="anonymous" />
   <link rel="stylesheet" href="/v3/v3.css" />
   <script>
     (function () {
@@ -37,8 +39,8 @@
     <div class="loader__bg"></div>
     <div class="loader__inner">
       <div class="loader__glow"></div>
-      <img class="loader__mascot" src="/assets/mascot-hero.png" alt="" />
       <span class="loader__word">CMO.XYZ</span>
+      <span class="loader__dots" aria-hidden="true"><i></i><i></i><i></i></span>
     </div>
   </div>
 
@@ -88,8 +90,15 @@
       </div>
       <div class="hero__visual">
         <div class="orb" aria-hidden="true"></div>
-        <img src="/assets/mascot-hero.png" alt="The CMO.XYZ agent, waving"
-             width="400" height="525" fetchpriority="high" decoding="async" />
+        <model-viewer class="hero__model" src="/assets/3d/mascot.glb"
+          camera-controls disable-zoom disable-pan auto-rotate
+          auto-rotate-delay="0" rotation-per-second="16deg" interaction-prompt="none"
+          camera-orbit="0deg 82deg 115%" min-camera-orbit="auto 0deg auto"
+          max-camera-orbit="auto 180deg auto" field-of-view="30deg"
+          environment-image="neutral" exposure="1.15" shadow-intensity="0.5" shadow-softness="1"
+          loading="eager" reveal="auto" aria-label="Interactive 3D CMO.XYZ mascot"></model-viewer>
+        <img class="hero__fallback" src="/assets/mascot-hero.png" alt="The CMO.XYZ agent, Cuso"
+             width="400" height="525" hidden />
       </div>
     </section>
 
@@ -457,6 +466,7 @@
 
   <div class="cursor-pet" aria-hidden="true"><img src="/assets/var-1.png" alt="" /></div>
 
+  <script type="module" src="/vendor/model-viewer.min.js"></script>
   <script src="/vendor/lenis.min.js"></script>
   <script src="/vendor/gsap.min.js"></script>
   <script src="/vendor/ScrollTrigger.min.js"></script>
