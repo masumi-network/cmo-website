@@ -167,32 +167,56 @@
     gsap.to(".hero .orb", { scale: 1.08, opacity: 0.85, duration: 3.2, ease: "sine.inOut", repeat: -1, yoyo: true });
     if (!model) return;
 
-    // Gentle vertical float (idle bob).
-    gsap.to(model, { y: 12, duration: 2.6, ease: "sine.inOut", repeat: -1, yoyo: true });
+    // Gentle vertical float (idle bob) on top of the baked animation.
+    gsap.to(model, { y: 10, duration: 2.8, ease: "sine.inOut", repeat: -1, yoyo: true });
 
-    // Replace the turntable spin with a lively pointer-follow + idle sway:
-    // drive camera-orbit ourselves so the mascot "looks" toward the cursor.
+    // Subtle pointer-follow for depth; baked clips lead the motion.
     model.removeAttribute("auto-rotate");
     model.removeAttribute("camera-controls");
-    model.setAttribute("interpolation-decay", "0"); // we smooth it ourselves
-
+    model.setAttribute("interpolation-decay", "0");
     var fine = matchMedia("(pointer:fine)").matches;
-    var tTheta = 0, tPhi = 80, cTheta = 0, cPhi = 80, start = performance.now();
+    var tTheta = 0, tPhi = 82, cTheta = 0, cPhi = 82, start = performance.now();
     if (fine) {
       window.addEventListener("pointermove", function (e) {
         var dx = e.clientX / window.innerWidth - 0.5;
         var dy = e.clientY / window.innerHeight - 0.5;
-        tTheta = dx * 44;        // turn left/right toward the cursor
-        tPhi = 80 - dy * 14;     // tip up/down a little
+        tTheta = dx * 28; tPhi = 82 - dy * 10;
       });
     }
     (function loop(now) {
-      var idle = Math.sin((now - start) / 1500) * 7;   // slow sway
-      cTheta += (tTheta + idle - cTheta) * 0.06;        // ease toward target
+      var idle = Math.sin((now - start) / 1700) * 5;
+      cTheta += (tTheta + idle - cTheta) * 0.06;
       cPhi += (tPhi - cPhi) * 0.06;
       model.setAttribute("camera-orbit", cTheta.toFixed(2) + "deg " + cPhi.toFixed(2) + "deg 115%");
       requestAnimationFrame(loop);
     })(performance.now());
+
+    setupClips();
+  }
+
+  // Play baked clips: wave "Hello" once, then loop "Idle"; "Hop" on hover.
+  function setupClips() {
+    if (!model) return;
+    var go = function () {
+      var clips = model.availableAnimations || [];
+      if (!clips.length) return;
+      var has = function (n) { return clips.indexOf(n) !== -1; };
+      var toIdle = function () { if (has("Idle")) { model.animationName = "Idle"; model.play(); } };
+      var once = function (name, then) {
+        model.animationName = name;
+        model.play({ repetitions: 1 });
+        var fin = function () { model.removeEventListener("finished", fin); then(); };
+        model.addEventListener("finished", fin);
+      };
+      if (has("Hello")) once("Hello", toIdle); else toIdle();
+      var busy = false;
+      model.addEventListener("mouseenter", function () {
+        if (busy || !has("Hop")) return;
+        busy = true;
+        once("Hop", function () { busy = false; toIdle(); });
+      });
+    };
+    if (model.loaded) go(); else model.addEventListener("load", go, { once: true });
   }
 
   function revealHero() {
