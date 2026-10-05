@@ -806,7 +806,7 @@ img { max-width: 100%; display: block; }
   overflow: hidden;
 }
 .cta .orb--sm { top: -30%; left: 50%; transform: translateX(-50%); width: min(560px, 90vw); }
-.cta__art { position: relative; z-index: 1; width: 120px; margin: 0 auto 1.5rem; filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.4)); }
+.cta__art { position: relative; z-index: 1; width: 120px; height: auto; margin: 0 auto 1.5rem; filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.4)); }
 .cta h2 { position: relative; z-index: 1; font-size: clamp(1.9rem, 4vw, 2.8rem); max-width: 20ch; margin: 0 auto 0.8rem; }
 .cta p { position: relative; z-index: 1; color: var(--ink-mid); max-width: 44ch; margin: 0 auto 2rem; }
 .cta .btn { position: relative; z-index: 1; }
