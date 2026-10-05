@@ -106,6 +106,9 @@
 .v3x .tier--featured .tier__per,
 .v3x .tier--featured .tier__bill { color: color-mix(in srgb, var(--btn-ink) 70%, transparent); }
 .v3x .tier--featured .tier__plus { color: var(--btn-ink); }
+/* Featured card sits on a dark surface — invert its button so it stays visible. */
+.v3x .tier--featured .btn { background: var(--btn-ink); color: var(--ink); border-color: var(--btn-ink); }
+.v3x .tier--featured .btn:hover { background: var(--btn-ink); border-color: var(--btn-ink); opacity: 0.88; }
 @media (max-width: 900px) { .v3x .tier--featured { transform: none; } }
 
 /* ---- Chat bubbles extra round ---- */

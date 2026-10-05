@@ -663,7 +663,7 @@ img { max-width: 100%; display: block; }
 
 /* ---------------- Pricing (v2, placeholder) ---------------- */
 .pricing { max-width: var(--maxw); margin: 0 auto; padding: clamp(4rem, 9vw, 7rem) var(--pad); }
-.tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; align-items: start; }
+.tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; align-items: stretch; }
 .tier {
   position: relative;
   padding: 2rem 1.75rem;
