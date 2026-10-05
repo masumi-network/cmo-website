@@ -122,6 +122,9 @@
 .v3x .cta { background: var(--ink); color: var(--btn-ink); border: none; border-radius: var(--r-lg); box-shadow: var(--shadow-lg); }
 .v3x .cta p { color: color-mix(in srgb, var(--btn-ink) 78%, transparent); }
 .v3x .cta .btn { background: var(--btn-ink); color: var(--ink); border-color: var(--btn-ink); }
+/* The CTA capture-bar button sits inside a white pill — keep it dark/filled. */
+.v3x .cta .waitlist .btn { background: var(--btn-bg); color: var(--btn-ink); border-color: var(--btn-bg); }
+.v3x .cta .waitlist .btn:hover { background: var(--btn-bg-hover); border-color: var(--btn-bg-hover); }
 
 /* ---------------- Mobile / small screens ---------------- */
 @media (max-width: 640px) {
