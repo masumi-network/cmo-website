@@ -126,6 +126,17 @@
 .v3x .cta .waitlist .btn { background: var(--btn-bg); color: var(--btn-ink); border-color: var(--btn-bg); }
 .v3x .cta .waitlist .btn:hover { background: var(--btn-bg-hover); border-color: var(--btn-bg-hover); }
 
+/* ---- Capability mockups: wrap each card in a gradient frame ---- */
+.v3x { --grad: linear-gradient(150deg, #4f46e5 0%, #7c3aed 32%, #db2777 64%, #f97316 100%); }
+.v3x .cap {
+  padding: 7px;
+  border-radius: 26px;
+  background: var(--grad);
+  box-shadow: 0 26px 55px -30px rgba(124, 58, 237, 0.55);
+}
+.v3x .cap::before { display: none; } /* drop the old grey glow */
+.v3x .cap-card { border-radius: 19px; box-shadow: none; }
+
 /* ---------------- Mobile / small screens ---------------- */
 @media (max-width: 640px) {
   .v3x .hero.hero--center {
