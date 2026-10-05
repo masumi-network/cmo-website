@@ -16,7 +16,23 @@
 :root[data-theme="dark"] .v3x { --shadow-card: none; }
 
 /* ---- Rounded, airy type ---- */
-.v3x .hero h1 { font-size: clamp(2.6rem, 7vw, 5rem); letter-spacing: -0.04em; line-height: 0.98; }
+.v3x .hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -0.04em; line-height: 1; }
+.v3x .hero .lead { font-size: clamp(0.95rem, 1.25vw, 1.08rem); max-width: min(64ch, 92vw); }
+
+/* First view: headline, paragraph, capture bar and mascot all fit one screen. */
+.v3x .hero.hero--center {
+  min-height: calc(100svh - 4rem);
+  align-content: center;
+  padding-top: clamp(2.5rem, 6vh, 4rem);
+  padding-bottom: clamp(1rem, 3vh, 2rem);
+  gap: clamp(0.9rem, 2vh, 1.6rem);
+}
+.v3x .hero.hero--center .hero__visual { width: 100%; }
+.v3x .hero.hero--center .hero__model {
+  width: min(540px, 92vw);
+  height: min(500px, 54vh);
+}
+.v3x .hero.hero--center .orb { width: min(440px, 80vw); }
 .v3x .section__head h2,
 .v3x .problem h2,
 .v3x .cta h2 { font-size: clamp(2rem, 4.6vw, 3.2rem); letter-spacing: -0.03em; }
@@ -101,12 +117,27 @@
 /* ---------------- Mascot cursor ---------------- */
 /* The sokosumi arrow-mascot becomes the pointer itself on fine-pointer devices
    (touch keeps native behaviour). Hotspot sits on the arrow tip. */
+/* ---------------- Mobile / small screens ---------------- */
+@media (max-width: 640px) {
+  .v3x .hero.hero--center {
+    min-height: auto;               /* don't force a full screen; let it flow */
+    padding-top: clamp(1.5rem, 7vw, 2.5rem);
+    padding-bottom: clamp(2rem, 9vw, 3rem);
+    gap: 1.3rem;
+  }
+  .v3x .hero.hero--center .hero__model {
+    width: min(340px, 84vw);
+    height: min(360px, 44vh);
+  }
+  .v3x .hero.hero--center .orb { width: min(300px, 74vw); }
+}
+
 @media (pointer: fine) {
-  body { cursor: url("/assets/cursor-mascot.png") 22 30, auto; }
+  body { cursor: url("/assets/cursor-mascot.png") 9 4, auto; }
   a, button, [role="button"], label, summary, .btn,
   input[type="submit"], input[type="button"], input[type="reset"],
   select, .nav__toggle {
-    cursor: url("/assets/cursor-mascot.png") 22 30, pointer;
+    cursor: url("/assets/cursor-mascot.png") 9 4, pointer;
   }
   input[type="text"], input[type="email"], input[type="search"],
   input[type="tel"], input[type="url"], input[type="password"],
