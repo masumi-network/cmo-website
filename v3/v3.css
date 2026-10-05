@@ -97,3 +97,18 @@
 .v3x .cta { background: var(--ink); color: var(--btn-ink); border: none; border-radius: var(--r-lg); box-shadow: var(--shadow-lg); }
 .v3x .cta p { color: color-mix(in srgb, var(--btn-ink) 78%, transparent); }
 .v3x .cta .btn { background: var(--btn-ink); color: var(--ink); border-color: var(--btn-ink); }
+
+/* ---------------- Mascot cursor ---------------- */
+/* The sokosumi arrow-mascot becomes the pointer itself on fine-pointer devices
+   (touch keeps native behaviour). Hotspot sits on the arrow tip. */
+@media (pointer: fine) {
+  body { cursor: url("/assets/cursor-mascot.png") 22 30, auto; }
+  a, button, [role="button"], label, summary, .btn,
+  input[type="submit"], input[type="button"], input[type="reset"],
+  select, .nav__toggle {
+    cursor: url("/assets/cursor-mascot.png") 22 30, pointer;
+  }
+  input[type="text"], input[type="email"], input[type="search"],
+  input[type="tel"], input[type="url"], input[type="password"],
+  input:not([type]), textarea { cursor: text; }
+}

@@ -743,6 +743,21 @@ img { max-width: 100%; display: block; }
 :root[data-theme="dark"] .cursor-pet img { filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.55)); }
 @media (pointer: coarse) { .cursor-pet { display: none !important; } }
 
+/* ---------------- Mascot cursor ---------------- */
+/* The sokosumi arrow-mascot becomes the pointer itself on fine-pointer devices
+   (touch keeps native behaviour). Hotspot sits on the arrow tip. */
+@media (pointer: fine) {
+  body { cursor: url("/assets/cursor-mascot.png") 22 30, auto; }
+  a, button, [role="button"], label, summary, .btn,
+  input[type="submit"], input[type="button"], input[type="reset"],
+  select, .nav__toggle {
+    cursor: url("/assets/cursor-mascot.png") 22 30, pointer;
+  }
+  input[type="text"], input[type="email"], input[type="search"],
+  input[type="tel"], input[type="url"], input[type="password"],
+  input:not([type]), textarea { cursor: text; }
+}
+
 /* ---------------- Motion / entrance ---------------- */
 .has-anim:not(.reduced) .hero__text > *,
 .has-anim:not(.reduced) .hero__cta,
