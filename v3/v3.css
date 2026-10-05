@@ -12,8 +12,6 @@
   --r-lg: 32px;
   --shadow-card: 0 2px 4px rgba(16, 24, 40, 0.04), 0 18px 48px -24px rgba(16, 24, 40, 0.22);
   --shadow-lg: 0 40px 90px -40px rgba(16, 24, 40, 0.30);
-  /* Vivid accent gradient (used only for the capabilities section). */
-  --grad: linear-gradient(130deg, #6366f1 0%, #8b5cf6 26%, #ec4899 55%, #f97316 80%, #38bdf8 100%);
 }
 :root[data-theme="dark"] .v3x { --shadow-card: none; }
 
@@ -68,34 +66,6 @@
 .v3x .tab.is-active { background: var(--ink); color: var(--btn-ink); box-shadow: var(--shadow-lg); }
 .v3x .tab.is-active .tab__icon { background: transparent; border-color: currentColor; color: inherit; }
 .v3x .tab__icon { border: none; background: var(--bg); }
-
-/* ---- Colorful gradient accents (capabilities section only) ---- */
-/* Active tab: vivid gradient pill */
-.v3x .tab.is-active {
-  background: var(--grad);
-  color: #fff;
-  box-shadow: 0 12px 26px -12px rgba(139, 92, 246, 0.65);
-}
-.v3x .tab.is-active .tab__bar { opacity: 0; }
-/* Card: gradient border frame + soft colored glow beneath (matches reference) */
-.v3x .tabs__panels {
-  border: 2px solid transparent;
-  background:
-    linear-gradient(var(--surface-2), var(--surface-2)) padding-box,
-    var(--grad) border-box;
-  box-shadow: 0 30px 70px -36px rgba(139, 92, 246, 0.5), 0 2px 10px rgba(16, 24, 40, 0.04);
-}
-/* Mockup touches: pastel image, gradient chart + accent chips */
-.v3x .cap-thumb { background: linear-gradient(135deg, #c7d2fe, #fbcfe8 60%, #fed7aa); }
-.v3x .cap-chart i { background: var(--grad); }
-.v3x .cap-pill--accent { background: var(--grad); border-color: transparent; color: #fff; }
-.v3x .cap-badge .cap-ping,
-.v3x .cap-badge .cap-ping::after { background: #8b5cf6; }
-.v3x .cap-grid span:nth-child(1) { background: linear-gradient(135deg, #a5b4fc, #c4b5fd); }
-.v3x .cap-grid span:nth-child(2) { background: linear-gradient(135deg, #f9a8d4, #fbcfe8); }
-.v3x .cap-grid span:nth-child(3) { background: linear-gradient(135deg, #fdba74, #fcd34d); }
-.v3x .cap-grid span:nth-child(4) { background: linear-gradient(135deg, #7dd3fc, #a5b4fc); }
-.v3x .cap-rank li.top .cap-pos { background: var(--grad); border-color: transparent; }
 
 /* ---- Rounder buttons ---- */
 .v3x .btn { border-radius: 999px; padding-inline: 1.5rem; }
