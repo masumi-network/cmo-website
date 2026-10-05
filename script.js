@@ -444,7 +444,7 @@
     scale: 0.8, autoAlpha: 0, duration: 0.8, ease: "back.out(1.5)",
     scrollTrigger: { trigger: ".cta", start: "top 80%" },
   });
-  gsap.from(".cta h2, .cta p, .cta .btn", {
+  gsap.from(".cta h2, .cta p, .cta .waitlist, .cta__fine", {
     y: 22, autoAlpha: 0, duration: 0.7, stagger: 0.1,
     scrollTrigger: { trigger: ".cta", start: "top 78%" },
   });
