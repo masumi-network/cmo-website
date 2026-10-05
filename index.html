@@ -83,12 +83,6 @@
         <li>Lumen</li>
         <li>Vertex</li>
       </ul>
-      <ul class="proof__markers">
-        <li><strong>End to end</strong><span>One system, not a stack of tools</span></li>
-        <li><strong>Built on your data</strong><span>Every move ties to what it knows</span></li>
-        <li><strong>You approve</strong><span>Anything important lands in Approvals</span></li>
-        <li><strong>Always on</strong><span>Runs the strategy day to day</span></li>
-      </ul>
     </section>
 
     <!-- ===================== PROBLEM FRAMING ===================== -->
@@ -163,32 +157,26 @@
       <div class="tabs">
         <div class="tabs__list" role="tablist" aria-label="What CMO.XYZ does">
           <button class="tab is-active" role="tab" id="tab-social" aria-controls="panel-social" aria-selected="true" data-tab="0">
-            <span class="tab__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg></span>
             <span class="tab__label">Social media</span>
             <span class="tab__bar" aria-hidden="true"></span>
           </button>
           <button class="tab" role="tab" id="tab-content" aria-controls="panel-content" aria-selected="false" tabindex="-1" data-tab="1">
-            <span class="tab__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
             <span class="tab__label">Content creation</span>
             <span class="tab__bar" aria-hidden="true"></span>
           </button>
           <button class="tab" role="tab" id="tab-ads" aria-controls="panel-ads" aria-selected="false" tabindex="-1" data-tab="2">
-            <span class="tab__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg></span>
             <span class="tab__label">Ads (Google + Meta)</span>
             <span class="tab__bar" aria-hidden="true"></span>
           </button>
           <button class="tab" role="tab" id="tab-seo" aria-controls="panel-seo" aria-selected="false" tabindex="-1" data-tab="3">
-            <span class="tab__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
             <span class="tab__label">Website SEO</span>
             <span class="tab__bar" aria-hidden="true"></span>
           </button>
           <button class="tab" role="tab" id="tab-images" aria-controls="panel-images" aria-selected="false" tabindex="-1" data-tab="4">
-            <span class="tab__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span>
-            <span class="tab__label">Images & graphics</span>
+            <span class="tab__label">Images &amp; graphics</span>
             <span class="tab__bar" aria-hidden="true"></span>
           </button>
           <button class="tab" role="tab" id="tab-news" aria-controls="panel-news" aria-selected="false" tabindex="-1" data-tab="5">
-            <span class="tab__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span>
             <span class="tab__label">Newsletter</span>
             <span class="tab__bar" aria-hidden="true"></span>
           </button>
@@ -208,11 +196,19 @@
             <div class="panel__media">
               <div class="cap" aria-hidden="true">
                 <div class="cap-card">
-                  <div class="cap-hd"><span class="cap-dot"></span><div class="cap-lines"><span class="cap-line w60"></span><span class="cap-line w40"></span></div></div>
+                  <div class="cap-hd">
+                    <span class="cap-avatar"></span>
+                    <div class="cap-lines"><span class="cap-line w50"></span><span class="cap-line w30 dim"></span></div>
+                    <span class="cap-more"><i></i><i></i><i></i></span>
+                  </div>
                   <div class="cap-thumb"></div>
-                  <div class="cap-meta"><span class="cap-pill">&#9829; 128</span><span class="cap-pill">&#8599; 24</span><span class="cap-pill">&#8635; 9</span></div>
+                  <div class="cap-react">
+                    <span class="cap-stat"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-6.7-4.3-9.1-8.6A5 5 0 0 1 12 6.5 5 5 0 0 1 21.1 12.4C18.7 16.7 12 21 12 21z"/></svg>128</span>
+                    <span class="cap-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-7-6 16-3.5-6.5L4 12z"/></svg>24</span>
+                    <span class="cap-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h12a4 4 0 0 1 0 8h-2"/><path d="M7 5 4 8l3 3"/></svg>9</span>
+                  </div>
                 </div>
-                <span class="cap-badge cap-badge--tr">Scheduled</span>
+                <span class="cap-badge cap-badge--tr"><span class="cap-ping"></span>Scheduled</span>
               </div>
             </div>
           </div>
@@ -230,11 +226,12 @@
             <div class="panel__media">
               <div class="cap" aria-hidden="true">
                 <div class="cap-card">
+                  <div class="cap-winbar"><i></i><i></i><i></i><span class="cap-line w30 dim"></span></div>
                   <span class="cap-line w70 tall"></span>
                   <span class="cap-line w100"></span>
                   <span class="cap-line w90"></span>
                   <span class="cap-typing"><span class="cap-line w45"></span><i class="cap-caret"></i></span>
-                  <div class="cap-meta"><span class="cap-pill">Draft</span><span class="cap-pill">In Approvals</span></div>
+                  <div class="cap-meta"><span class="cap-pill">Draft</span><span class="cap-pill cap-pill--accent">In Approvals</span></div>
                 </div>
               </div>
             </div>
@@ -253,9 +250,9 @@
             <div class="panel__media">
               <div class="cap" aria-hidden="true">
                 <div class="cap-card">
-                  <div class="cap-kpi"><span class="cap-line w35"></span><strong>3.8x ROAS</strong><span class="cap-tr">&#9650;</span></div>
+                  <div class="cap-kpi"><div><span class="cap-label">Return on ad spend</span><strong>3.8&times;</strong></div><span class="cap-trend">&#9650; 42%</span></div>
                   <div class="cap-chart"><i style="--h:35%"></i><i style="--h:58%"></i><i style="--h:46%"></i><i style="--h:74%"></i><i style="--h:100%"></i></div>
-                  <div class="cap-meta"><span class="cap-pill">Google</span><span class="cap-pill">Meta</span></div>
+                  <div class="cap-meta"><span class="cap-pill">Google</span><span class="cap-pill">Meta</span><span class="cap-pill">$1,240 spend</span></div>
                 </div>
               </div>
             </div>
@@ -279,7 +276,7 @@
                     <span class="cap-line w55"></span>
                   </div>
                   <ul class="cap-rank">
-                    <li class="top"><span class="cap-pos">1</span><span class="cap-line w70"></span><span class="cap-tr">&#9650;</span></li>
+                    <li class="top"><span class="cap-pos">1</span><span class="cap-line w70"></span><span class="cap-trend">&#9650; 12</span></li>
                     <li><span class="cap-pos">2</span><span class="cap-line w55"></span></li>
                     <li><span class="cap-pos">3</span><span class="cap-line w60"></span></li>
                   </ul>
@@ -302,7 +299,7 @@
               <div class="cap" aria-hidden="true">
                 <div class="cap-card">
                   <div class="cap-grid"><span></span><span></span><span></span><span></span></div>
-                  <div class="cap-meta"><span class="cap-pill">&#10022; Generated</span><span class="cap-pill">4 sizes</span></div>
+                  <div class="cap-meta"><span class="cap-pill cap-pill--accent">&#10022; Generated</span><span class="cap-pill">4 sizes</span></div>
                 </div>
               </div>
             </div>
@@ -321,11 +318,12 @@
             <div class="panel__media">
               <div class="cap" aria-hidden="true">
                 <div class="cap-card">
-                  <div class="cap-hd"><span class="cap-dot"></span><div class="cap-lines"><span class="cap-line w60"></span><span class="cap-line w40"></span></div></div>
+                  <div class="cap-hd"><span class="cap-dot"></span><div class="cap-lines"><span class="cap-line w60"></span><span class="cap-line w40 dim"></span></div></div>
                   <span class="cap-line w100"></span>
                   <span class="cap-line w90"></span>
                   <span class="cap-line w70"></span>
-                  <div class="cap-meta"><span class="cap-pill">&#9993; Sent</span><span class="cap-pill">48% open</span></div>
+                  <div class="cap-openrate"><span class="cap-openrate__fill" style="width:48%"></span></div>
+                  <div class="cap-meta"><span class="cap-pill">&#9993; Sent</span><span class="cap-pill cap-pill--accent">48% open</span></div>
                 </div>
               </div>
             </div>
