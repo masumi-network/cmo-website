@@ -4,12 +4,10 @@
    The /v2 page does NOT load this file (plain, no-gradient version).
    ============================================================ */
 
-.v3x { --grad: linear-gradient(150deg, #4f46e5 0%, #7c3aed 32%, #db2777 64%, #f97316 100%); }
-
 .v3x .cap {
   padding: 7px;
   border-radius: 26px;
-  background: var(--grad);
+  background: url("/assets/aurora-bg.png") center / cover no-repeat;
   box-shadow: 0 26px 55px -30px rgba(124, 58, 237, 0.55);
 }
 .v3x .cap::before { display: none; } /* drop the base grey glow behind the card */
