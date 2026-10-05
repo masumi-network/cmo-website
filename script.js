@@ -28,6 +28,7 @@
 
   forms.forEach(function (form) {
     var input = form.querySelector('input[type="email"]');
+    var urlInput = form.querySelector('input[type="url"]');
     var msg = form.parentNode.querySelector("[data-waitlist-msg]");
     function setMsg(text, kind) {
       if (!msg) return;
@@ -45,6 +46,7 @@
         return;
       }
       input.removeAttribute("aria-invalid");
+      var website = urlInput ? (urlInput.value || "").trim() : ""; // optional
       var endpoint = form.getAttribute("data-endpoint") || window.WAITLIST_ENDPOINT;
       function ok() {
         form.reset();
@@ -55,7 +57,7 @@
       fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ email: email }),
+        body: JSON.stringify({ email: email, website: website }),
       })
         .then(function (r) { if (r.ok) ok(); else setMsg("Something went wrong. Try again.", "is-err"); })
         .catch(function () { setMsg("Something went wrong. Try again.", "is-err"); });
