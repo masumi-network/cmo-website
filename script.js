@@ -223,7 +223,7 @@
     var hr = model.getBoundingClientRect();
     var dx = window.innerWidth / 2 - (hr.left + hr.width / 2);
     var dy = window.innerHeight * 0.5 - (hr.top + hr.height / 2);
-    var scale = Math.min(1.4, (window.innerWidth * 0.84) / hr.width);
+    var scale = Math.min(1.12, (window.innerWidth * 0.84) / hr.width);
     if (!isFinite(scale) || scale < 1) scale = 1;
     gsap.set(model, { x: dx, y: dy, scale: scale, autoAlpha: 0, transformOrigin: "center center" });
     loopIdle(); // blink while it arrives
@@ -426,6 +426,31 @@
   new IntersectionObserver(function (entries) {
     entries.forEach(function (e) { if (e.isIntersecting) play(); });
   }, { threshold: 0.35 }).observe(body);
+})();
+
+// ---- Pricing: monthly / yearly billing toggle (self-contained) ----
+(function () {
+  var group = document.querySelector("[data-bill]");
+  if (!group) return;
+  var opts = [].slice.call(group.querySelectorAll("[data-bill-opt]"));
+  var amounts = [].slice.call(document.querySelectorAll(".tier__amount"));
+  var notes = [].slice.call(document.querySelectorAll("[data-bill-note]"));
+  function set(period) {
+    var yearly = period === "yearly";
+    opts.forEach(function (o) {
+      var on = o.getAttribute("data-bill-opt") === period;
+      o.classList.toggle("is-active", on);
+      o.setAttribute("aria-pressed", String(on));
+    });
+    amounts.forEach(function (a) {
+      var v = a.getAttribute(yearly ? "data-y" : "data-m");
+      if (v) a.textContent = "$" + v;
+    });
+    notes.forEach(function (n) { n.hidden = !yearly; });
+  }
+  opts.forEach(function (o) {
+    o.addEventListener("click", function () { set(o.getAttribute("data-bill-opt")); });
+  });
 })();
 
 // ---- Capabilities tabs (self-contained; works even without GSAP) ----

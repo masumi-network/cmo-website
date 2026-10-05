@@ -103,6 +103,10 @@
 .v3x .tier--featured .tier__list li { color: color-mix(in srgb, var(--btn-ink) 74%, transparent); }
 .v3x .tier--featured .tier__list li::before { background: var(--btn-ink); color: var(--ink); border-color: var(--btn-ink); }
 .v3x .tier__price { font-size: 2.4rem; letter-spacing: -0.03em; }
+.v3x .tier--featured .tier__per,
+.v3x .tier--featured .tier__bill { color: color-mix(in srgb, var(--btn-ink) 70%, transparent); }
+.v3x .tier--featured .tier__plus { color: var(--btn-ink); }
+@media (max-width: 900px) { .v3x .tier--featured { transform: none; } }
 
 /* ---- Chat bubbles extra round ---- */
 .v3x .msg p { border-radius: 20px; }

@@ -684,6 +684,23 @@ img { max-width: 100%; display: block; }
 .tier__list li { display: flex; align-items: center; gap: 0.6rem; color: var(--ink-mid); font-size: 0.95rem; }
 .tier__list li::before { content: "\2713"; flex: none; width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); }
 .tier .btn { width: 100%; }
+.tier__price { display: flex; align-items: baseline; gap: 0.25rem; }
+.tier__per { font-size: 0.95rem; font-weight: 500; color: var(--ink-soft); }
+.tier__price--custom { display: block; }
+.tier__bill { font-size: 0.8rem; color: var(--ink-soft); margin: 0.1rem 0 0; }
+.tier__plus { font-size: 0.9rem; font-weight: 600; color: var(--ink); margin: 0.3rem 0 0.1rem; }
+
+/* Billing period toggle */
+.bill-toggle { display: inline-flex; gap: 0.25rem; margin: 1.3rem auto 0; padding: 0.3rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; }
+.bill-toggle__opt { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.5rem 1.1rem; border: 0; background: transparent; color: var(--ink-soft); font: inherit; font-size: 0.92rem; font-weight: 500; border-radius: 999px; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+.bill-toggle__opt.is-active { background: var(--btn-bg); color: var(--btn-ink); }
+.bill-toggle__save { font-size: 0.72rem; font-weight: 600; padding: 0.12rem 0.45rem; border-radius: 999px; background: var(--surface); color: var(--ink); }
+.bill-toggle__opt.is-active .bill-toggle__save { background: rgba(255, 255, 255, 0.2); color: var(--btn-ink); }
+
+/* Trust + disclaimer below the cards */
+.pricing__foot { text-align: center; margin-top: 2.2rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.pricing__trust { font-weight: 500; color: var(--ink); }
+.pricing__note { font-size: 0.88rem; color: var(--ink-soft); max-width: 62ch; margin-inline: auto; }
 
 /* ---------------- CTA ---------------- */
 .cta {

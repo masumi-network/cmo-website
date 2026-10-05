@@ -334,47 +334,63 @@
       </div>
     </section>
 
-    <!-- ===================== PRICING (placeholder) ===================== -->
+    <!-- ===================== PRICING ===================== -->
     <section id="pricing" class="pricing">
       <div class="section__head section__head--center">
-        <h2>One agent. The whole marketing job.</h2>
-        <p>Placeholder tiers. Final pricing is not set yet.</p>
+        <h2>Hire your CMO</h2>
+        <p>Priced like a tool. Works like a team.</p>
+        <div class="bill-toggle" role="group" aria-label="Billing period" data-bill>
+          <button type="button" class="bill-toggle__opt is-active" data-bill-opt="monthly" aria-pressed="true">Monthly</button>
+          <button type="button" class="bill-toggle__opt" data-bill-opt="yearly" aria-pressed="false">Yearly <span class="bill-toggle__save">Save 30%</span></button>
+        </div>
       </div>
       <div class="tiers">
         <div class="tier">
-          <h3>Starter</h3>
-          <p class="tier__price">TBD</p>
-          <p class="tier__for">For solo founders getting started.</p>
+          <h3>Intern</h3>
+          <p class="tier__price"><span class="tier__amount" data-m="300" data-y="210">$300</span><span class="tier__per">/mo</span></p>
+          <p class="tier__bill" data-bill-note hidden>billed yearly</p>
+          <p class="tier__for">Ideal for solo founders or just starting out.</p>
           <ul class="tier__list">
-            <li>Social and content</li>
-            <li>Website SEO</li>
-            <li>Approvals</li>
+            <li>Standard AI usage (limits reset monthly)</li>
+            <li>Daily market research</li>
+            <li>Social posts written and scheduled</li>
+            <li>Images and graphics</li>
+            <li>Google and Meta ads</li>
+            <li>Basic SEO for your site</li>
+            <li>Weekly performance reports</li>
+            <li>Monthly performance report</li>
           </ul>
-          <a class="btn btn--ghost" href="#waitlist">Join waitlist</a>
+          <a class="btn btn--ghost" href="#waitlist">Hire Intern level CMO</a>
         </div>
         <div class="tier tier--featured">
           <span class="tier__tag">Popular</span>
-          <h3>Growth</h3>
-          <p class="tier__price">TBD</p>
-          <p class="tier__for">For small teams running ads.</p>
+          <h3>Manager</h3>
+          <p class="tier__price"><span class="tier__amount" data-m="800" data-y="560">$800</span><span class="tier__per">/mo</span></p>
+          <p class="tier__bill" data-bill-note hidden>billed yearly</p>
+          <p class="tier__for">Ideal for small companies and agencies.</p>
+          <p class="tier__plus">Everything in Intern, plus:</p>
           <ul class="tier__list">
-            <li>Everything in Starter</li>
-            <li>Ads on Google and Meta</li>
-            <li>Image and graphics generation</li>
+            <li>4&times; more AI usage</li>
+            <li>Full SEO strategy</li>
+            <li>Priority support</li>
           </ul>
-          <a class="btn" href="#waitlist">Join waitlist</a>
+          <a class="btn" href="#waitlist">Hire your Manager CMO</a>
         </div>
         <div class="tier">
-          <h3>Scale</h3>
-          <p class="tier__price">TBD</p>
-          <p class="tier__for">For businesses going all in.</p>
+          <h3>Chief</h3>
+          <p class="tier__price tier__price--custom">Custom</p>
+          <p class="tier__for">For niche needs, we can build you a custom plan.</p>
+          <p class="tier__plus">Everything in Manager, plus:</p>
           <ul class="tier__list">
-            <li>Everything in Growth</li>
-            <li>Priority runs</li>
-            <li>Direct support</li>
+            <li>Custom built tooling</li>
+            <li>Custom setup and onboarding</li>
           </ul>
-          <a class="btn btn--ghost" href="#waitlist">Join waitlist</a>
+          <a class="btn btn--ghost" href="#waitlist">Schedule a call</a>
         </div>
+      </div>
+      <div class="pricing__foot">
+        <p class="pricing__trust">No setup fees. Cancel anytime.</p>
+        <p class="pricing__note">Ad spend is not included. You pay platforms like Google and Meta directly.</p>
       </div>
     </section>
 
@@ -382,8 +398,7 @@
     <section id="start" class="cta">
       <div class="orb orb--sm" aria-hidden="true"></div>
       <img class="cta__art" src="/assets/expr-excited.png" alt="" loading="lazy" decoding="async" />
-      <h2>Be first to hire Cuso.</h2>
-      <p>We are getting ready to open up. Join the waitlist and we will reach out.</p>
+      <h2>A full CMO for founders who don't have one. Always on, always learning.</h2>
       <form class="waitlist waitlist--center" data-waitlist novalidate>
         <input class="waitlist__input" type="email" name="email" required
                placeholder="Enter your email" aria-label="Email address" />
