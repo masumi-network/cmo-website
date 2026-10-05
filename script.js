@@ -5,6 +5,70 @@
 // site is fully usable if the animation libraries fail to load.
 // Nothing hardcodes an agent name (per DESIGN.md).
 
+// ---- Mascot cursor: the arrow-mascot follows the pointer and blinks on click.
+//      A DOM element replaces the native cursor on fine-pointer devices; touch
+//      keeps its native behaviour. Uses the official sokosumi cursor artwork. ----
+(function () {
+  if (!(window.matchMedia && matchMedia("(pointer: fine)").matches)) return;
+
+  var SVG =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="165.5 84 486 486">' +
+      '<defs><path id="c3dp" d="M310 132 290 507 372 427 417 522 470 500 440 405 527 400Z" stroke-linejoin="round"/></defs>' +
+      '<use href="#c3dp" fill="#0a0a0a" stroke="#0a0a0a" stroke-width="96"/>' +
+      '<use href="#c3dp" fill="#fff" stroke="#fff" stroke-width="6"/>' +
+      '<g class="c3d-eyes-open">' +
+        '<ellipse cx="345" cy="305" rx="17" ry="33" fill="#0a0a0a"/>' +
+        '<ellipse cx="395" cy="297" rx="17" ry="33" fill="#0a0a0a"/>' +
+      '</g>' +
+      '<g class="c3d-eyes-closed">' +
+        '<rect x="326" y="300" width="38" height="10" rx="5" fill="#0a0a0a"/>' +
+        '<rect x="376" y="292" width="38" height="10" rx="5" fill="#0a0a0a"/>' +
+      '</g>' +
+    '</svg>';
+
+  function init() {
+    var root = document.documentElement;
+    var el = document.createElement("div");
+    el.className = "cursor3d";
+    el.setAttribute("aria-hidden", "true");
+    el.innerHTML = SVG;
+    document.body.appendChild(el);
+    root.classList.add("cursor3d-on"); // now safe to hide the native cursor
+
+    // Arrow tip (hotspot) within the 50x50 element.
+    var tipX = 13.3, tipY = 1;
+    var x = window.innerWidth / 2, y = window.innerHeight / 2, shown = false;
+    function place() {
+      el.style.transform = "translate3d(" + (x - tipX) + "px," + (y - tipY) + "px,0)";
+    }
+    place();
+
+    window.addEventListener("pointermove", function (e) {
+      x = e.clientX; y = e.clientY;
+      place();
+      if (!shown) { shown = true; el.classList.add("is-visible"); }
+    }, { passive: true });
+
+    // Blink the eyes while the button is pressed (a quick blink on click).
+    var blinkTimer = null;
+    window.addEventListener("pointerdown", function () {
+      if (blinkTimer) { clearTimeout(blinkTimer); blinkTimer = null; }
+      el.classList.add("is-blink");
+    });
+    window.addEventListener("pointerup", function () {
+      if (blinkTimer) clearTimeout(blinkTimer);
+      blinkTimer = setTimeout(function () { el.classList.remove("is-blink"); }, 130);
+    });
+
+    // Hide when the pointer leaves the window; restore on return.
+    document.addEventListener("mouseleave", function () { el.classList.remove("is-visible"); });
+    document.addEventListener("mouseenter", function () { if (shown) el.classList.add("is-visible"); });
+  }
+
+  if (document.body) init();
+  else document.addEventListener("DOMContentLoaded", init);
+})();
+
 // ---- 3D mascot: dismiss poster on load + respect reduced motion ----
 (function () {
   var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;

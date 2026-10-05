@@ -23,10 +23,12 @@
 .v3x .hero.hero--center {
   min-height: calc(100svh - 4rem);
   align-content: center;
-  padding-top: clamp(2.5rem, 6vh, 4rem);
+  padding-top: clamp(4rem, 10vh, 7rem);
   padding-bottom: clamp(1rem, 3vh, 2rem);
   gap: clamp(0.9rem, 2vh, 1.6rem);
 }
+/* A touch more breathing room between the headline and the paragraph. */
+.v3x .hero.hero--center h1 { margin-bottom: 0.5rem; }
 .v3x .hero.hero--center .hero__visual { width: 100%; }
 .v3x .hero.hero--center .hero__model {
   width: min(540px, 92vw);
@@ -121,9 +123,6 @@
 .v3x .cta p { color: color-mix(in srgb, var(--btn-ink) 78%, transparent); }
 .v3x .cta .btn { background: var(--btn-ink); color: var(--ink); border-color: var(--btn-ink); }
 
-/* ---------------- Mascot cursor ---------------- */
-/* The sokosumi arrow-mascot becomes the pointer itself on fine-pointer devices
-   (touch keeps native behaviour). Hotspot sits on the arrow tip. */
 /* ---------------- Mobile / small screens ---------------- */
 @media (max-width: 640px) {
   .v3x .hero.hero--center {
@@ -137,16 +136,4 @@
     height: min(360px, 44vh);
   }
   .v3x .hero.hero--center .orb { width: min(300px, 74vw); }
-}
-
-@media (pointer: fine) {
-  body { cursor: url("/assets/cursor-mascot.png") 9 4, auto; }
-  a, button, [role="button"], label, summary, .btn,
-  input[type="submit"], input[type="button"], input[type="reset"],
-  select, .nav__toggle {
-    cursor: url("/assets/cursor-mascot.png") 9 4, pointer;
-  }
-  input[type="text"], input[type="email"], input[type="search"],
-  input[type="tel"], input[type="url"], input[type="password"],
-  input:not([type]), textarea { cursor: text; }
 }

@@ -93,17 +93,3 @@
 /* ---- CTA flat ---- */
 .v2x .cta { background: var(--surface); }
 
-/* ---------------- Mascot cursor ---------------- */
-/* The sokosumi arrow-mascot becomes the pointer itself on fine-pointer devices
-   (touch keeps native behaviour). Hotspot sits on the arrow tip. */
-@media (pointer: fine) {
-  body { cursor: url("/assets/cursor-mascot.png") 9 4, auto; }
-  a, button, [role="button"], label, summary, .btn,
-  input[type="submit"], input[type="button"], input[type="reset"],
-  select, .nav__toggle {
-    cursor: url("/assets/cursor-mascot.png") 9 4, pointer;
-  }
-  input[type="text"], input[type="email"], input[type="search"],
-  input[type="tel"], input[type="url"], input[type="password"],
-  input:not([type]), textarea { cursor: text; }
-}

@@ -128,49 +128,9 @@ body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  overflow: hidden;
   background:
     radial-gradient(900px 520px at 82% -8%, var(--page-glow), transparent 62%),
     radial-gradient(700px 460px at 8% 2%, var(--page-glow), transparent 60%);
-}
-/* Modern ambient grid, fading out toward the bottom. */
-.bg-glow::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(to right, rgba(17, 22, 26, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(17, 22, 26, 0.04) 1px, transparent 1px);
-  background-size: 46px 46px;
-  -webkit-mask-image: radial-gradient(135% 85% at 50% -8%, #000 18%, transparent 72%);
-  mask-image: radial-gradient(135% 85% at 50% -8%, #000 18%, transparent 72%);
-}
-:root[data-theme="dark"] .bg-glow::before {
-  background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-}
-/* Soft drifting aurora blobs for depth. */
-.bg-glow::after {
-  content: "";
-  position: absolute;
-  inset: -25%;
-  background:
-    radial-gradient(38% 42% at 18% 26%, rgba(99, 120, 190, 0.10), transparent 70%),
-    radial-gradient(34% 40% at 84% 20%, rgba(150, 120, 190, 0.09), transparent 70%),
-    radial-gradient(42% 46% at 70% 84%, rgba(90, 150, 170, 0.08), transparent 72%);
-  filter: blur(36px);
-  animation: bgDrift 28s ease-in-out infinite alternate;
-}
-:root[data-theme="dark"] .bg-glow::after {
-  background:
-    radial-gradient(38% 42% at 18% 26%, rgba(99, 102, 241, 0.16), transparent 70%),
-    radial-gradient(34% 40% at 84% 20%, rgba(168, 85, 247, 0.13), transparent 70%),
-    radial-gradient(42% 46% at 70% 84%, rgba(45, 212, 191, 0.11), transparent 72%);
-}
-@keyframes bgDrift {
-  0% { transform: translate3d(0, 0, 0) scale(1); }
-  100% { transform: translate3d(2%, -3%, 0) scale(1.1); }
 }
 
 main, .footer, .nav { position: relative; z-index: 1; }
@@ -711,6 +671,8 @@ img { max-width: 100%; display: block; }
   border-left: 1px solid transparent;
   transition: max-width 0.3s ease, opacity 0.22s ease, padding 0.3s ease, border-color 0.2s ease;
 }
+/* Grow the whole bar a little when the website field slides in. */
+.waitlist.is-expanded { max-width: 660px; }
 .waitlist.is-expanded .waitlist__input--url {
   max-width: 48%;
   opacity: 1;
@@ -906,20 +868,34 @@ img { max-width: 100%; display: block; }
 :root[data-theme="dark"] .cursor-pet img { filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.55)); }
 @media (pointer: coarse) { .cursor-pet { display: none !important; } }
 
-/* ---------------- Mascot cursor ---------------- */
-/* The sokosumi arrow-mascot becomes the pointer itself on fine-pointer devices
-   (touch keeps native behaviour). Hotspot sits on the arrow tip. */
+/* ---------------- 3D mascot cursor ---------------- */
+/* A DOM element (.cursor3d, built in script.js) follows the pointer and looks
+   like the 3D arrow mascot — just the arrow + eyes, eyes blink on click.
+   The native cursor is hidden only once that's active (html.cursor3d-on), so
+   without JS the normal cursor still shows. Touch keeps native behaviour. */
 @media (pointer: fine) {
-  body { cursor: url("/assets/cursor-mascot.png") 9 4, auto; }
-  a, button, [role="button"], label, summary, .btn,
-  input[type="submit"], input[type="button"], input[type="reset"],
-  select, .nav__toggle {
-    cursor: url("/assets/cursor-mascot.png") 9 4, pointer;
-  }
-  input[type="text"], input[type="email"], input[type="search"],
-  input[type="tel"], input[type="url"], input[type="password"],
-  input:not([type]), textarea { cursor: text; }
+  html.cursor3d-on,
+  html.cursor3d-on * { cursor: none !important; }
 }
+.cursor3d {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 9999;
+  width: 50px;
+  height: 50px;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform;
+  transition: opacity 0.18s ease;
+  filter: drop-shadow(0 7px 11px rgba(16, 20, 28, 0.30));
+}
+.cursor3d.is-visible { opacity: 1; }
+.cursor3d svg { width: 100%; height: 100%; display: block; overflow: visible; }
+/* Blink: hide open eyes, show closed eyes — a quick press-to-blink on click. */
+.cursor3d .c3d-eyes-closed { opacity: 0; }
+.cursor3d.is-blink .c3d-eyes-open { opacity: 0; }
+.cursor3d.is-blink .c3d-eyes-closed { opacity: 1; }
 
 /* ---------------- Motion / entrance ---------------- */
 .has-anim:not(.reduced) .hero__text > *,
@@ -942,7 +918,6 @@ html.lenis, html.lenis body { height: auto; }
   .panel.is-active .cap-chart i,
   .panel.is-active .cap-grid span { animation: none; }
   .cap-chart i { transform: none; }
-  .bg-glow::after { animation: none; }
 }
 
 /* ---------------- Responsive ---------------- */
