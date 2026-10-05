@@ -748,7 +748,7 @@ img { max-width: 100%; display: block; }
   font-size: 11px;
   border: 1px solid var(--line);
 }
-.problem__list--pain li::before { content: "\2013"; background: var(--surface-2); color: var(--ink-soft); }
+.problem__list--pain li::before { content: "\2715"; background: var(--surface-2); color: var(--ink-soft); }
 .problem__list--win li::before { content: "\2713"; background: var(--ink); color: var(--btn-ink); border-color: var(--ink); }
 
 /* ---------------- Pricing (v2, placeholder) ---------------- */
