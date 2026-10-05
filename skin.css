@@ -1,10 +1,7 @@
 /* ============================================================
-   CMO.XYZ — v3 experimental "soft maximal" skin.
-   Scoped to body.v3x so other pages are unaffected.
-   Opposite of v2: big rounded shapes, filled (borderless) cards,
-   centered hero, pill labels, bold inverted blocks.
-   Colors stay neutral grayscale and type stays PP Mori -> within
-   DESIGN.md (colors/shapes open).
+   CMO.XYZ — shared page skin (soft, rounded, filled cards).
+   Scoped to body.v3x. Used by both the original page (which also
+   loads gradient.css) and the /v2 page (no gradient).
    ============================================================ */
 
 .v3x {
@@ -126,23 +123,10 @@
 .v3x .cta .waitlist .btn { background: var(--btn-bg); color: var(--btn-ink); border-color: var(--btn-bg); }
 .v3x .cta .waitlist .btn:hover { background: var(--btn-bg-hover); border-color: var(--btn-bg-hover); }
 
-/* ---- Capability mockups: wrap each card in a gradient frame ---- */
-.v3x { --grad: linear-gradient(150deg, #4f46e5 0%, #7c3aed 32%, #db2777 64%, #f97316 100%); }
-.v3x .cap {
-  padding: 7px;
-  border-radius: 26px;
-  background: var(--grad);
-  box-shadow: 0 26px 55px -30px rgba(124, 58, 237, 0.55);
-}
-.v3x .cap::before { display: none; } /* drop the old grey glow */
+/* ---- Capability mockups: keep every card the same size so switching tabs
+        doesn't resize the illustration ---- */
 .v3x .cap { width: 100%; max-width: 300px; }
-/* Keep every mockup card the same size so switching tabs doesn't resize it. */
-.v3x .cap-card {
-  border-radius: 19px;
-  box-shadow: none;
-  min-height: 280px;
-  justify-content: center;
-}
+.v3x .cap-card { min-height: 280px; justify-content: center; }
 
 /* ---------------- Mobile / small screens ---------------- */
 @media (max-width: 640px) {
