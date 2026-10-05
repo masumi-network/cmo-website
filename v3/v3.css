@@ -135,7 +135,14 @@
   box-shadow: 0 26px 55px -30px rgba(124, 58, 237, 0.55);
 }
 .v3x .cap::before { display: none; } /* drop the old grey glow */
-.v3x .cap-card { border-radius: 19px; box-shadow: none; }
+.v3x .cap { width: 100%; max-width: 300px; }
+/* Keep every mockup card the same size so switching tabs doesn't resize it. */
+.v3x .cap-card {
+  border-radius: 19px;
+  box-shadow: none;
+  min-height: 280px;
+  justify-content: center;
+}
 
 /* ---------------- Mobile / small screens ---------------- */
 @media (max-width: 640px) {
