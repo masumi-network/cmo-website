@@ -54,12 +54,10 @@
           in one system.
         </p>
         <form class="waitlist" id="waitlist" data-waitlist data-endpoint="/api/waitlist" novalidate>
-          <div class="waitlist__fields">
-            <input class="waitlist__input" type="email" name="email" required
-                   placeholder="Enter your email" aria-label="Email address" />
-            <input class="waitlist__input" type="url" name="website"
-                   placeholder="Your website (optional)" aria-label="Website (optional)" />
-          </div>
+          <input class="waitlist__input" type="email" name="email" required
+                 placeholder="Enter your email" aria-label="Email address" />
+          <input class="waitlist__input waitlist__input--url" type="url" name="website"
+                 placeholder="Website (optional)" aria-label="Website (optional)" />
           <button class="btn btn--lg" type="submit">Join the waitlist</button>
         </form>
         <p class="waitlist__msg" data-waitlist-msg role="status" aria-live="polite"></p>
@@ -402,12 +400,10 @@
       <img class="cta__art" src="/assets/expr-excited.png" alt="" loading="lazy" decoding="async" />
       <h2>A full CMO for founders who don't have one. Always on, always learning.</h2>
       <form class="waitlist waitlist--center" data-waitlist data-endpoint="/api/waitlist" novalidate>
-        <div class="waitlist__fields">
-          <input class="waitlist__input" type="email" name="email" required
-                 placeholder="Enter your email" aria-label="Email address" />
-          <input class="waitlist__input" type="url" name="website"
-                 placeholder="Your website (optional)" aria-label="Website (optional)" />
-        </div>
+        <input class="waitlist__input" type="email" name="email" required
+               placeholder="Enter your email" aria-label="Email address" />
+        <input class="waitlist__input waitlist__input--url" type="url" name="website"
+               placeholder="Website (optional)" aria-label="Website (optional)" />
         <button class="btn btn--lg" type="submit">Join the waitlist</button>
       </form>
       <p class="waitlist__msg" data-waitlist-msg role="status" aria-live="polite"></p>

@@ -30,6 +30,23 @@
     var input = form.querySelector('input[type="email"]');
     var urlInput = form.querySelector('input[type="url"]');
     var msg = form.parentNode.querySelector("[data-waitlist-msg]");
+
+    // Reveal the optional website field once the visitor starts typing an email;
+    // keep it open while the website field has content or focus.
+    function syncExpanded() {
+      if (!urlInput) return;
+      var open =
+        input.value.trim().length > 0 ||
+        urlInput.value.trim().length > 0 ||
+        document.activeElement === urlInput;
+      form.classList.toggle("is-expanded", open);
+    }
+    if (urlInput && input) {
+      input.addEventListener("input", syncExpanded);
+      urlInput.addEventListener("input", syncExpanded);
+      urlInput.addEventListener("focus", syncExpanded);
+      urlInput.addEventListener("blur", syncExpanded);
+    }
     function setMsg(text, kind) {
       if (!msg) return;
       msg.textContent = text;
@@ -50,6 +67,7 @@
       var endpoint = form.getAttribute("data-endpoint") || window.WAITLIST_ENDPOINT;
       function ok() {
         form.reset();
+        form.classList.remove("is-expanded");
         setMsg("You're on the list. We'll be in touch.", "is-ok");
       }
       if (!endpoint) { ok(); return; } // demo mode, no backend wired
