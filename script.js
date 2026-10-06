@@ -139,6 +139,7 @@
         form.classList.remove("is-expanded");
         setMsg("You're on the list. We'll be in touch.", "is-ok");
         document.dispatchEvent(new CustomEvent("waitlist:joined"));
+        if (window.gtag) gtag("event", "sign_up", { method: "waitlist" });
       }
       if (!endpoint) { ok(); return; } // demo mode, no backend wired
       setMsg("Adding you...", null);
