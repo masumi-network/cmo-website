@@ -129,6 +129,9 @@
 /* ---- CTA as a big rounded inverted block ---- */
 .v3x .cta { background: var(--ink); color: var(--btn-ink); border: none; border-radius: var(--r-lg); box-shadow: var(--shadow-lg); }
 .v3x .cta p { color: color-mix(in srgb, var(--btn-ink) 78%, transparent); }
+/* The status message is a <p> too — keep its own fixed colors (not the CTA's). */
+.v3x .cta .waitlist__msg.is-ok { color: #14181b; }
+.v3x .cta .waitlist__msg.is-err { color: #b42318; }
 .v3x .cta .btn { background: var(--btn-ink); color: var(--ink); border-color: var(--btn-ink); }
 /* The CTA capture-bar pill is light in BOTH themes (white in light mode; the
    inverted CTA block is light in dark mode), so the button must stay dark in
