@@ -713,8 +713,10 @@ img { max-width: 100%; display: block; }
   font-weight: 700;
   flex: none;
 }
-.waitlist__msg.is-ok { color: var(--ink); background: var(--surface); border: 1px solid var(--line-2); }
-.waitlist__msg.is-ok::before { background: var(--ink); color: var(--btn-ink); }
+/* Fixed colors (like the error state) so the success pill is readable in both
+   themes and on the hero's light bg and the CTA's dark block alike. */
+.waitlist__msg.is-ok { color: #14181b; background: #ffffff; border: 1px solid rgba(16, 24, 40, 0.12); }
+.waitlist__msg.is-ok::before { background: #14181b; color: #ffffff; }
 .waitlist__msg.is-err { color: #b42318; background: #fef3f2; border: 1px solid #fecdca; }
 .waitlist__msg.is-err::before { content: "!"; background: #b42318; color: #fff; }
 @keyframes waitlistPop { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
