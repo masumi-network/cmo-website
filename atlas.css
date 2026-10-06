@@ -29,7 +29,6 @@
 
 /* ---- Nav: logo left, black pill right, no bar ---- */
 .v3x .nav { background: transparent; border: 0; backdrop-filter: none; position: absolute; inset: 0 0 auto; justify-content: space-between; }
-.v3x .nav__cta { padding: 0.5rem 1rem; font-size: 0.88rem; }
 /* The nav waits until the intro animation is over (script.js reveals it). */
 .has-anim:not(.reduced) .v3x .nav { opacity: 0; visibility: hidden; }
 
