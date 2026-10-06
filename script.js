@@ -162,6 +162,7 @@
 (function () {
   var root = document.documentElement;
   var toggles = [].slice.call(document.querySelectorAll("[data-theme-toggle]"));
+  if (!toggles.length) return;
 
   function currentTheme() {
     return root.getAttribute("data-theme") === "dark" ? "dark" : "light";
@@ -292,14 +293,15 @@
   }
 
   function revealText() {
+    gsap.set(".nav", { y: -18, autoAlpha: 0 });
     gsap
       .timeline({ defaults: { ease: "power3.out", duration: 0.9 } })
-      .from(".nav", { y: -18, autoAlpha: 0, duration: 0.7 })
-      .from(".hero .pill", { y: 18, autoAlpha: 0, duration: 0.6 }, "-=0.2")
+      .from(".hero .pill", { y: 18, autoAlpha: 0, duration: 0.6 })
       .from(".hero h1", { y: 30, autoAlpha: 0 }, "-=0.35")
       .from(".hero .lead", { y: 22, autoAlpha: 0 }, "-=0.6")
       .from(".hero .waitlist", { y: 20, autoAlpha: 0 }, "-=0.65")
-      .from(".hero__meta", { y: 16, autoAlpha: 0 }, "-=0.7");
+      .from(".hero__meta", { y: 16, autoAlpha: 0 }, "-=0.7")
+      .to(".nav", { y: 0, autoAlpha: 1, duration: 0.7 });
   }
 
   var introDone = false;
@@ -337,7 +339,7 @@
     var hr = model.getBoundingClientRect();
     var dx = window.innerWidth / 2 - (hr.left + hr.width / 2);
     var dy = window.innerHeight * 0.5 - (hr.top + hr.height / 2);
-    var scale = Math.min(1.12, (window.innerWidth * 0.84) / hr.width);
+    var scale = Math.min(1.5, (window.innerWidth * 0.95) / hr.width, (window.innerHeight * 0.95) / hr.height);
     if (!isFinite(scale) || scale < 1) scale = 1;
     gsap.set(model, { x: dx, y: dy, scale: scale, autoAlpha: 0, transformOrigin: "center center" });
     loopIdle(); // blink while it arrives
