@@ -120,14 +120,16 @@
 .v3x .cta { background: var(--ink); color: var(--btn-ink); border: none; border-radius: var(--r-lg); box-shadow: var(--shadow-lg); }
 .v3x .cta p { color: color-mix(in srgb, var(--btn-ink) 78%, transparent); }
 .v3x .cta .btn { background: var(--btn-ink); color: var(--ink); border-color: var(--btn-ink); }
-/* The CTA capture-bar button sits inside a white pill — keep it dark/filled. */
-.v3x .cta .waitlist .btn { background: var(--btn-bg); color: var(--btn-ink); border-color: var(--btn-bg); }
-.v3x .cta .waitlist .btn:hover { background: var(--btn-bg-hover); border-color: var(--btn-bg-hover); }
+/* The CTA capture-bar pill is light in BOTH themes (white in light mode; the
+   inverted CTA block is light in dark mode), so the button must stay dark in
+   both — use fixed dark colors, not the theme-flipping button tokens. */
+.v3x .cta .waitlist .btn { background: #14181b; color: #ffffff; border-color: #14181b; }
+.v3x .cta .waitlist .btn:hover { background: #2b3236; border-color: #2b3236; }
 
 /* ---- Capability mockups: keep every card the same size so switching tabs
         doesn't resize the illustration ---- */
-.v3x .cap { width: 100%; max-width: 300px; }
-.v3x .cap-card { min-height: 280px; justify-content: center; }
+.v3x .cap { width: 100%; max-width: 330px; }
+.v3x .cap-card { min-height: 300px; justify-content: center; }
 
 /* ---------------- Mobile / small screens ---------------- */
 @media (max-width: 640px) {
