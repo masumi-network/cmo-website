@@ -78,7 +78,7 @@
 (function () {
   var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   document.querySelectorAll("model-viewer").forEach(function (mv) {
-    if (reduced) mv.removeAttribute("auto-rotate");
+    if (reduced) { mv.removeAttribute("auto-rotate"); mv.setAttribute("animation-name", "Blink"); }
     // As soon as the 3D is ready, reveal it so the poster image never lingers.
     var reveal = function () { try { mv.dismissPoster(); } catch (e) {} };
     if (mv.loaded) reveal();
@@ -138,6 +138,7 @@
         form.reset();
         form.classList.remove("is-expanded");
         setMsg("You're on the list. We'll be in touch.", "is-ok");
+        document.dispatchEvent(new CustomEvent("waitlist:joined"));
       }
       if (!endpoint) { ok(); return; } // demo mode, no backend wired
       setMsg("Adding you...", null);
@@ -261,10 +262,40 @@
   // ---- Baked animation clips (Idle / Hello / Hop / Blink / Spin) ----
   function clipList() { return (model && model.availableAnimations) || []; }
   function hasClip(n) { return clipList().indexOf(n) !== -1; }
-  // Resting state: stay still and just blink the eyes (no hop / body motion).
+  // Resting state: a gentle sway with blinks. Every few seconds Cuso hops or
+  // waves on his own; clicking him (or joining the waitlist) makes him spin.
+  var busy = false;
+  var actTimer = null;
+  var heroVisible = true;
   function loopIdle() {
-    var rest = hasClip("Blink") ? "Blink" : "Idle";
-    if (hasClip(rest)) { model.animationName = rest; model.play(); }
+    if (!hasClip("Idle")) return;
+    busy = false;
+    model.animationName = "Idle";
+    model.play();
+  }
+  function act(name, force) {
+    if (!hasClip(name) || (busy && !force)) return;
+    busy = true;
+    model.animationName = name;
+    // Switching clips restarts them looping on the next render; play once after that.
+    model.updateComplete.then(function () { model.play({ repetitions: 1 }); });
+  }
+  function scheduleActs() {
+    clearTimeout(actTimer);
+    actTimer = setTimeout(function () {
+      if (heroVisible && !document.hidden) act(Math.random() < 0.6 ? "Hop" : "Hello");
+      scheduleActs();
+    }, 6000 + Math.random() * 5000);
+  }
+  if (model) {
+    model.addEventListener("finished", loopIdle);
+    model.addEventListener("click", function () { act("Spin", true); });
+    document.addEventListener("waitlist:joined", function () { act("Spin", true); });
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(function (entries) {
+        heroVisible = entries[0].isIntersecting;
+      }).observe(model);
+    }
   }
   function startMascotMotion() {
     gsap.to(".hero .orb", { scale: 1.08, opacity: 0.85, duration: 3.2, ease: "sine.inOut", repeat: -1, yoyo: true });
@@ -290,6 +321,9 @@
       model.setAttribute("camera-orbit", cTheta.toFixed(2) + "deg " + cPhi.toFixed(2) + "deg 95%");
       requestAnimationFrame(loop);
     })();
+
+    act("Hello", true); // wave when he lands
+    scheduleActs();
   }
 
   function revealText() {
@@ -316,8 +350,8 @@
     if (model) gsap.set(model, { x: 0, y: 0, scale: 1, autoAlpha: 1 });
     root.classList.remove("has-anim");
     gsap.set(".nav, .hero__text > *", { clearProps: "opacity,visibility,transform" });
-    startMotionOnce();
     loopIdle();
+    startMotionOnce();
   }
 
   // Entrance: the mascot fades in large and centered on screen, holds a beat,
@@ -367,8 +401,8 @@
     root.classList.remove("has-anim");
     if (visual) gsap.set(visual, { clearProps: "opacity,visibility" });
     revealText();
-    startMascotMotion();
     loopIdle();
+    startMascotMotion();
   }
 
   function runIntro() {
