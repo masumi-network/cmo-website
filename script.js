@@ -146,7 +146,13 @@
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ email: email, website: website }),
       })
-        .then(function (r) { if (r.ok) ok(); else setMsg("Something went wrong. Try again.", "is-err"); })
+        .then(function (r) {
+          if (r.ok) { ok(); return; }
+          return r.json().then(
+            function (j) { setMsg((j && j.error) || "Something went wrong. Try again.", "is-err"); },
+            function () { setMsg("Something went wrong. Try again.", "is-err"); }
+          );
+        })
         .catch(function () { setMsg("Something went wrong. Try again.", "is-err"); });
     });
   });

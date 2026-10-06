@@ -87,10 +87,17 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // Let people type a bare domain (e.g. "nmkr.io") — add the scheme ourselves
-  // so it stores cleanly in the URL column.
-  if (website && !/^https?:\/\//i.test(website)) {
-    website = "https://" + website.replace(/^\/+/, "");
+  // Website is optional. Accept it with or without a scheme — add https:// when
+  // it's missing — then validate it points at a real domain.
+  if (website) {
+    if (!/^https?:\/\//i.test(website)) website = "https://" + website.replace(/^\/+/, "");
+    let host = "";
+    try { host = new URL(website).hostname; } catch (_) {}
+    var validDomain = /^(?=.{1,253}$)([a-z0-9](-?[a-z0-9])*\.)+[a-z]{2,}$/i.test(host);
+    if (!validDomain) {
+      res.status(400).json({ error: "Please enter a valid website, or leave it blank." });
+      return;
+    }
   }
 
   // Storage not wired up yet: accept the signup so the UI works, but don't store.
