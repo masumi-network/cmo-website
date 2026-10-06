@@ -97,7 +97,7 @@
 
   forms.forEach(function (form) {
     var input = form.querySelector('input[type="email"]');
-    var urlInput = form.querySelector('input[type="url"]');
+    var urlInput = form.querySelector('input[name="website"]');
     var msg = form.parentNode.querySelector("[data-waitlist-msg]");
 
     // Reveal the optional website field once the visitor starts typing an email;

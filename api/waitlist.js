@@ -87,6 +87,12 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  // Let people type a bare domain (e.g. "nmkr.io") — add the scheme ourselves
+  // so it stores cleanly in the URL column.
+  if (website && !/^https?:\/\//i.test(website)) {
+    website = "https://" + website.replace(/^\/+/, "");
+  }
+
   // Storage not wired up yet: accept the signup so the UI works, but don't store.
   // Add SOKOSUMI_API_KEY (or SHEET_WEBHOOK_URL) and it starts saving automatically.
   if (!process.env.SOKOSUMI_API_KEY && !process.env.SHEET_WEBHOOK_URL) {
