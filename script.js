@@ -292,15 +292,34 @@
   }
 
   var introDone = false;
+  var motionStarted = false;
+  function startMotionOnce() {
+    if (motionStarted) return;
+    motionStarted = true;
+    startMascotMotion();
+  }
+  // Snap the mascot + hero straight to their resting state (no fly-in).
+  function settleMascot() {
+    if (model) gsap.set(model, { x: 0, y: 0, scale: 1, autoAlpha: 1 });
+    root.classList.remove("has-anim");
+    gsap.set(".nav, .hero__text > *", { clearProps: "opacity,visibility,transform" });
+    startMotionOnce();
+    loopIdle();
+  }
 
   // Entrance: the mascot fades in large and centered on screen, holds a beat,
   // then glides smoothly down into its hero slot while the text rises in.
-  // No hop — it just blinks on the way, then follows the cursor once settled.
+  // The fly-in uses viewport-relative positioning, so it only plays from the
+  // very top; if the visitor scrolls during it, we snap straight to the rest
+  // state so the mascot never floats into the section below.
   function enterMascot() {
     if (introDone) return;
     introDone = true;
 
     gsap.set(visual, { autoAlpha: 1 }); // show the mascot layer (text stays hidden)
+
+    // Already scrolled (restored position / quick scroll): skip the fly-in.
+    if (window.scrollY > 40) { settleMascot(); return; }
 
     // FLIP: measure the final slot, then start big + centered on screen.
     // Scale is capped to the viewport so the mascot is never clipped on phones.
@@ -312,11 +331,20 @@
     gsap.set(model, { x: dx, y: dy, scale: scale, autoAlpha: 0, transformOrigin: "center center" });
     loopIdle(); // blink while it arrives
 
-    gsap.timeline({ defaults: { ease: "power3.inOut" } })
+    var tl = gsap.timeline({ defaults: { ease: "power3.inOut" } })
       .to(model, { autoAlpha: 1, duration: 0.6, ease: "power2.out" })          // fade in, centered
       .to(model, { x: 0, y: 0, scale: 1, duration: 1.3 }, "+=0.5")             // hold, then glide home
       .add(function () { root.classList.remove("has-anim"); revealText(); }, "<0.1") // text rises with it
-      .add(function () { startMascotMotion(); });                             // cursor-follow on arrival
+      .add(startMotionOnce);                                                   // cursor-follow on arrival
+
+    // If the visitor scrolls while the fly-in is running, finish it instantly.
+    function onScroll() {
+      if (window.scrollY <= 6) return;        // ignore tiny/spurious scrolls at top
+      window.removeEventListener("scroll", onScroll);
+      if (tl.isActive()) { tl.kill(); settleMascot(); }
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    tl.eventCallback("onComplete", function () { window.removeEventListener("scroll", onScroll); });
   }
 
   // Fallback: no model, or it never loads — just reveal everything in place.
