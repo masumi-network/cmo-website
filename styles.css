@@ -474,6 +474,12 @@ img { max-width: 100%; display: block; }
   gap: 0.7rem;
 }
 .cap-line { display: block; height: 9px; border-radius: 999px; background: var(--line-2); }
+/* Real text inside the mockups (fills the cards with relevant content). */
+.cap-name { font-size: 0.82rem; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.cap-sub { font-size: 0.68rem; color: var(--ink-soft); line-height: 1.2; }
+.cap-txt { font-size: 0.76rem; color: var(--ink-mid); line-height: 1.45; margin: 0; }
+.cap-search .cap-txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cap-rank .cap-txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cap-line.dim { background: var(--line); }
 .cap-line.tall { height: 12px; background: var(--ink-soft); }
 .cap-line.w30 { width: 30%; } .cap-line.w35 { width: 35%; } .cap-line.w40 { width: 40%; } .cap-line.w45 { width: 45%; }
@@ -512,7 +518,7 @@ img { max-width: 100%; display: block; }
 /* content: window bar + typing caret */
 .cap-winbar { display: flex; align-items: center; gap: 5px; margin-bottom: 0.1rem; }
 .cap-winbar i { width: 8px; height: 8px; border-radius: 50%; background: var(--line-2); }
-.cap-winbar .cap-line { margin-left: auto; }
+.cap-winbar .cap-line, .cap-winbar .cap-sub { margin-left: auto; }
 .cap-typing { display: flex; align-items: center; gap: 5px; }
 .cap-caret { display: inline-block; width: 2px; height: 14px; background: var(--ink); animation: capBlink 1s step-end infinite; }
 @keyframes capBlink { 50% { opacity: 0; } }
@@ -549,6 +555,7 @@ img { max-width: 100%; display: block; }
 .cap-grid span::after { content: ""; position: absolute; right: 22%; top: 24%; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); opacity: 0.55; }
 
 /* newsletter: open-rate bar */
+.cap-openlabel { display: flex; justify-content: space-between; margin-bottom: 2px; }
 .cap-openrate { height: 7px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .cap-openrate__fill { display: block; height: 100%; border-radius: 999px; background: var(--ink); }
 .panel.is-active .cap-openrate__fill { animation: capFill 0.9s ease both; }
@@ -814,18 +821,19 @@ img { max-width: 100%; display: block; }
 
 /* ---------------- Footer ---------------- */
 .footer { border-top: 1px solid var(--line); padding: clamp(3rem, 6vw, 4.5rem) var(--pad) 2rem; }
-.footer__top {
+/* Simple centered footer: big mascot, brand, tagline, a few section links. */
+.footer__inner {
   max-width: var(--maxw); margin: 0 auto;
-  display: grid; grid-template-columns: 1.4fr 2fr; gap: 3rem;
-  padding-bottom: 3rem; border-bottom: 1px solid var(--line);
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 0.6rem; padding-bottom: 2.5rem; border-bottom: 1px solid var(--line);
 }
-.footer__brand p { margin-top: 1rem; color: var(--ink-soft); max-width: 34ch; font-size: 0.95rem; }
-.footer__mascot { width: 88px; height: auto; display: block; margin-bottom: 1.1rem; filter: drop-shadow(0 12px 20px rgba(16, 20, 28, 0.18)); }
-.footer__cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
-.footer__cols h4 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-soft); margin-bottom: 1rem; font-weight: 600; }
-.footer__cols a { display: block; color: var(--ink-mid); font-size: 0.95rem; padding: 0.3rem 0; }
-.footer__cols a:hover { color: var(--ink); }
-.footer__bottom { max-width: var(--maxw); margin: 1.5rem auto 0; display: flex; justify-content: space-between; color: var(--ink-soft); }
+.footer__mascot { width: clamp(110px, 16vw, 150px); height: auto; display: block; margin-bottom: 0.4rem; filter: drop-shadow(0 16px 26px rgba(16, 20, 28, 0.2)); }
+.footer__inner .nav__brand { font-size: 1.1rem; }
+.footer__tag { color: var(--ink-soft); max-width: 42ch; font-size: 0.95rem; }
+.footer__links { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.8rem; margin-top: 1.3rem; }
+.footer__links a { color: var(--ink-mid); font-size: 0.97rem; font-weight: 500; }
+.footer__links a:hover { color: var(--ink); }
+.footer__bottom { max-width: var(--maxw); margin: 1.5rem auto 0; display: flex; justify-content: space-between; align-items: center; color: var(--ink-soft); }
 .footer__bottom small { font-size: 0.85rem; }
 
 /* ---------------- Loading splash ---------------- */
@@ -906,6 +914,27 @@ img { max-width: 100%; display: block; }
 .cursor3d.is-blink .c3d-eyes-open { opacity: 0; }
 .cursor3d.is-blink .c3d-eyes-closed { opacity: 1; }
 .cursor3d.is-blink svg { transform: scale(0.88); }
+/* "Click" hint that appears when hovering something clickable. */
+.cursor3d__hint {
+  position: absolute;
+  left: 40px;
+  top: 30px;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: #14181b;
+  padding: 5px 10px;
+  border-radius: 999px;
+  box-shadow: 0 6px 16px rgba(16, 20, 28, 0.32);
+  opacity: 0;
+  transform: translateY(5px) scale(0.9);
+  transform-origin: left top;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.cursor3d.is-hover .cursor3d__hint { opacity: 1; transform: none; }
+.cursor3d.is-hover svg { transform: scale(1.08); }
 
 /* ---------------- Motion / entrance ---------------- */
 .has-anim:not(.reduced) .hero__text > *,

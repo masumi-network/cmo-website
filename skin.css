@@ -35,6 +35,11 @@
 .v3x .section__head h2,
 .v3x .problem h2,
 .v3x .cta h2 { font-size: clamp(2rem, 4.6vw, 3.2rem); letter-spacing: -0.03em; }
+/* #why headline on a single line (wraps naturally on small screens). */
+.v3x .problem .section__head { max-width: none; }
+@media (min-width: 720px) {
+  .v3x .problem .section__head h2 { white-space: nowrap; font-size: clamp(2rem, 4vw, 3rem); }
+}
 
 /* ---- Big pill labels ---- */
 .v3x .eyebrow,
@@ -63,6 +68,9 @@
 .v3x .tab.is-active { background: var(--ink); color: var(--btn-ink); box-shadow: var(--shadow-lg); }
 .v3x .tab.is-active .tab__icon { background: transparent; border-color: currentColor; color: inherit; }
 .v3x .tab__icon { border: none; background: var(--bg); }
+/* Inactive tabs: give them a clear edge so they don't blend into the page bg. */
+.v3x .tab:not(.is-active) { background: var(--surface); border: 1px solid var(--line-2); box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05); }
+.v3x .tab:not(.is-active):hover { border-color: var(--ink-soft); color: var(--ink); }
 
 /* ---- Rounder buttons ---- */
 .v3x .btn { border-radius: 999px; padding-inline: 1.5rem; }
@@ -106,6 +114,8 @@
 .v3x .tier--featured .tier__per,
 .v3x .tier--featured .tier__bill { color: color-mix(in srgb, var(--btn-ink) 70%, transparent); }
 .v3x .tier--featured .tier__plus { color: var(--btn-ink); }
+/* "Popular" tag: high contrast on the featured card in both themes. */
+.v3x .tier--featured .tier__tag { background: var(--btn-ink); color: var(--ink); border: none; }
 /* Featured card sits on a dark surface — invert its button so it stays visible. */
 .v3x .tier--featured .btn { background: var(--btn-ink); color: var(--ink); border-color: var(--btn-ink); }
 .v3x .tier--featured .btn:hover { background: var(--btn-ink); border-color: var(--btn-ink); opacity: 0.88; }
@@ -125,6 +135,12 @@
    both — use fixed dark colors, not the theme-flipping button tokens. */
 .v3x .cta .waitlist .btn { background: #14181b; color: #ffffff; border-color: #14181b; }
 .v3x .cta .waitlist .btn:hover { background: #2b3236; border-color: #2b3236; }
+/* Capture bar: a solid off-white box with a clear edge, so it never blends
+   into the CTA block in either theme. Input text stays dark on the white box. */
+.v3x .cta .waitlist { background: #ffffff; border: 1px solid rgba(16, 24, 40, 0.10); box-shadow: 0 14px 34px -16px rgba(16, 24, 40, 0.35); }
+.v3x .cta .waitlist__input { color: #14181b; }
+.v3x .cta .waitlist__input::placeholder { color: #6b7479; }
+.v3x .cta .waitlist__input--url { border-left-color: rgba(16, 24, 40, 0.12); }
 
 /* ---- Capability mockups: keep every card the same size so switching tabs
         doesn't resize the illustration ---- */

@@ -31,9 +31,12 @@
     var el = document.createElement("div");
     el.className = "cursor3d";
     el.setAttribute("aria-hidden", "true");
-    el.innerHTML = SVG;
+    el.innerHTML = SVG + '<span class="cursor3d__hint">Click</span>';
     document.body.appendChild(el);
     root.classList.add("cursor3d-on"); // now safe to hide the native cursor
+
+    // Show a "Click" hint whenever the pointer is over something clickable.
+    var clickable = 'a, button, [role="button"], .btn, .tab, label, summary, select, input[type="submit"]';
 
     // Arrow tip (hotspot) within the 50x50 element.
     var tipX = 13.3, tipY = 1;
@@ -47,6 +50,8 @@
       x = e.clientX; y = e.clientY;
       place();
       if (!shown) { shown = true; el.classList.add("is-visible"); }
+      var over = e.target && e.target.closest && e.target.closest(clickable);
+      el.classList.toggle("is-hover", !!over);
     }, { passive: true });
 
     // Blink the eyes while the button is pressed (a quick blink on click).
