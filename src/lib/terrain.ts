@@ -1,19 +1,35 @@
-// The hills of the miniature San Francisco: a sum of smooth bumps, flat in
-// between. Everything that stands on the ground asks heightAt().
+// The hills of the miniature San Francisco, flat in between. Everything that
+// stands on the ground asks heightAt().
+//
+// Each hill is a smooth dome on an ellipse that is exactly flat outside it, so
+// the flat places (the shop, the wall, the cable car) stay flat. Sizes keep
+// every street at or under MAX_STREET_GRADE (tested): SF streets climb straight
+// up, but never a wall. The steep tops (Telegraph Hill, Twin Peaks) are parks.
 
-type Hill = [x: number, z: number, height: number, radius: number];
+/** [x, z, height, radius x, radius z]. */
+type Hill = [x: number, z: number, height: number, rx: number, rz: number];
+
+/** Steepest a street or sidewalk may get (rise over run). SF's steepest are about 0.32. */
+export const MAX_STREET_GRADE = 0.36;
 
 const HILLS: Hill[] = [
-  [-15, -16, 7, 9], // Russian Hill (the 06:00 rooftop)
-  [-8, -6, 4, 8], // Nob Hill
-  [2, -26, 6, 5.5], // Telegraph Hill (Coit Tower)
-  [-34, 30, 10, 8], // Twin Peaks
-  [-44, -20, 4, 12], // Pacific Heights
+  [-15, -13, 3.8, 17, 18], // Russian Hill (the 06:00 rooftop)
+  [-3, 6, 1.8, 9, 9], // Nob Hill, a low round top west of downtown
+  [4.5, -28.5, 3.6, 17, 18], // Telegraph Hill by the bay ...
+  [2, -26, 1.1, 2.6, 2.6], // ... and its knob under Coit Tower (in Pioneer Park)
+  [-47, -22, 3, 22, 14], // Pacific Heights, a long east to west ridge
+  [-35, 33, 2, 30, 18], // Twin Peaks: a wide base ...
+  [-35, 34, 1.6, 13.6, 7.6], // ... the steep part, inside its park ...
+  [-40.5, 34, 1.8, 6, 5.5], // ... and the two peaks
+  [-30, 34.5, 1.5, 6, 5.5],
 ];
 
 export function heightAt(x: number, z: number) {
   let h = 0;
-  for (const [hx, hz, a, r] of HILLS) h += a * Math.exp(-((x - hx) ** 2 + (z - hz) ** 2) / (r * r));
+  for (const [hx, hz, a, rx, rz] of HILLS) {
+    const q = ((x - hx) / rx) ** 2 + ((z - hz) / rz) ** 2;
+    if (q < 1) h += a * (1 - q) ** 2;
+  }
   return h;
 }
 
@@ -67,7 +83,7 @@ function rawHeadland(x: number, z: number) {
  * around it (see headlandHeight).
  */
 const MARIN_ROAD_CTRL: [number, number][] = [[-80, -152], [-80, -162], [-83, -172], [-90, -184], [-100, -196], [-112, -206], [-126, -214]];
-const MAX_GRADE = 0.18;
+const MARIN_GRADE = 0.18;
 
 export const MARIN_ROAD: [number, number, number][] = (() => {
   const xz: [number, number][] = [];
@@ -78,11 +94,11 @@ export const MARIN_ROAD: [number, number, number][] = (() => {
     for (let k = 0; k < n; k++) xz.push([ax + ((bx - ax) * k) / n, az + ((bz - az) * k) / n]);
   }
   xz.push(MARIN_ROAD_CTRL[MARIN_ROAD_CTRL.length - 1]);
-  // Follow the hills, but never steeper than MAX_GRADE (forward, then backward).
+  // Follow the hills, but never steeper than MARIN_GRADE (forward, then backward).
   const y = xz.map(([x, z]) => Math.max(rawHeadland(x, z), -0.2) + 0.3);
   y[0] = 7;
-  for (let i = 1; i < y.length; i++) y[i] = Math.min(Math.max(y[i], y[i - 1] - MAX_GRADE), y[i - 1] + MAX_GRADE);
-  for (let i = y.length - 2; i > 0; i--) y[i] = Math.min(Math.max(y[i], y[i + 1] - MAX_GRADE), y[i + 1] + MAX_GRADE);
+  for (let i = 1; i < y.length; i++) y[i] = Math.min(Math.max(y[i], y[i - 1] - MARIN_GRADE), y[i - 1] + MARIN_GRADE);
+  for (let i = y.length - 2; i > 0; i--) y[i] = Math.min(Math.max(y[i], y[i + 1] - MARIN_GRADE), y[i + 1] + MARIN_GRADE);
   y[0] = 7;
   return xz.map(([x, z], i) => [x, y[i], z]);
 })();

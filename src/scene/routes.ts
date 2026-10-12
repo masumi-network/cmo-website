@@ -2,6 +2,9 @@
 // the street, along walking streets (shortest way on the grid), then up to the
 // next spot. Near each place he walks; long street stretches are a quick
 // cursor "dash"; roofs, the cable car, the pier and the pyramid tip are jumps.
+// Jumps go over things, never through them (tests/unit/collision.test.ts):
+// onto a tall building he leaps straight up beside the wall, to a point above
+// the cornice and parapet, then hops over onto the roof.
 
 import { chapters, type ChapterId, type Vec3 } from "@/content/day";
 import { heightAt } from "@/lib/terrain";
@@ -9,29 +12,47 @@ import { WALK_OFFSET, WALK_X, WALK_Z } from "./grid";
 
 export type Mode = "walk" | "dash" | "jump";
 
-/** How a move arrives at `p`. "street" becomes walk near the ends, dash in between. */
-type Step = { p: Vec3; how?: "walk" | "jump" | "street" };
+/** How a move arrives at `p`. "street" becomes walk near the ends, dash in between. `face`: a fixed heading for the move. */
+type Step = { p: Vec3; how?: "walk" | "jump" | "street"; face?: number };
 
 /** Walk this far at each end of a street stretch before/after dashing. */
 const WALK_ENDS = 4;
 
 const ground = (x: number, z: number): Step => ({ p: [x, heightAt(x, z), z] });
 const lineZ = (z: number) => z + WALK_OFFSET; // walking line on an east-west street
-const lineX = (x: number) => x + WALK_OFFSET; // walking line on a north-south street
+// walking line on a north-south street; on the waterfront (x 29) it keeps
+// clear of the pier deck and the Ferry Building's plinth, which reach x 30.9
+const lineX = (x: number) => x + WALK_OFFSET - (x === 29 ? 0.4 : 0);
+const RUSSIAN_HILL_ROOF = chapters[0].spot[1];
+const UNION_SQUARE_ROOF = chapters[3].spot[1];
+const PYRAMID_TIP = chapters[4].spot[1];
 
 /** From a walking line to the chapter's spot (the spot itself is added after). */
+const ROOFTOP_WAY: Step[] = [
+  ground(-14, lineZ(-6)),
+  ground(-14, -6.85), // clear of the cornice (it sticks out to z -7.16)
+  { p: [-14, RUSSIAN_HILL_ROOF + 0.6, -6.85], how: "jump" }, // up past the cornice, above the parapet
+  { p: [-14, RUSSIAN_HILL_ROOF, -8.2], how: "jump" }, // over it, onto the roof
+];
 const APPROACH: Record<ChapterId, Step[]> = {
-  arrive: [ground(-14, lineZ(-6)), ground(-14, -6.9), { p: [-14, chapters[0].spot[1], -8.2], how: "jump" }],
+  arrive: ROOFTOP_WAY,
   learn: [ground(-9.6, lineZ(14))],
   social: [ground(lineX(-3), 29.6)],
-  ads: [ground(5.6, lineZ(14)), ground(5.6, 12.2), { p: [5.6, chapters[3].spot[1], 11.2], how: "jump" }],
-  seo: [ground(6.5, lineZ(-6)), ground(6.5, -7.0)],
-  newsletter: [ground(20.9, lineZ(4))],
+  ads: [ground(5.6, lineZ(14)), ground(5.6, 12.2), { p: [5.6, UNION_SQUARE_ROOF + 0.5, 12.2], how: "jump" }, { p: [5.6, UNION_SQUARE_ROOF, 11.2], how: "jump" }],
+  // up beside the pyramid's south face to just above the platform's edge, then a hop to the middle
+  seo: [ground(6.5, lineZ(-6)), ground(6.5, -7.0), { p: [6.5, PYRAMID_TIP + 0.5, -10.1], how: "jump" }],
+  newsletter: [ground(19.95, lineZ(4))],
   night: [ground(lineX(29), 24.2), { p: [31.4, 0.55, 24.2], how: "jump" }],
-  join: [ground(-14, lineZ(-6)), ground(-14, -6.9), { p: [-14, chapters[7].spot[1], -8.2], how: "jump" }],
+  join: ROOFTOP_WAY,
 };
 /** Moves onto the spot that are jumps (the pyramid tip, the cable car step). */
 const JUMP_TO_SPOT: ChapterId[] = ["seo", "newsletter"];
+/**
+ * Spots he faces a fixed way on (and hops on and off facing it) instead of
+ * turning to the camera. The cable car's running board is too narrow to turn
+ * on: he rides it facing out, his back to the car.
+ */
+export const FACE: Partial<Record<ChapterId, number>> = { newsletter: 0 };
 
 type Node = { x: number; z: number; lines: string[] };
 
@@ -79,19 +100,20 @@ function routeSteps(a: number, b: number): Step[] {
   const out = [...APPROACH[A.id]].reverse();
   // Leaving retraces the approach: a jump in is a jump out.
   const leave: Step[] = [{ p: A.spot }];
-  out.forEach((s, i) => leave.push({ p: s.p, how: (i === 0 ? JUMP_TO_SPOT.includes(A.id) : out[i - 1].how === "jump") ? "jump" : "walk" }));
+  out.forEach((s, i) => leave.push({ p: s.p, how: (i === 0 ? JUMP_TO_SPOT.includes(A.id) : out[i - 1].how === "jump") ? "jump" : "walk", face: i === 0 ? FACE[A.id] : undefined }));
   const inn = APPROACH[B.id].map((s, i) => (i === 0 ? { ...s, how: "street" as const } : s));
   const middle = streetWalk(leave[leave.length - 1].p, inn[0].p);
-  return [...leave, ...middle, ...inn, { p: B.spot, how: JUMP_TO_SPOT.includes(B.id) ? "jump" : "walk" }];
+  return [...leave, ...middle, ...inn, { p: B.spot, how: JUMP_TO_SPOT.includes(B.id) ? "jump" : "walk", face: FACE[B.id] }];
 }
 
-/** `modes[i]` / `ground[i]`: how the move arriving at point i goes, and whether it follows the terrain. */
-export type Path = { points: Vec3[]; modes: Mode[]; ground: boolean[]; cum: number[]; length: number };
+/** `modes[i]` / `ground[i]` / `face[i]`: how the move arriving at point i goes, whether it follows the terrain, a fixed heading. */
+export type Path = { points: Vec3[]; modes: Mode[]; ground: boolean[]; face: (number | null)[]; cum: number[]; length: number };
 
 function makePath(steps: Step[]): Path {
   const points: Vec3[] = [steps[0].p];
   const how: Step["how"][] = ["walk"];
   const ground: boolean[] = [false];
+  const face: (number | null)[] = [null];
   for (let i = 1; i < steps.length; i++) {
     const a = steps[i - 1].p;
     const b = steps[i].p;
@@ -105,6 +127,7 @@ function makePath(steps: Step[]): Path {
       points.push(onGround ? [x, heightAt(x, z), z] : [x, a[1] + (b[1] - a[1]) * t, z]);
       how.push(h);
       ground.push(onGround);
+      face.push(steps[i].face ?? null);
     }
   }
   const cum = [0];
@@ -128,7 +151,7 @@ function makePath(steps: Step[]): Path {
     for (let k = i; k <= j; k++) modes[k] = cum[k] - start > WALK_ENDS && end - cum[k - 1] > WALK_ENDS ? "dash" : "walk";
     i = j + 1;
   }
-  return { points, modes, ground, cum, length: cum[cum.length - 1] };
+  return { points, modes, ground, face, cum, length: cum[cum.length - 1] };
 }
 
 /** One path per move: PATHS[i] goes from chapter i to chapter i + 1. */
@@ -150,6 +173,8 @@ export type Sample = {
   mode: Mode;
   /** 0..1 through the current segment (the jump arc uses it). */
   u: number;
+  /** A fixed heading for this move (see FACE), or null: face where he goes. */
+  face: number | null;
 };
 
 export function samplePath(path: Path, t: number): Sample {
@@ -163,9 +188,12 @@ export function samplePath(path: Path, t: number): Sample {
   const pos: [number, number, number] = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
   const mode = path.modes[i];
   if (path.ground[i]) pos[1] = heightAt(pos[0], pos[2]);
-  if (mode === "jump") pos[1] += Math.sin(Math.PI * u) * (1.2 + Math.hypot(b[0] - a[0], b[2] - a[2]) * 0.3);
+  const across = Math.hypot(b[0] - a[0], b[2] - a[2]);
+  if (mode === "jump" && across > 1e-6) pos[1] += Math.sin(Math.PI * u) * (1.2 + across * 0.3);
+  // straight up beside a wall: fast off the ground, slowing at the top; straight down: falling faster
+  else if (mode === "jump") pos[1] = a[1] + (b[1] - a[1]) * (b[1] > a[1] ? 1 - (1 - u) ** 2 : u * u);
   const heading = Math.atan2(b[0] - a[0], b[2] - a[2]);
-  return { pos, heading, s, mode, u };
+  return { pos, heading, s, mode, u, face: path.face[i] };
 }
 
 /** Sample anywhere on the day line: which move, and where on it. */

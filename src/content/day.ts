@@ -144,8 +144,8 @@ export const chapters: readonly Chapter[] = [
     place: "Ferry Building",
     bubble: "Special delivery!",
     poster: "/concepts/06-newsletter.jpg",
-    spot: at(20.9, 0.9, 5.15),
-    camera: frame(at(20.9, 0.9, 5.15), { yaw: 42, distance: 7, height: 0.8, look: 1.5 }),
+    spot: at(19.95, 0.34, 5.1),
+    camera: frame(at(19.95, 0.34, 5.1), { yaw: 42, distance: 7, height: 0.8, look: 1.5 }),
     dark: false,
   },
   {

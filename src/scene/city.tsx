@@ -4,19 +4,15 @@
 // houses, downtown towers, trees, lamps and fog. Layout comes from layout.ts;
 // named places live in landmarks.tsx.
 
-import { Cloud, Clouds, MeshReflectorMaterial, useTexture } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { Cloud, Clouds, useTexture } from "@react-three/drei";
+import { useMemo } from "react";
 import {
   BoxGeometry,
   Color,
-  CylinderGeometry,
   ExtrudeGeometry,
-  InstancedBufferAttribute,
   MirroredRepeatWrapping,
   RepeatWrapping,
   SRGBColorSpace,
-  IcosahedronGeometry,
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
@@ -25,67 +21,21 @@ import {
   SphereGeometry,
   Float32BufferAttribute,
   Vector2,
-  type BufferGeometry,
-  type InstancedMesh,
-  type Material,
   type Texture,
 } from "three";
-import { facadeMaterial } from "./facade";
+import { Bay, Hills, Water } from "./bay";
 import { chapters } from "@/content/day";
 import { useCity } from "@/lib/store";
 import { heightAt, headlandHeight } from "@/lib/terrain";
 import { activeIndex } from "@/lib/time";
-import { WALK_X, WALK_Z } from "./grid";
-import { CITY, LAND, LAND_BOUNDS, X_STREETS, Z_STREETS, insideLand, type House, type Tower } from "./layout";
-import { rig, useNightGlow } from "./shared";
+import { LAND, LAND_BOUNDS, insideLand } from "./grid";
+import { CITY, type House, type Tower } from "./layout";
+import { useNightGlow } from "./shared";
 import { FOOTING, groundMaterial, houseMaterial, roofMaterial, towerMaterial, worldMaterial } from "./materials";
+import { Instances } from "./parts";
 import { groundMask } from "./textures";
-
-const o = new Object3D();
-const c = new Color();
-
-/** One instanced mesh, filled once from a list. `place` sets o and returns a color. */
-function Instances<T>({
-  items,
-  geometry,
-  material,
-  place,
-  attributes,
-  shadows = true,
-}: {
-  items: T[];
-  geometry: BufferGeometry;
-  material: Material;
-  place: (item: T, o: Object3D, i: number) => string | void;
-  /** Per-instance shader attributes, one float per item. */
-  attributes?: Record<string, (item: T, i: number) => number>;
-  shadows?: boolean;
-}) {
-  const ref = useRef<InstancedMesh>(null);
-  const geo = useMemo(() => {
-    if (!attributes) return geometry;
-    const g = geometry.clone();
-    for (const [name, value] of Object.entries(attributes)) g.setAttribute(name, new InstancedBufferAttribute(Float32Array.from(items, value), 1));
-    return g;
-  }, [geometry, attributes, items]);
-  useLayoutEffect(() => {
-    const mesh = ref.current;
-    if (!mesh) return;
-    items.forEach((item, i) => {
-      o.position.set(0, 0, 0);
-      o.rotation.set(0, 0, 0);
-      o.scale.set(1, 1, 1);
-      const color = place(item, o, i);
-      o.updateMatrix();
-      mesh.setMatrixAt(i, o.matrix);
-      if (color) mesh.setColorAt(i, c.set(color));
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    mesh.computeBoundingSphere();
-  }, [items, place]);
-  return <instancedMesh ref={ref} args={[geo, material, items.length]} castShadow={shadows} receiveShadow />;
-}
+import { Trees } from "./trees";
+import { Cars } from "./traffic";
 
 const box = new BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
 
@@ -138,9 +88,18 @@ export function City({ lite }: { lite: boolean }) {
 /** Cliffs around the shore, and the hilly ground on top with the street map. */
 function Land({ tex }: { tex: Textures }) {
   const cliffs = useMemo(() => {
-    const shape = new Shape(LAND.map(([x, z]) => new Vector2(x, -z)));
-    const g = new ExtrudeGeometry(shape, { depth: 4, bevelEnabled: true, bevelSize: 0.6, bevelThickness: 0.6, bevelSegments: 2 });
+    // One point per unit along the shore, so the wall's top can follow the hills.
+    const shore = LAND.flatMap(([x, z], i) => {
+      const [nx, nz] = LAND[(i + 1) % LAND.length];
+      const n = Math.ceil(Math.hypot(nx - x, nz - z));
+      return Array.from({ length: n }, (_, k) => new Vector2(x + ((nx - x) * k) / n, -(z + ((nz - z) * k) / n)));
+    });
+    const g = new ExtrudeGeometry(new Shape(shore), { depth: 4, bevelEnabled: true, bevelSize: 0.6, bevelThickness: 0.6, bevelSegments: 2 });
     g.rotateX(-Math.PI / 2);
+    // Raise the top of the wall to the ground behind it (Telegraph Hill meets the bay as a cliff).
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 2) pos.setY(i, pos.getY(i) + heightAt(pos.getX(i), pos.getZ(i)));
+    g.computeVertexNormals();
     return g;
   }, []);
   // Group 0 is the flat top (hidden: the terrain replaces it), group 1 the sides.
@@ -163,49 +122,12 @@ function Land({ tex }: { tex: Textures }) {
     g.computeVertexNormals();
     return g;
   }, []);
-  const ground = useMemo(() => groundMaterial(groundMask(), tex.asphalt, tex.concrete, tex.grass), [tex]);
+  const ground = useMemo(() => groundMaterial(groundMask(), tex.asphalt, tex.concrete, tex.grass, tex.hills), [tex]);
 
   return (
     <>
       <mesh geometry={cliffs} material={cliffMaterials} position={[0, -4.6, 0]} receiveShadow />
       <mesh geometry={terrain} material={ground} receiveShadow castShadow />
-    </>
-  );
-}
-
-function Water({ lite }: { lite: boolean }) {
-  return (
-    <mesh rotation-x={-Math.PI / 2} position={[0, -0.45, 0]}>
-      <planeGeometry args={[1400, 1400]} />
-      {lite ? (
-        <meshStandardMaterial color="#58798c" roughness={0.35} metalness={0.2} />
-      ) : (
-        <MeshReflectorMaterial resolution={512} mirror={0.6} mixStrength={1.6} blur={[400, 120]} mixBlur={1} roughness={0.75} metalness={0.35} color="#58798c" depthScale={0} />
-      )}
-    </mesh>
-  );
-}
-
-const HILLS: [number, number, number, number, string][] = [
-  // x, z, radius, height, color
-  [142, 14, 9, 4.5, "#8f8a68"],
-];
-
-/** Islands in the bay (Treasure Island / Yerba Buena), grassed like the headlands. */
-function Hills({ map }: { map: Texture }) {
-  const grass = useMemo(() => {
-    const t = map.clone();
-    t.repeat.set(3, 3);
-    return t;
-  }, [map]);
-  return (
-    <>
-      {HILLS.map(([x, z, r, h]) => (
-        <mesh key={`${x}${z}`} position={[x, -0.6, z]} scale={[r, h, r]} castShadow receiveShadow>
-          <sphereGeometry args={[1, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial map={grass} roughness={1} />
-        </mesh>
-      ))}
     </>
   );
 }
@@ -316,32 +238,6 @@ function Towers({ towers, tex }: { towers: Tower[]; tex: Textures }) {
   );
 }
 
-type Tree = { x: number; y: number; z: number; s: number };
-const LEAVES = ["#7f9a68", "#6c8a58", "#8aa673", "#93a96f"];
-const trunk = (t: Tree, o: Object3D) => {
-  o.position.set(t.x, t.y - 0.2, t.z);
-  o.scale.set(t.s, t.s * 1.4 + 0.2, t.s);
-};
-const canopy = (t: Tree, o: Object3D, i: number) => {
-  o.position.set(t.x, t.y + t.s * 1.9, t.z);
-  o.scale.set(t.s * 1.05, t.s * 1.2, t.s * 1.05);
-  o.rotation.y = i;
-  return LEAVES[i % LEAVES.length];
-};
-
-function Trees({ trees }: { trees: Tree[] }) {
-  const trunkGeo = useMemo(() => new CylinderGeometry(0.08, 0.12, 1, 6).translate(0, 0.5, 0), []);
-  const leafGeo = useMemo(() => new IcosahedronGeometry(1, 1), []);
-  const bark = useMemo(() => new MeshStandardMaterial({ color: "#6b5440", roughness: 1 }), []);
-  const leaves = useMemo(() => new MeshStandardMaterial({ roughness: 0.9, flatShading: true }), []);
-  return (
-    <>
-      <Instances items={trees} geometry={trunkGeo} material={bark} place={trunk} />
-      <Instances items={trees} geometry={leafGeo} material={leaves} place={canopy} />
-    </>
-  );
-}
-
 type Lamp = { x: number; y: number; z: number };
 const lampPole = (l: Lamp, o: Object3D) => void o.position.set(l.x, l.y, l.z);
 const lampBulb = (l: Lamp, o: Object3D) => void o.position.set(l.x, l.y + 3.05, l.z);
@@ -380,150 +276,3 @@ function Fog() {
   );
 }
 
-// --- Life: cars and the bay ----------------------------------------------
-
-const CAR_COLORS = ["#e2ded6", "#9aa3ad", "#5b6470", "#b85c48", "#2f3440", "#c9b28a", "#7c8a6a", "#f2efe8"];
-
-type Lane = { alongX: boolean; c: number; dir: 1 | -1; from: number; to: number };
-type Car = { lane: Lane; offset: number; speed: number; color: string };
-
-function landSpan(alongX: boolean, c: number): [number, number] | null {
-  let from = Infinity;
-  let to = -Infinity;
-  for (let t = -90; t <= 45; t += 0.5) {
-    const inside = alongX ? insideLand(t, c) : insideLand(c, t);
-    if (inside) {
-      from = Math.min(from, t);
-      to = Math.max(to, t);
-    }
-  }
-  return to - from > 8 ? [from + 1, to - 1] : null;
-}
-
-function makeCars(): Car[] {
-  let seed = 11;
-  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const lanes: Lane[] = [];
-  for (const z of Z_STREETS.filter((v) => !WALK_Z.includes(v))) {
-    for (const dir of [1, -1] as const) {
-      const span = landSpan(true, z + dir * 0.75);
-      if (span) lanes.push({ alongX: true, c: z + dir * 0.75, dir, from: span[0], to: span[1] });
-    }
-  }
-  for (const x of X_STREETS.filter((v) => !WALK_X.includes(v))) {
-    for (const dir of [1, -1] as const) {
-      const span = landSpan(false, x - dir * 0.75);
-      if (span) lanes.push({ alongX: false, c: x - dir * 0.75, dir, from: span[0], to: span[1] });
-    }
-  }
-  return lanes.flatMap((lane) =>
-    Array.from({ length: Math.max(1, Math.floor((lane.to - lane.from) / 22)) }, () => ({
-      lane,
-      offset: rand() * (lane.to - lane.from),
-      speed: 2.4 + rand() * 1.8,
-      color: CAR_COLORS[Math.floor(rand() * CAR_COLORS.length)],
-    })),
-  );
-}
-
-/** Little cars driving the streets, following the hills. They stop for Cuso. */
-function Cars() {
-  const bodies = useRef<InstancedMesh>(null);
-  const cabins = useRef<InstancedMesh>(null);
-  const cars = useMemo(() => makeCars(), []);
-  const driven = useMemo(() => Float32Array.from(cars, (car) => car.offset), [cars]);
-  const bodyGeo = useMemo(() => new BoxGeometry(1.7, 0.7, 4).translate(0, 0.55, 0), []);
-  const cabinGeo = useMemo(() => new BoxGeometry(1.5, 0.6, 2.1).translate(0, 1.2, -0.2), []);
-  const paint = useMemo(() => new MeshStandardMaterial({ roughness: 0.35, metalness: 0.3 }), []);
-  const glass = useMemo(() => new MeshStandardMaterial({ color: "#2a3038", roughness: 0.15, metalness: 0.5 }), []);
-
-  useLayoutEffect(() => {
-    cars.forEach((car, i) => bodies.current?.setColorAt(i, c.set(car.color)));
-    if (bodies.current?.instanceColor) bodies.current.instanceColor.needsUpdate = true;
-  }, [cars]);
-
-  useFrame((_, dt) => {
-    const b = bodies.current;
-    const k = cabins.current;
-    if (!b || !k) return;
-    cars.forEach((car, i) => {
-      const { lane } = car;
-      const length = lane.to - lane.from;
-      const s = driven[i] % length;
-      const along = lane.dir === 1 ? lane.from + s : lane.to - s;
-      const x = lane.alongX ? along : lane.c;
-      const z = lane.alongX ? lane.c : along;
-      // Wait while Cuso is in the lane just ahead.
-      const ahead = ((lane.alongX ? rig.cuso.x - x : rig.cuso.z - z) * lane.dir);
-      const side = Math.abs(lane.alongX ? rig.cuso.z - z : rig.cuso.x - x);
-      if (!(ahead > 0 && ahead < 5 && side < 2)) driven[i] += Math.min(dt, 0.1) * car.speed;
-      o.position.set(x, heightAt(x, z), z);
-      o.rotation.set(0, lane.alongX ? (lane.dir === 1 ? Math.PI / 2 : -Math.PI / 2) : lane.dir === 1 ? 0 : Math.PI, 0);
-      o.scale.set(1, 1, 1);
-      o.updateMatrix();
-      b.setMatrixAt(i, o.matrix);
-      k.setMatrixAt(i, o.matrix);
-    });
-    b.instanceMatrix.needsUpdate = true;
-    k.instanceMatrix.needsUpdate = true;
-  });
-
-  return (
-    <>
-      <instancedMesh ref={bodies} args={[bodyGeo, paint, cars.length]} castShadow frustumCulled={false} />
-      <instancedMesh ref={cabins} args={[cabinGeo, glass, cars.length]} castShadow frustumCulled={false} />
-    </>
-  );
-}
-
-const BOATS = [
-  { cx: -20, cz: -62, r: 14, speed: 0.05, phase: 0 },
-  { cx: 10, cz: -55, r: 10, speed: 0.07, phase: 2 },
-  { cx: -40, cz: -70, r: 18, speed: 0.04, phase: 4 },
-  { cx: 50, cz: 0, r: 12, speed: 0.06, phase: 1 },
-  { cx: 55, cz: 35, r: 15, speed: 0.05, phase: 3 },
-];
-
-/** Alcatraz and a few sailboats drifting on the bay. */
-function Bay() {
-  const boats = useRef<(Object3D | null)[]>([]);
-  const sail = useMemo(() => new ExtrudeGeometry(new Shape([new Vector2(0, 0), new Vector2(1.6, 0), new Vector2(0, 3.2)]), { depth: 0.04, bevelEnabled: false }), []);
-  const block = useMemo(() => facadeMaterial({ floor: 1.4, window: 0.9 }), []);
-  useFrame(({ clock }) => {
-    BOATS.forEach((b, i) => {
-      const boat = boats.current[i];
-      if (!boat) return;
-      const a = b.phase + clock.elapsedTime * b.speed;
-      boat.position.set(b.cx + Math.cos(a) * b.r, -0.35, b.cz + Math.sin(a) * b.r);
-      boat.rotation.y = -a;
-    });
-  });
-  return (
-    <>
-      <group position={[-6, -0.5, -66]}>
-        <mesh scale={[7, 2.6, 4.5]} castShadow receiveShadow>
-          <sphereGeometry args={[1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial color="#9a9078" roughness={1} />
-        </mesh>
-        <mesh position={[0.5, 2.6, 0]} scale={[5, 1.8, 1.8]} material={block} castShadow>
-          <boxGeometry />
-        </mesh>
-        <mesh position={[-2.6, 3.6, 0.4]} castShadow>
-          <cylinderGeometry args={[0.25, 0.32, 3.2, 10]} />
-          <meshStandardMaterial color="#efe9dc" roughness={0.8} />
-        </mesh>
-      </group>
-      {BOATS.map((b, i) => (
-        <group key={i} ref={(el) => void (boats.current[i] = el)}>
-          <mesh position={[0, 0.2, 0]} castShadow>
-            <boxGeometry args={[0.9, 0.35, 2.6]} />
-            <meshStandardMaterial color="#f4f1ea" roughness={0.6} />
-          </mesh>
-          <mesh geometry={sail} position={[0, 0.4, -0.6]} rotation-y={Math.PI / 2} castShadow>
-            <meshStandardMaterial color="#ffffff" roughness={0.9} />
-          </mesh>
-        </group>
-      ))}
-    </>
-  );
-}

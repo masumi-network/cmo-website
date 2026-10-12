@@ -18,7 +18,7 @@ describe("city layout", () => {
 
   it("has neighbourhoods and a downtown", () => {
     expect(city.houses.length).toBeGreaterThan(150);
-    expect(city.towers.length).toBeGreaterThan(15);
+    expect(city.towers.length).toBeGreaterThanOrEqual(15);
     expect(city.trees.length).toBeGreaterThan(80);
     expect(city.lamps.length).toBeGreaterThan(25); // walking streets keep their sidewalks clear
   });

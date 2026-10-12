@@ -11,8 +11,10 @@ import { Suspense, useEffect } from "react";
 import { Atmosphere } from "./atmosphere";
 import { CameraRig } from "./camera-rig";
 import { City } from "./city";
+import { CoitTower } from "./coit-tower";
 import { Cuso } from "./cuso";
-import { BayBridge, CoitTower, FerryBuilding, GoldenGate, MuralWall, Pier, Pyramid, Roads, Rooftop, Shopfront, UnionSquare } from "./landmarks";
+import { BayBridge, FerryBuilding, GoldenGate, MuralWall, Pyramid, Roads, Rooftop, Shopfront, UnionSquare } from "./landmarks";
+import { Pier } from "./pier";
 import { Pins } from "./pins";
 import { rig } from "./shared";
 

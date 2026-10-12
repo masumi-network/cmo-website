@@ -12,14 +12,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { chapters } from "@/content/day";
 import { useCity } from "@/lib/store";
 import { travel } from "@/lib/time";
-import type { Group, Mesh, Object3D } from "three";
+import { Vector3, type Camera, type Group, type Mesh, type Object3D } from "three";
 import { SPEED, STRIDE, pose } from "./gait";
-import { rigCuso } from "./rig";
+import { SCALE, rigCuso } from "./rig";
 import { DAY_LENGTH, PATHS, dayDistance, sampleDay } from "./routes";
 import { damp, rig } from "./shared";
 
 export const CUSO_URL = "/models/cuso.glb";
-const SCALE = 6.2; // model is 0.3 m tall; Cuso is ~1.9 units, about door height
 const FEET = 0.1524 * SCALE;
 /** Further than this behind the scroll, he blinks there instead of walking. */
 const TELEPORT = 70;
@@ -110,8 +109,12 @@ export function Cuso() {
     rig.cuso.set(now.pos[0], now.pos[1], now.pos[2]);
 
     // Face where he is going (looking a bit ahead so corners are smooth), or the camera at rest.
+    // Some moves and spots have a fixed heading (the cable car step is too narrow to turn on):
+    // he spins to it quickly, before he lands.
     let yaw: number;
-    if (moving) {
+    if (now.face !== null) {
+      yaw = now.face;
+    } else if (moving) {
       const ahead = sampleDay(m.d + Math.sign(gap) * 1.6).pos;
       const dx = ahead[0] - now.pos[0];
       const dz = ahead[2] - now.pos[2];
@@ -119,7 +122,7 @@ export function Cuso() {
     } else {
       yaw = Math.atan2(camera.position.x - now.pos[0], camera.position.z - now.pos[2]);
     }
-    b.rotation.y = angleDamp(b.rotation.y, yaw, damp(moving ? 7 : 3, dt));
+    b.rotation.y = angleDamp(b.rotation.y, yaw, damp(now.face !== null ? 25 : moving ? 7 : 3, dt));
     rig.heading = b.rotation.y;
 
     const tv = rig.travel;
@@ -140,8 +143,20 @@ export function Cuso() {
   );
 }
 
+const anchor = new Vector3();
+
 /** What Cuso says, floating up and left of his head. */
 function Bubble() {
+  const box = useRef<HTMLDivElement>(null);
+  // Like drei's default, but never under the top bar: when Cuso is framed
+  // high, the bubble drops down beside his head instead.
+  const place = (el: Object3D, camera: Camera, size: { width: number; height: number }) => {
+    anchor.setFromMatrixPosition(el.matrixWorld).project(camera);
+    const x = ((anchor.x + 1) * size.width) / 2;
+    const y = ((1 - anchor.y) * size.height) / 2;
+    const bar = document.querySelector("header")?.getBoundingClientRect().bottom ?? 0;
+    return [x, Math.max(y, bar + 12 + (box.current?.offsetHeight ?? 0))];
+  };
   const [text, setText] = useState("");
   const shown = useRef("");
   const reply = useCity((s) => s.reply);
@@ -166,8 +181,8 @@ function Bubble() {
 
   if (!text) return null;
   return (
-    <Html position={[-0.45, 2.15, 0]} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-      <div className="-translate-x-1/2 -translate-y-full rounded-[20px] md:-translate-x-full md:rounded-[20px_20px_6px_20px] bg-[#f7f6f2] px-4 py-3 text-lg font-medium whitespace-nowrap text-[#111114] shadow-[0_10px_30px_rgb(17_17_20/0.12)]">
+    <Html position={[-0.45, 2.15, 0]} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }} calculatePosition={place}>
+      <div ref={box} className="-translate-x-1/2 -translate-y-full rounded-[20px] md:-translate-x-full md:rounded-[20px_20px_6px_20px] bg-[#f7f6f2] px-4 py-3 text-lg font-medium whitespace-nowrap text-[#111114] shadow-[0_10px_30px_rgb(17_17_20/0.12)]">
         {text}
       </div>
     </Html>

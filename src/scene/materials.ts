@@ -120,18 +120,38 @@ export function roofMaterial(shingles: Texture) {
 /**
  * The ground: the street map (mask: R asphalt, G sidewalk, B grass, white =
  * lane marks, black = plain block ground) blended with detail textures.
+ * Lawns are a muted green broken up by dry golden patches (`dry`, the
+ * headlands texture) and worn to dirt on steep slopes, so parks read calm.
  */
-export function groundMaterial(mask: Texture, asphalt: Texture, concrete: Texture, grass: Texture) {
+export function groundMaterial(mask: Texture, asphalt: Texture, concrete: Texture, grass: Texture, dry: Texture) {
   return patch(new MeshStandardMaterial({ map: mask, roughness: 0.95 }), "ground", {
-    uniforms: { uAsphalt: { value: asphalt }, uConcrete: { value: concrete }, uGrass: { value: grass } },
-    fragHead: "uniform sampler2D uAsphalt;\nuniform sampler2D uConcrete;\nuniform sampler2D uGrass;",
+    uniforms: { uAsphalt: { value: asphalt }, uConcrete: { value: concrete }, uGrass: { value: grass }, uDry: { value: dry } },
+    fragHead: /* glsl */ `
+      uniform sampler2D uAsphalt;
+      uniform sampler2D uConcrete;
+      uniform sampler2D uGrass;
+      uniform sampler2D uDry;
+      float fNoise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(fHash(i), fHash(i + vec2(1.0, 0.0)), f.x), mix(fHash(i + vec2(0.0, 1.0)), fHash(i + 1.0), f.x), f.y);
+      }`,
     color: /* glsl */ `
       vec3 fM = diffuseColor.rgb;
       float fMark = step(0.85, min(fM.r, min(fM.g, fM.b)));
       vec3 fAsphalt = texture2D(uAsphalt, vFPos.xz / 6.0).rgb;
       vec3 fConcrete = texture2D(uConcrete, vFPos.xz / 3.0).rgb;
-      vec3 fGrass = texture2D(uGrass, vFPos.xz / 5.0).rgb;
       vec3 fBlock = fConcrete * vec3(0.86, 0.82, 0.76);
+      // Lawn: two scales of grass (no visible tiling), toned down toward sage.
+      vec3 fGreen = mix(texture2D(uGrass, vFPos.xz / 5.0).rgb, texture2D(uGrass, vFPos.xz / 13.7 + 0.31).rgb, 0.5);
+      fGreen = mix(vec3(0.2, 0.25, 0.12), mix(vec3(fLuma(fGreen)), fGreen, 0.5), 0.55) * vec3(0.95, 0.97, 0.86);
+      // Dry golden patches, large and soft, and dirt where the slope is steep.
+      float fN = fNoise(vFPos.xz / 9.0) * 0.65 + fNoise(vFPos.xz / 3.1 + 7.0) * 0.35;
+      vec3 fDry = texture2D(uDry, vFPos.xz / 8.0).rgb * vec3(1.02, 0.98, 0.86);
+      vec3 fGrass = mix(fGreen, fDry, smoothstep(0.5, 0.78, fN) * 0.75);
+      float fSteep = smoothstep(0.1, 0.32, 1.0 - vFNormal.y);
+      fGrass = mix(fGrass, fDry * vec3(0.8, 0.7, 0.58), fSteep * 0.55) * (0.92 + 0.16 * fN);
       vec3 fBase = fAsphalt * fM.r + fConcrete * fM.g + fGrass * fM.b + fBlock * clamp(1.0 - fM.r - fM.g - fM.b, 0.0, 1.0);
       diffuseColor.rgb = mix(fBase, vec3(0.86, 0.84, 0.78), fMark);`,
     roughness: "roughnessFactor = mix(roughnessFactor, 0.8, fM.r);",

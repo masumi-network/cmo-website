@@ -22,6 +22,8 @@ E2E saves a screenshot of every chapter to `screenshots/` (gitignored).
 
 Scripted screenshots of the 3D: headless Chrome pauses `requestAnimationFrame` without user input, so after a programmatic scroll the scene may not update. Move the mouse while waiting (the e2e assertions on the DOM are not affected).
 
+Close-ups of one object: in dev, add `?cam=px,py,pz,tx,ty,tz` (camera position, then the point it looks at). Ignored in production builds.
+
 ## 2. Visual check (every UI change)
 
 Open `screenshots/` and check, desktop and mobile:

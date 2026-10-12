@@ -5,6 +5,22 @@
 
 import { Bone, Float32BufferAttribute, Skeleton, SkinnedMesh, Uint16BufferAttribute, type Material, type Mesh, type MeshStandardMaterial, type Object3D } from "three";
 
+/** Model units to world units: the model is 0.3 tall, Cuso is ~1.9 units (about door height). */
+export const SCALE = 6.2;
+
+/**
+ * Cuso's body in world units, measured from the mesh in height bands:
+ * [bottom, top, x0, x1, z0, z1] above his feet, in his own frame (he faces +z).
+ * Shoes, legs, the hip arm, both arms, the arrow tip. The collision test uses it.
+ */
+export const HULL: readonly (readonly [number, number, number, number, number, number])[] = [
+  [0, 0.2, -0.45, 0.47, -0.2, 0.2],
+  [0.2, 0.4, -0.31, 0.34, -0.17, 0.08],
+  [0.4, 0.8, -0.22, 0.63, -0.14, 0.09],
+  [0.8, 1.5, -0.63, 0.63, -0.14, 0.09],
+  [1.5, 1.89, 0.01, 0.42, -0.14, 0.09],
+];
+
 export const BONE = { root: 0, hips: 1, body: 2, armL: 3, armR: 4, thighL: 5, shinL: 6, footL: 7, thighR: 8, shinR: 9, footR: 10 } as const;
 export type BoneName = keyof typeof BONE;
 

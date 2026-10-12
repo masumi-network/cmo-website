@@ -6,31 +6,23 @@
 import { useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { AdditiveBlending, BufferGeometry, CatmullRomCurve3, Color, DoubleSide, Float32BufferAttribute, TubeGeometry, Vector3, MeshStandardMaterial, Object3D, RepeatWrapping, SRGBColorSpace, type Group, type InstancedMesh, type Mesh, type PointLight, type Texture } from "three";
-import { brandFromUrl } from "@/lib/brand";
+import { BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, CircleGeometry, ConeGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, PlaneGeometry, TorusGeometry, TubeGeometry, Vector3, MeshStandardMaterial, Object3D, RepeatWrapping, SRGBColorSpace, type Group, type InstancedMesh, type Texture } from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { heightAt } from "@/lib/terrain";
 import { useCity } from "@/lib/store";
 import { dayNow, rig, useNightGlow } from "./shared";
 import { towerMaterial, worldMaterial } from "./materials";
 import { ROADS, piers, roadGeometry } from "./roads";
-import { chartTexture, useSign } from "./textures";
-
-const useBrand = () => (brandFromUrl(useCity((s) => s.website)) ?? "your brand").toUpperCase();
-
-function useGlow(color: string, max: number, base = 0) {
-  const material = useMemo(() => new MeshStandardMaterial({ color: "#222", emissive: new Color(color), emissiveIntensity: base }), [color, base]);
-  useNightGlow(material, max, base);
-  return material;
-}
-
-type V3 = [number, number, number];
+import { CableCar, Rails } from "./cable-car";
+import { Box, useBrand, useGlow, type V3 } from "./parts";
+import { useSign } from "./textures";
 
 const LANDMARK_TEXTURES = {
   apartment: "/textures/apartment.jpg",
   shopfront: "/textures/shopfront.jpg",
   posts: "/textures/posts.jpg",
-  precast: "/textures/precast.jpg",
   stone: "/textures/stone.jpg",
+  siding: "/textures/siding.jpg",
   ggsteel: "/textures/ggsteel.jpg",
   baysteel: "/textures/baysteel.jpg",
   asphalt: "/textures/asphalt.jpg",
@@ -54,44 +46,133 @@ function useStone() {
   return useMemo(() => towerMaterial(stone, { w: 4.8, h: 7.2 }, false), [stone]);
 }
 
-/** Glows at night through a window (adds light, invisible by day). */
-function useWindowGlow(color: string, max: number) {
-  const material = useMemo(
-    () => new MeshStandardMaterial({ color: "#000", emissive: new Color(color), emissiveIntensity: 0, transparent: true, blending: AdditiveBlending, depthWrite: false }),
-    [color],
-  );
-  useNightGlow(material, max, 0.08);
-  return material;
+// Landmark detail is built from simple parts merged into one geometry per
+// material, so a whole building is a handful of draw calls.
+const placer = new Object3D();
+function placed(g: BufferGeometry, p: V3, r: V3 = [0, 0, 0]) {
+  placer.position.set(...p);
+  placer.rotation.set(...r);
+  placer.updateMatrix();
+  return g.applyMatrix4(placer.matrix);
+}
+/** A box at `p` (centre) of size `s`. */
+export const box = (p: V3, s: V3, r?: V3) => placed(new BoxGeometry(...s), p, r);
+/** An upright cylinder at `p` (centre). */
+export const cyl = (p: V3, top: number, bottom: number, h: number, seg = 12, r?: V3) => placed(new CylinderGeometry(top, bottom, h, seg), p, r);
+/** Flat-shaded copy (hard edges on low-poly solids like the pyramid). */
+const faceted = (g: BufferGeometry) => {
+  const out = g.toNonIndexed();
+  out.computeVertexNormals();
+  return out;
+};
+/** Parts merged into one geometry. */
+export function merged(parts: BufferGeometry[]) {
+  const out = mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
+  for (const g of parts) g.dispose();
+  return out;
 }
 
-type BoxProps = { p: V3; s: V3; color: string; rough?: number; rotation?: V3 };
-
-function Box({ p, s, color, rough = 0.85, ...rest }: BoxProps) {
-  return (
-    <mesh position={p} castShadow receiveShadow {...rest}>
-      <boxGeometry args={s} />
-      <meshStandardMaterial color={color} roughness={rough} />
-    </mesh>
-  );
+function useMat(color: string, roughness = 0.85, metalness = 0) {
+  return useMemo(() => new MeshStandardMaterial({ color, roughness, metalness }), [color, roughness, metalness]);
 }
+
+/** Flat roofs: tar and gravel (the concrete texture, darker and warm). */
+function useRoof(w: number, d: number) {
+  const { concrete } = useLandmarkTextures();
+  return useMemo(() => {
+    const map = concrete.clone();
+    map.repeat.set(w / 2.6, d / 2.6);
+    return new MeshStandardMaterial({ map, color: "#b9b0a4", roughness: 0.95 });
+  }, [concrete, w, d]);
+}
+
+/** A texture drawn once with the 2D canvas (clock faces, facades, envelopes). */
+function drawn(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void, color = true) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  draw(canvas.getContext("2d")!);
+  const texture = new CanvasTexture(canvas);
+  if (color) texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+/**
+ * The 06:00 building, y from the ground at its centre: walls, roof height,
+ * parapet (thickness, top above the roof incl. coping), cornice ring and the
+ * stair bulkhead. Cuso stands on its north edge at x -14, z -12.9 and jumps up
+ * from the south, so the middle stays clear. The collision test reads it.
+ */
+export const ROOFTOP = {
+  x0: -17.5, x1: -10.5, z0: -13.6, z1: -7.4, roof: 8, base: -0.6,
+  wall: 0.16, parapet: 0.355,
+  cornice: { out: 0.24, bottom: 7.55, top: 7.97 },
+  bulkhead: { x: -16.25, z: -8.6, w: 1.62, d: 1.42, top: 9.175 },
+};
 
 /** 06:00 Russian Hill rooftop. Cuso stands on its north edge, over the bay. */
 export function Rooftop() {
   const { apartment } = useLandmarkTextures();
+  const { x0, x1, z0, z1, roof: top, base, wall: t, parapet, cornice: c, bulkhead: b } = ROOFTOP;
+  const roof = useRoof(x1 - x0, z1 - z0);
+  const trim = useMat("#ece3d1", 0.7);
+  const stucco = useMat("#d9cdb9", 0.92);
+  const metal = useMat("#6c6a67", 0.45, 0.5);
   const materials = useMemo(() => {
     const wall = new MeshStandardMaterial({ map: apartment, roughness: 0.8 });
-    const top = new MeshStandardMaterial({ color: "#cdbfae", roughness: 0.95 });
-    return [wall, wall, top, top, wall, wall];
-  }, [apartment]);
+    return [wall, wall, roof, roof, wall, wall];
+  }, [apartment, roof]);
+  const parts = useMemo(() => {
+    const cx = (x0 + x1) / 2;
+    const cz = (z0 + z1) / 2;
+    const w = x1 - x0;
+    const d = z1 - z0;
+    const ring = (y: number, h: number, out: number, inn = 0.02) => [
+      box([cx, y, z0 - out / 2 + inn / 2], [w + out * 2, h, out + inn]),
+      box([cx, y, z1 + out / 2 - inn / 2], [w + out * 2, h, out + inn]),
+      box([x0 - out / 2 + inn / 2, y, cz], [out + inn, h, d]),
+      box([x1 + out / 2 - inn / 2, y, cz], [out + inn, h, d]),
+    ];
+    const modillions = [];
+    for (let x = x0 + 0.2; x < x1 - 0.1; x += 0.35) modillions.push(box([x, 7.71, z0 - 0.09], [0.07, 0.1, 0.18]), box([x, 7.71, z1 + 0.09], [0.07, 0.1, 0.18]));
+    for (let z = z0 + 0.2; z < z1 - 0.1; z += 0.35) modillions.push(box([x0 - 0.09, 7.71, z], [0.18, 0.1, 0.07]), box([x1 + 0.09, 7.71, z], [0.18, 0.1, 0.07]));
+    return {
+      // cornice: crown, bed moulding and modillions; coping on the parapet
+      trim: merged([
+        ...ring(c.top - 0.09, 0.18, c.out),
+        ...ring(c.bottom + 0.05, 0.1, 0.07),
+        ...modillions,
+        box([cx, top + parapet - 0.025, z0 + t / 2 - 0.02], [w + 0.04, 0.05, t + 0.06]),
+        box([cx, top + parapet - 0.025, z1 - t / 2 + 0.02], [w + 0.04, 0.05, t + 0.06]),
+        box([x0 + t / 2 - 0.02, top + parapet - 0.025, cz], [t + 0.06, 0.05, d]),
+        box([x1 - t / 2 + 0.02, top + parapet - 0.025, cz], [t + 0.06, 0.05, d]),
+        box([b.x, b.top - 0.035, b.z], [b.w, 0.07, b.d]),
+      ]),
+      // parapet, stair bulkhead and skylight curb
+      stucco: merged([
+        box([cx, top + 0.15, z0 + t / 2], [w, 0.3, t]),
+        box([cx, top + 0.15, z1 - t / 2], [w, 0.3, t]),
+        box([x0 + t / 2, top + 0.15, cz], [t, 0.3, d - t * 2]),
+        box([x1 - t / 2, top + 0.15, cz], [t, 0.3, d - t * 2]),
+        box([b.x, top + 0.55, b.z], [b.w - 0.12, 1.1, b.d - 0.12]),
+      ]),
+      // bulkhead door and a vent stack (both out of the 06:00 shot)
+      metal: merged([
+        box([b.x + b.w / 2 - 0.05, top + 0.44, b.z], [0.03, 0.86, 0.5]),
+        cyl([-15.2, top + 0.22, -7.85], 0.05, 0.05, 0.44, 10),
+        cyl([-15.2, top + 0.46, -7.85], 0.08, 0.08, 0.06, 10),
+      ]),
+    };
+  }, [x0, x1, z0, z1, top, t, parapet, c, b]);
   return (
     <group position-y={heightAt(-14, -10.4)}>
-      <mesh position={[-14, 3.7, -10.4]} material={materials} castShadow receiveShadow>
-        <boxGeometry args={[7, 8.6, 6]} />
+      <mesh position={[(x0 + x1) / 2, (base + top) / 2, (z0 + z1) / 2]} material={materials} castShadow receiveShadow>
+        <boxGeometry args={[x1 - x0, top - base, z1 - z0]} />
       </mesh>
-      <Box p={[-14, 8.18, -7.55]} s={[7, 0.36, 0.3]} color="#d8cab5" />
-      <Box p={[-17.35, 8.18, -10.4]} s={[0.3, 0.36, 6]} color="#d8cab5" />
-      <Box p={[-10.65, 8.18, -10.4]} s={[0.3, 0.36, 6]} color="#d8cab5" />
-      <Box p={[-16.4, 8.35, -9]} s={[1, 0.7, 0.8]} color="#b9b2a8" />
+      <mesh geometry={parts.trim} material={trim} castShadow receiveShadow />
+      <mesh geometry={parts.stucco} material={stucco} castShadow receiveShadow />
+      <mesh geometry={parts.metal} material={metal} castShadow receiveShadow />
     </group>
   );
 }
@@ -99,52 +180,149 @@ export function Rooftop() {
 /** 07:00 Hayes Valley shop. The sign shows the visitor's brand. */
 export function Shopfront() {
   const sign = useSign(useBrand(), { bg: "#efe6d0", fg: "#1f3b2f" });
-  const glow = useWindowGlow("#ffcf8a", 0.9);
-  const { shopfront } = useLandmarkTextures();
+  // the gooseneck lamps light the sign at night
+  const signMat = useMemo(() => new MeshStandardMaterial({ map: sign, roughness: 0.7, emissive: "#fff1d8", emissiveMap: sign, emissiveIntensity: 0 }), [sign]);
+  useNightGlow(signMat, 0.55, 0);
+  const lampGlow = useGlow("#ffd9a0", 2.4, 0);
+  const trim = useMat("#efe7d6", 0.75);
+  const green = useMat("#20392e", 0.6);
+  const iron = useMat("#2e2e33", 0.55, 0.35);
+  const { shopfront, siding } = useLandmarkTextures();
   const materials = useMemo(() => {
-    const front = new MeshStandardMaterial({ map: shopfront, roughness: 0.7 });
-    const side = new MeshStandardMaterial({ color: "#e6dcc6", roughness: 0.9 });
-    return [side, side, side, side, front, side];
-  }, [shopfront]);
+    // At night the cafe inside and the upstairs rooms light up: the facade's own
+    // window pixels are the glow map (regions in a 768 x 512 copy of the texture).
+    const glow = drawn(768, 512, (ctx) => {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, 768, 512);
+      ctx.filter = "brightness(1.6)";
+      for (const [x, y, w, h] of [[68, 252, 492, 181], [618, 296, 70, 146], [170, 22, 100, 136], [502, 22, 100, 136]]) {
+        ctx.drawImage(shopfront.image as CanvasImageSource, x * 2, y * 2, w * 2, h * 2, x, y, w, h);
+      }
+    });
+    const front = new MeshStandardMaterial({ map: shopfront, roughness: 0.7, emissive: "#ffd6a0", emissiveMap: glow, emissiveIntensity: 0.05 });
+    // lap siding like the upper floor of the front, in world-sized boards
+    const lap = (w: number) => {
+      const map = siding.clone();
+      map.repeat.set(w / 2.4, 5.4 / 2.4);
+      return new MeshStandardMaterial({ map, color: "#ece2cc", roughness: 0.9 });
+    };
+    const side = lap(4.6);
+    const back = lap(8);
+    return { front, box: [side, side, side, side, front, back] };
+  }, [shopfront, siding]);
+  useNightGlow(materials.front, 1.3, 0.05);
+  const parts = useMemo(() => {
+    // Building x -15..-7, z 7..11.6 (front), y 0..5.4. Positions on the front
+    // follow the texture: sign band y 2.9..3.4, upper windows at x -12.7 and -9.25.
+    const front = 11.6;
+    const brackets = [-14.83, -13.54, -11.98, -10.02, -8.46, -7.17];
+    const goose = [-13.6, -11, -8.4];
+    return {
+      trim: merged([
+        // cornice: frieze, brackets and crown
+        box([-11, 5.52, 9.3], [8.04, 0.24, 4.64]),
+        ...brackets.map((x) => box([x, 5.5, front + 0.1], [0.13, 0.28, 0.2])),
+        box([-11, 5.72, 9.42], [8.44, 0.16, 5.04]),
+        box([-11, 5.62, front + 0.12], [8.2, 0.05, 0.12]),
+      ]),
+      // sign frame, its cap moulding, and the window sill
+      green: merged([
+        box([-11, 3.17, front + 0.04], [7.1, 0.98, 0.08]),
+        box([-11, 3.69, front + 0.08], [7.24, 0.06, 0.16]),
+        box([-11.73, 0.8, front + 0.04], [5.3, 0.05, 0.08]),
+      ]),
+      iron: merged([
+        // gooseneck lamps over the sign
+        ...goose.flatMap((x) => [
+          box([x, 3.8, front + 0.1], [0.03, 0.18, 0.03]),
+          box([x, 3.9, front + 0.24], [0.03, 0.03, 0.3], [-0.35, 0, 0]),
+          cyl([x, 3.92, front + 0.4], 0.02, 0.08, 0.08, 10, [0.5, 0, 0]),
+        ]),
+        // a cafe table and two chairs by the window
+        cyl([-14.15, 0.62, 12.08], 0.21, 0.21, 0.03, 16),
+        cyl([-14.15, 0.31, 12.08], 0.02, 0.02, 0.6, 6),
+        cyl([-14.15, 0.01, 12.08], 0.11, 0.11, 0.02, 12),
+        ...[-0.42, 0.42].flatMap((dx) => {
+          const x = -14.15 + dx;
+          const back = x + Math.sign(dx) * 0.11;
+          return [
+            box([x, 0.38, 12.08], [0.22, 0.03, 0.22]),
+            box([back, 0.56, 12.08], [0.02, 0.32, 0.2]),
+            ...[-0.09, 0.09].flatMap((ox) => [-0.09, 0.09].map((oz) => box([x + ox, 0.19, 12.08 + oz], [0.02, 0.38, 0.02]))),
+          ];
+        }),
+      ]),
+      shades: merged(goose.map((x) => cyl([x, 3.885, front + 0.383], 0.066, 0.066, 0.012, 10, [0.5, 0, 0]))),
+    };
+  }, []);
   return (
     <group position-y={heightAt(-11, 9.3)}>
-      <mesh position={[-11, 2.7, 9.3]} material={materials} castShadow receiveShadow>
+      <mesh position={[-11, 2.7, 9.3]} material={materials.box} castShadow receiveShadow>
         <boxGeometry args={[8, 5.4, 4.6]} />
       </mesh>
-      <Box p={[-11, 5.5, 9.4]} s={[8.3, 0.22, 4.9]} color="#f3ede0" />
-      {/* the shop window glows at night */}
-      <mesh position={[-11.73, 1.78, 11.62]} material={glow}>
-        <planeGeometry args={[5.1, 1.9]} />
-      </mesh>
+      <mesh geometry={parts.trim} material={trim} castShadow receiveShadow />
+      <mesh geometry={parts.green} material={green} castShadow receiveShadow />
+      <mesh geometry={parts.iron} material={iron} castShadow receiveShadow />
+      <mesh geometry={parts.shades} material={lampGlow} />
       {/* the visitor's brand on the sign band */}
-      <mesh position={[-11, 3.17, 11.64]}>
-        <planeGeometry args={[6.8, 0.85]} />
-        <meshStandardMaterial map={sign} roughness={0.7} />
+      <mesh position={[-11, 3.17, 11.685]} material={signMat}>
+        <planeGeometry args={[6.8, 0.8]} />
       </mesh>
       <StreetLamp p={[-6.6, 0, 12.1]} />
     </group>
   );
 }
 
+/** Where each post hangs on the Mission wall (4 x 3), and which one is new. */
+const POSTS = Array.from({ length: 12 }, (_, i) => {
+  const row = Math.floor(i / 4);
+  const col = i % 4;
+  return { row, col, y: 1.2 + row * 1.35, z: 27.1 + col * 1.25, fresh: row === 1 && col === 2 };
+});
+
+/** One post's square of the 4 x 3 photo grid in posts.jpg (a small inset hides the seams). */
+function postUv(g: BufferGeometry, row: number, col: number) {
+  const uv = g.getAttribute("uv");
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, col * 0.25 + 0.005 + uv.getX(i) * 0.24, row / 3 + 0.006 + uv.getY(i) * 0.32);
+  return g;
+}
+
 /** 09:00 Mission wall of posts. A new post appears when you approve. */
 export function MuralWall() {
   const approved = useCity((s) => s.approved);
   const { posts } = useLandmarkTextures();
-  const fresh = useRef<Mesh>(null);
-  // One photo per tile, cut from the 4 x 3 grid of posts.
-  const tiles = useMemo(() => {
-    const out: { y: number; z: number; map: Texture; fresh: boolean }[] = [];
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 4; col++) {
-        const map = posts.clone();
-        map.repeat.set(0.25 * 0.96, (1 / 3) * 0.96);
-        map.offset.set(col * 0.25 + 0.005, (row / 3) + 0.006);
-        out.push({ y: 1.2 + row * 1.35, z: 27.1 + col * 1.25, map, fresh: row === 1 && col === 2 });
-      }
-    }
-    return out;
-  }, [posts]);
-  const freshTile = tiles.find((t) => t.fresh)!;
+  const fresh = useRef<Group>(null);
+  const photo = useMemo(() => new MeshStandardMaterial({ map: posts, roughness: 0.6 }), [posts]);
+  const stucco = useMat("#efe6da", 0.95);
+  const trim = useMat("#ddd1bf", 0.9);
+  const paper = useMat("#fbf8f2", 0.8);
+  const wood = useMat("#a07a52", 0.8);
+  const blue = useMat("#3d5afe", 0.45);
+  const tin = useMat("#9a9ca0", 0.4, 0.6);
+  const parts = useMemo(() => {
+    // Wall x -6..-5.4, z 26.4..31.6, y 0..5.4; posts face east (+x) towards the street.
+    const card = (y: number, z: number) => box([-5.39, y, z], [0.022, 1.18, 1.18]);
+    const pic = ({ row, col }: { row: number; col: number }) => postUv(new PlaneGeometry(1.1, 1.1), row, col);
+    const at = (g: BufferGeometry, y: number, z: number, x = -5.374) => placed(g, [x, y, z], [0, Math.PI / 2, 0]);
+    const freshPost = POSTS.find((p) => p.fresh)!;
+    return {
+      trim: merged([box([-5.7, 5.46, 29], [0.74, 0.12, 5.34]), box([-5.7, 0.16, 29], [0.66, 0.32, 5.26])]),
+      cards: merged(POSTS.filter((p) => !p.fresh).map((p) => card(p.y, p.z))),
+      photos: merged(POSTS.filter((p) => !p.fresh).map((p) => at(pic(p), p.y, p.z))),
+      freshCard: box([-0.015, 0, 0], [0.022, 1.18, 1.18]),
+      freshPhoto: placed(pic(freshPost), [0.001, 0, 0], [0, Math.PI / 2, 0]),
+      freshAt: [-5.375, freshPost.y, freshPost.z] as V3,
+      // ladder leaning on the wall
+      wood: merged([
+        box([0, 1.6, -0.35], [0.08, 3.2, 0.08]),
+        box([0, 1.6, 0.35], [0.08, 3.2, 0.08]),
+        ...[0.4, 0.95, 1.5, 2.05, 2.6].map((y) => box([0, y, 0], [0.06, 0.06, 0.7])),
+      ]),
+      // paint bucket with a rim and a wire handle
+      bucket: merged([cyl([0, 0.22, 0], 0.24, 0.2, 0.44, 20), placed(new TorusGeometry(0.235, 0.018, 6, 24), [0, 0.44, 0], [Math.PI / 2, 0, 0])]),
+      handle: placed(new TorusGeometry(0.23, 0.008, 4, 16, Math.PI), [0, 0.44, 0], [0, 0.5, 0]),
+    };
+  }, []);
 
   useFrame((_, dt) => {
     const m = fresh.current;
@@ -155,83 +333,213 @@ export function MuralWall() {
 
   return (
     <group position-y={heightAt(-5.7, 29)}>
-      <Box p={[-5.7, 2.7, 29]} s={[0.6, 5.4, 5.2]} color="#efe6da" />
-      {tiles
-        .filter((t) => !t.fresh)
-        .map((t) => (
-          <mesh key={`${t.y}${t.z}`} position={[-5.38, t.y, t.z]} rotation-y={Math.PI / 2}>
-            <planeGeometry args={[1.1, 1.1]} />
-            <meshStandardMaterial map={t.map} roughness={0.75} />
-          </mesh>
-        ))}
-      <mesh ref={fresh} position={[-5.37, freshTile.y, freshTile.z]} rotation-y={Math.PI / 2} scale={0.001}>
-        <planeGeometry args={[1.1, 1.1]} />
-        <meshStandardMaterial map={freshTile.map} roughness={0.7} />
+      <mesh position={[-5.7, 2.7, 29]} material={stucco} castShadow receiveShadow>
+        <boxGeometry args={[0.6, 5.4, 5.2]} />
       </mesh>
-      {/* ladder */}
-      <group position={[-4.75, 0, 28.5]} rotation-z={0.18}>
-        <Box p={[0, 1.6, -0.35]} s={[0.08, 3.2, 0.08]} color="#a07a52" />
-        <Box p={[0, 1.6, 0.35]} s={[0.08, 3.2, 0.08]} color="#a07a52" />
-        {[0.4, 0.95, 1.5, 2.05, 2.6].map((y) => (
-          <Box key={y} p={[0, y, 0]} s={[0.06, 0.06, 0.7]} color="#a07a52" />
-        ))}
+      <mesh geometry={parts.trim} material={trim} castShadow receiveShadow />
+      <mesh geometry={parts.cards} material={paper} castShadow receiveShadow />
+      <mesh geometry={parts.photos} material={photo} receiveShadow />
+      <group ref={fresh} position={parts.freshAt} scale={0.001}>
+        <mesh geometry={parts.freshCard} material={paper} castShadow receiveShadow />
+        <mesh geometry={parts.freshPhoto} material={photo} />
       </group>
-      <mesh position={[-3.9, 0.22, 27.9]} castShadow>
-        <cylinderGeometry args={[0.24, 0.2, 0.44, 16]} />
-        <meshStandardMaterial color="#3d5afe" roughness={0.5} />
-      </mesh>
+      <mesh geometry={parts.wood} material={wood} position={[-4.75, 0, 28.5]} rotation-z={0.18} castShadow receiveShadow />
+      <group position={[-3.9, 0, 27.9]}>
+        <mesh geometry={parts.bucket} material={blue} castShadow receiveShadow />
+        <mesh geometry={parts.handle} material={tin} castShadow />
+      </group>
     </group>
   );
 }
+
+/**
+ * The 12:00 building, y from the ground at its centre. The south edge has no
+ * parapet (Cuso jumps up there). `billboard` is the box around the board, its
+ * frame and lamps. The collision test reads it.
+ */
+export const UNION = {
+  x0: 3.5, x1: 10.5, z0: 6.4, z1: 11.6, roof: 5,
+  wall: 0.16, parapet: 0.27,
+  cornice: { out: 0.16, bottom: 4.73, top: 4.97 },
+  belt: { y: 1.25, out: 0.05 },
+  board: { x: 8.2, y: 8, z: 6.72 },
+  billboard: { x0: 8.2 - 2.95, x1: 8.2 + 2.95, z0: 6.72 - 0.07, z1: 7.72, top: 8 + 1.7 },
+};
+/** The cable car parked below Union Square, between the two places Cuso crosses its rails (x -1.4 and 5.6). */
+export const UNION_CAR = { p: [2.1, 0, 14] as V3 };
 
 /** 12:00 Union Square: rooftop billboard with the visitor's ad, cable car below. */
 export function UnionSquare() {
   const ad = useSign(useBrand(), { bg: "#3d5afe", fg: "#ffffff", sub: "Weekend sale · 20% off", tracking: 0.08 });
   const stone = useStone();
+  const { x0, x1, z0, z1, roof: top, wall: t, parapet, cornice: c, belt } = UNION;
+  const roof = useRoof(x1 - x0, z1 - z0);
+  const trim = useMat("#e2d9c8", 0.75);
+  const steel = useMat("#2c2c31", 0.55, 0.45);
+  const lamp = useGlow("#fff1d2", 3, 0);
+  const adMat = useMemo(() => new MeshStandardMaterial({ map: ad, roughness: 0.6, emissive: "#ffffff", emissiveMap: ad, emissiveIntensity: 0.15 }), [ad]);
+  useNightGlow(adMat, 0.75, 0.15);
+  const walls = useMemo(() => [stone, stone, roof, roof, stone, stone], [stone, roof]);
+  const parts = useMemo(() => {
+    // The camera looks up from the street to the south, so the south edge has
+    // no parapet (Cuso's feet) and the cornice stays under the roof line.
+    const cx = (x0 + x1) / 2;
+    const cz = (z0 + z1) / 2;
+    const w = x1 - x0;
+    const d = z1 - z0;
+    const ring = (y: number, h: number, out: number) => [
+      box([cx, y, z0 - out / 2 + 0.01], [w + out * 2, h, out + 0.02]),
+      box([cx, y, z1 + out / 2 - 0.01], [w + out * 2, h, out + 0.02]),
+      box([x0 - out / 2 + 0.01, y, cz], [out + 0.02, h, d]),
+      box([x1 + out / 2 - 0.01, y, cz], [out + 0.02, h, d]),
+    ];
+    // Billboard: face x 5.3..11.1, y 6.45..9.55, at the north edge facing the street.
+    const { x: bx, y: by } = UNION.board;
+    const lamps = [6.3, 8.2, 10.1];
+    return {
+      trim: merged([
+        // stepped crown moulding
+        ...ring(c.top - 0.04, 0.08, c.out),
+        ...ring(4.85, 0.08, 0.1),
+        ...ring(4.77, 0.08, 0.05),
+        ...ring(belt.y, 0.12, belt.out),
+        box([cx, top + 0.11, z0 + t / 2], [w, 0.22, t]),
+        box([x0 + t / 2, top + 0.11, cz + t / 2], [t, 0.22, d - t]),
+        box([x1 - t / 2, top + 0.11, cz + t / 2], [t, 0.22, d - t]),
+        box([cx, top + parapet - 0.025, z0 + t / 2 - 0.02], [w + 0.04, 0.05, t + 0.06]),
+        box([x0 + t / 2 - 0.02, top + parapet - 0.025, cz + t / 2], [t + 0.06, 0.05, d - t]),
+        box([x1 - t / 2 + 0.02, top + parapet - 0.025, cz + t / 2], [t + 0.06, 0.05, d - t]),
+      ]),
+      steel: merged([
+        // two columns and the frame behind the board
+        box([6.6, 7.2, 6.72], [0.18, 4.4, 0.14]),
+        box([9.8, 7.2, 6.72], [0.18, 4.4, 0.14]),
+        box([bx, 5.9, 6.72], [3.4, 0.1, 0.1]),
+        box([bx, 7.1, 6.72], [5.6, 0.08, 0.08]),
+        box([bx, 8.9, 6.72], [5.6, 0.08, 0.08]),
+        box([bx, by, 6.85], [5.9, 3.1, 0.12]),
+        // frame around the face
+        box([bx, by + 1.47, 6.98], [5.9, 0.16, 0.14]),
+        box([bx, by - 1.47, 6.98], [5.9, 0.16, 0.14]),
+        box([bx - 2.87, by, 6.98], [0.16, 2.78, 0.14]),
+        box([bx + 2.87, by, 6.98], [0.16, 2.78, 0.14]),
+        // lamp arms reaching over the top edge
+        ...lamps.map((x) => box([x, by + 1.62, 7.3], [0.04, 0.04, 0.6])),
+        ...lamps.map((x) => box([x, by + 1.58, 6.98], [0.06, 0.12, 0.06])),
+      ]),
+      lamps: merged(lamps.map((x) => box([x, by + 1.58, 7.62], [0.34, 0.08, 0.16], [0.55, 0, 0]))),
+    };
+  }, [x0, x1, z0, z1, top, t, parapet, c, belt]);
   return (
     <group position-y={heightAt(7, 9)}>
-      <mesh position={[7, 2.5, 9]} material={stone} castShadow receiveShadow>
-        <boxGeometry args={[7, 5, 5.2]} />
+      <mesh position={[(x0 + x1) / 2, top / 2, (z0 + z1) / 2]} material={walls} castShadow receiveShadow>
+        <boxGeometry args={[x1 - x0, top, z1 - z0]} />
       </mesh>
-      <Box p={[6.4, 6.6, 6.9]} s={[0.15, 3.2, 0.15]} color="#59595f" />
-      <Box p={[10, 6.6, 6.9]} s={[0.15, 3.2, 0.15]} color="#59595f" />
-      <Box p={[8.2, 8, 6.95]} s={[5.8, 3.1, 0.2]} color="#2b2b30" />
-      <mesh position={[8.2, 8, 7.06]}>
-        <planeGeometry args={[5.5, 2.8]} />
-        <meshStandardMaterial map={ad} roughness={0.6} emissive="#ffffff" emissiveMap={ad} emissiveIntensity={0.15} />
+      <mesh geometry={parts.trim} material={trim} castShadow receiveShadow />
+      <mesh geometry={parts.steel} material={steel} castShadow receiveShadow />
+      <mesh geometry={parts.lamps} material={lamp} castShadow />
+      <mesh position={[8.2, 8, 6.95]} material={adMat}>
+        <planeGeometry args={[5.58, 2.78]} />
       </mesh>
-      {/* the scissor lift Cuso works from */}
-      <Box p={[5.6, 5.08, 10.4]} s={[2, 0.16, 1.6]} color="#f2b632" />
       {/* shuttles west of the Bay Bridge ramp */}
-      <Rails x0={-2} x1={8} z={14} />
-      <CableCar p={[3, 0, 14]} drive={{ from: 0, to: 4, speed: 0.05 }} />
+      <Rails x0={-2.5} x1={8} z={14} />
+      <CableCar p={UNION_CAR.p} />
     </group>
   );
 }
 
-/** 15:00 Transamerica Pyramid. Cuso plants a flag on the tip. */
+/**
+ * Transamerica Pyramid: four white precast faces with a constant taper up to
+ * Cuso's platform (y 28), the two plumb wings low on the east and west faces,
+ * and the hollow aluminium spire beside him. `pyramidHalf(y)` is the
+ * half-width of the body at height y. The base is as wide as the block allows:
+ * its corners stop on the sidewalks of the streets at z -6 and -16.
+ */
+export const PYRAMID = { base: 3.4, top: 0.56, height: 28 };
+export const pyramidHalf = (y: number) => PYRAMID.base + ((PYRAMID.top - PYRAMID.base) * y) / PYRAMID.height;
+/**
+ * The spire rises from the north face just behind the platform's edge: from
+ * the 15:00 camera (yaw 285) it stands to Cuso's left, never behind his body,
+ * and he can turn on the platform without touching it.
+ */
+export const SPIRE = { x: 0, z: -0.93, half: 0.12, base: 23, top: 36.5 };
+/** Cuso's flag on the spire: a 1.2 x 0.8 cloth at height y (over his head, even when he hops), swinging +-swing radians. */
+export const FLAG = { y: 31, w: 1.2, h: 0.8, swing: 0.25 };
+/** Wings: [side (+1 east, -1 west), bottom, top, width]. Their outer walls are plumb. */
+export const WINGS: [number, number, number, number][] = [
+  [1, 13, 21.5, 1.1],
+  [-1, 13, 21, 0.9],
+];
+
+/** White precast with narrow vertical window slits: one tile is 8 slits by 4 floors. */
+function precastSlits() {
+  const t = drawn(256, 256, (ctx) => {
+    ctx.fillStyle = "#eeece6";
+    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 900; i++) {
+      ctx.fillStyle = `rgba(${i % 2 ? "255,255,255" : "120,115,105"}, 0.06)`;
+      ctx.fillRect((i * 73) % 256, (i * 151) % 256, 2, 2);
+    }
+    for (let f = 0; f < 4; f++) {
+      ctx.fillStyle = "rgba(90, 85, 75, 0.12)";
+      ctx.fillRect(0, f * 64 + 60, 256, 3); // floor line
+      for (let c = 0; c < 8; c++) {
+        ctx.fillStyle = "#313b47";
+        ctx.fillRect(c * 32 + 12, f * 64 + 12, 8, 42);
+      }
+    }
+  });
+  t.wrapS = t.wrapT = RepeatWrapping;
+  return t;
+}
+
+/** 15:00 Transamerica Pyramid. Cuso plants a flag on the spire. */
 export function Pyramid() {
   const flag = useRef<Group>(null);
-  const { precast } = useLandmarkTextures();
+  // Same world-scale facade shader as the towers, so the slits light up at night.
   const skin = useMemo(() => {
-    const t = precast.clone();
-    t.repeat.set(16, 15);
-    return t;
-  }, [precast]);
+    const m = towerMaterial(precastSlits(), { w: 1.7, h: 2.2 }, false);
+    m.color.setScalar(1.2);
+    return m;
+  }, []);
+  const aluminium = useMat("#e4e5e2", 0.45, 0.25);
+  const beacon = useGlow("#fff4dc", 3, 0);
+  const parts = useMemo(() => {
+    const { height } = PYRAMID;
+    // a frustum of the pyramid between two heights (r grows it a little)
+    const slice = (y0: number, y1: number, r = 0) => {
+      const g = new CylinderGeometry((pyramidHalf(y1) + r) * Math.SQRT2, (pyramidHalf(y0) + r) * Math.SQRT2, y1 - y0, 4, 1);
+      g.rotateY(Math.PI / 4);
+      g.translate(0, (y0 + y1) / 2, 0);
+      return faceted(g);
+    };
+    const band = height - 0.45;
+    const wings = WINGS.map(([side, y0, y1, w]) => {
+      const outer = pyramidHalf(y0);
+      const inner = 0.4;
+      return box([side * ((outer + inner) / 2), (y0 + y1) / 2, 0], [outer - inner, y1 - y0, w]);
+    });
+    const spire = new ConeGeometry(SPIRE.half * Math.SQRT2, SPIRE.top - SPIRE.base, 4, 1);
+    spire.rotateY(Math.PI / 4);
+    return {
+      body: merged([slice(0, band), ...wings]),
+      // aluminium crown: its flat top is the platform Cuso stands on (y 28); the spire rises just past its north edge
+      aluminium: merged([slice(band, height, 0.012), placed(faceted(spire), [SPIRE.x, (SPIRE.base + SPIRE.top) / 2, SPIRE.z])]),
+    };
+  }, []);
   useFrame(({ clock }) => {
-    if (flag.current) flag.current.rotation.y = Math.sin(clock.elapsedTime * 2.4) * 0.25;
+    if (flag.current) flag.current.rotation.y = Math.sin(clock.elapsedTime * 2.4) * FLAG.swing;
   });
   return (
     <group position={[6.5, heightAt(6.5, -11), -11]}>
-      <mesh position={[0, 14, 0]} rotation-y={Math.PI / 4} castShadow receiveShadow>
-        <coneGeometry args={[5.2, 28, 4, 1]} />
-        <meshStandardMaterial map={skin} roughness={0.6} />
+      <mesh geometry={parts.body} material={skin} castShadow receiveShadow />
+      <mesh geometry={parts.aluminium} material={aluminium} castShadow receiveShadow />
+      <mesh position={[SPIRE.x, SPIRE.top + 0.05, SPIRE.z]} material={beacon}>
+        <sphereGeometry args={[0.06, 8, 6]} />
       </mesh>
-      <Box p={[0, 27.95, 0]} s={[1.9, 0.1, 1.9]} color="#e6e0d6" />
-      <Box p={[1.1, 29.4, -0.2]} s={[0.07, 2.9, 0.07]} color="#4a4a50" />
-      <group ref={flag} position={[1.1, 30.4, -0.2]}>
-        <mesh position={[0.6, 0, 0]}>
-          <planeGeometry args={[1.2, 0.8]} />
+      <group ref={flag} position={[SPIRE.x, FLAG.y, SPIRE.z]}>
+        <mesh position={[FLAG.w / 2, 0, 0]}>
+          <planeGeometry args={[FLAG.w, FLAG.h]} />
           <meshStandardMaterial color="#ffffff" side={DoubleSide} roughness={0.8} />
         </mesh>
       </group>
@@ -239,41 +547,176 @@ export function Pyramid() {
   );
 }
 
-export function CoitTower() {
-  return (
-    <group position={[2, heightAt(2, -26) - 0.3, -26]}>
-      <mesh position={[0, 2.6, 0]} castShadow>
-        <cylinderGeometry args={[0.8, 0.85, 5.2, 18]} />
-        <meshStandardMaterial color="#efe8da" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 5.4, 0]} castShadow>
-        <cylinderGeometry args={[0.95, 0.95, 0.4, 18]} />
-        <meshStandardMaterial color="#e2d9c8" roughness={0.8} />
-      </mesh>
-    </group>
-  );
+/** Ferry Building facades drawn once: an arcade below, windows above, a cornice line. Mask = what glows at night. */
+function ferryFacade(width: number, bays: number, mask: boolean) {
+  const h = 256;
+  return drawn(width, h, (ctx) => {
+    ctx.fillStyle = mask ? "#000" : "#e4dac7";
+    ctx.fillRect(0, 0, width, h);
+    if (!mask) {
+      // soft stone courses
+      ctx.fillStyle = "rgba(120, 100, 80, 0.08)";
+      for (let y = 18; y < h; y += 22) ctx.fillRect(0, y, width, 2);
+      ctx.fillStyle = "#f1e9da";
+      ctx.fillRect(0, 0, width, 16); // cornice
+      ctx.fillRect(0, 118, width, 10); // belt course
+      ctx.fillStyle = "rgba(60, 45, 30, 0.35)";
+      ctx.fillRect(0, 16, width, 4);
+      ctx.fillRect(0, 128, width, 3);
+    }
+    const bay = width / bays;
+    for (let i = 0; i < bays; i++) {
+      const cx = (i + 0.5) * bay;
+      const aw = bay * 0.62;
+      // arched opening of the arcade
+      ctx.fillStyle = mask ? (i % 3 === 1 ? "#6b5a40" : "#ffffff") : "#4a4036";
+      ctx.beginPath();
+      ctx.moveTo(cx - aw / 2, h);
+      ctx.lineTo(cx - aw / 2, 170);
+      ctx.arc(cx, 170, aw / 2, Math.PI, 0);
+      ctx.lineTo(cx + aw / 2, h);
+      ctx.fill();
+      // upper floor window
+      ctx.fillStyle = mask ? (i % 2 ? "#ffffff" : "#000") : "#46505a";
+      ctx.fillRect(cx - bay * 0.18, 44, bay * 0.36, 56);
+      if (!mask) {
+        ctx.fillStyle = "#f1e9da";
+        ctx.fillRect(cx - bay * 0.24, 100, bay * 0.48, 5); // sill
+      }
+    }
+  }, !mask);
+}
+
+/** A clock face (white dial, dark ticks and hands at ten past six). */
+function clockFace() {
+  return drawn(256, 256, (ctx) => {
+    ctx.fillStyle = "#f6f1e4";
+    ctx.beginPath();
+    ctx.arc(128, 128, 124, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#2a2622";
+    ctx.lineCap = "round";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(128, 128, 118, 0, Math.PI * 2);
+    ctx.stroke();
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      ctx.lineWidth = i % 3 === 0 ? 10 : 5;
+      ctx.beginPath();
+      ctx.moveTo(128 + Math.sin(a) * 96, 128 - Math.cos(a) * 96);
+      ctx.lineTo(128 + Math.sin(a) * 108, 128 - Math.cos(a) * 108);
+      ctx.stroke();
+    }
+    const hand = (a: number, r: number, w: number) => {
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(128, 128);
+      ctx.lineTo(128 + Math.sin(a) * r, 128 - Math.cos(a) * r);
+      ctx.stroke();
+    };
+    hand(Math.PI * (6 / 6 + 1 / 36), 58, 10);
+    hand(Math.PI * (2 / 6), 86, 7);
+  });
 }
 
 /** 18:00 Ferry Building and the California St cable car. */
+/**
+ * The Ferry Building's bounding boxes as [width, top, depth] around (x, z):
+ * stone plinth, hall (with its cornice and glass nave) and clock tower.
+ * The 18:00 cable car stands on its rails out front. The collision test reads both.
+ */
+export const FERRY = { x: 33.4, z: -3, plinth: [5, 0.3, 14], hall: [3.16, 4.05, 12.16], tower: [1.62, 11.65] } as const;
+export const FERRY_CAR = { p: [18.4, 0, 4] as V3 };
+
 export function FerryBuilding() {
-  const clock = useGlow("#fff3d6", 2.2, 0.1);
-  const stone = useStone();
+  const stone = useMat("#e4dac7", 0.85);
+  const dark = useMat("#4a4036", 0.7);
+  const roofMat = useMat("#9d978d", 0.9);
+  const glass = useMat("#aab5bb", 0.3, 0.2);
+  const materials = useMemo(() => {
+    const facade = (width: number, bays: number) => {
+      const m = new MeshStandardMaterial({ map: ferryFacade(width, bays, false), emissiveMap: ferryFacade(width, bays, true), emissive: "#ffcf8a", emissiveIntensity: 0, roughness: 0.85 });
+      return m;
+    };
+    const long = facade(1024, 22);
+    const end = facade(256, 3);
+    return { long, end, box: [long, long, roofMat, roofMat, end, end] };
+  }, [roofMat]);
+  useNightGlow(materials.long, 1.1, 0);
+  useNightGlow(materials.end, 1.1, 0);
+  const clock = useMemo(() => {
+    const map = clockFace();
+    return new MeshStandardMaterial({ map, emissive: "#fff3d6", emissiveMap: map, emissiveIntensity: 0.05, roughness: 0.5 });
+  }, []);
+  useNightGlow(clock, 1.8, 0.05);
+  const parts = useMemo(() => {
+    // Tower on the centre of the roof (y 3.1), modelled on the Giralda:
+    // shaft, clock stage, open belfry, lantern and a small pyramid cap.
+    const { x, z } = FERRY;
+    const sq = (y: number, w: number, h: number) => box([x, y, z], [w, h, w]);
+    const slots = (y: number, d: number, w: number, h: number, n: number) =>
+      [0, 1, 2, 3].flatMap((k) => {
+        const a = (k * Math.PI) / 2;
+        return Array.from({ length: n }, (_, i) => {
+          const off = (i - (n - 1) / 2) * w * 1.8;
+          return box([x + Math.sin(a) * d + Math.cos(a) * off, y, z + Math.cos(a) * d - Math.sin(a) * off], [w, h, 0.04], [0, a, 0]);
+        });
+      });
+    const cap = new ConeGeometry(0.62, 0.6, 4);
+    cap.rotateY(Math.PI / 4);
+    const nave = new CylinderGeometry(0.8, 0.8, 10.4, 3);
+    nave.rotateX(-Math.PI / 2);
+    nave.scale(1, 0.45, 1);
+    return {
+      stone: merged([
+        // main cornice and the raised nave walls
+        box([x, 3.08, z], [3.16, 0.1, 12.16]),
+        box([x, 3.32, z], [1.4, 0.44, 10.2]),
+        sq(5.2, 1.3, 4.2),
+        // corner piers on the shaft
+        ...[-1, 1].flatMap((i) => [-1, 1].map((k) => box([x + i * 0.62, 5.2, z + k * 0.62], [0.14, 4.2, 0.14]))),
+        sq(7.32, 1.5, 0.1),
+        sq(7.95, 1.42, 1.3),
+        sq(8.66, 1.62, 0.12),
+        sq(9.27, 1.2, 1.1),
+        ...[-1, 1].flatMap((i) => [-1, 1].map((k) => box([x + i * 0.56, 9.27, z + k * 0.56], [0.16, 1.1, 0.16]))),
+        sq(9.87, 1.36, 0.1),
+        sq(10.22, 0.8, 0.6),
+        sq(10.55, 0.9, 0.06),
+        placed(cap, [x, 10.88, z]),
+        cyl([x, 11.4, z], 0.015, 0.025, 0.5, 6),
+      ]),
+      // window slits on the shaft, belfry arches, lantern openings, clerestory
+      dark: merged([
+        ...slots(4.6, 0.651, 0.16, 0.5, 2),
+        ...slots(6.0, 0.651, 0.16, 0.5, 2),
+        ...slots(9.2, 0.601, 0.26, 0.78, 2),
+        ...slots(10.2, 0.401, 0.2, 0.36, 1),
+        box([x, 3.36, z], [1.42, 0.16, 9.9]),
+      ]),
+      glass: placed(faceted(nave), [x, 3.67, z]),
+      // one clock face on each side of the clock stage
+      clocks: merged(
+        [0, 1, 2, 3].map((k) => {
+          const a = (k * Math.PI) / 2;
+          return placed(new CircleGeometry(0.47, 32), [x + Math.sin(a) * 0.715, 7.95, z + Math.cos(a) * 0.715], [0, a, 0]);
+        }),
+      ),
+    };
+  }, []);
   return (
     <group>
-      <Box p={[33.4, -0.15, -3]} s={[5, 0.9, 14]} color="#b9a98e" />
-      <mesh position={[33.4, 1.7, -3]} material={stone} castShadow receiveShadow>
+      <Box p={[FERRY.x, -0.15, FERRY.z]} s={[5, 0.9, 14]} color="#b9a98e" />
+      <mesh position={[FERRY.x, 1.7, FERRY.z]} material={materials.box} castShadow receiveShadow>
         <boxGeometry args={[3, 2.8, 12]} />
       </mesh>
-      <Box p={[33.4, 4.9, -3]} s={[1.6, 9.2, 1.6]} color="#ede4d3" />
-      <mesh position={[33.4, 10.1, -3]} rotation-y={Math.PI / 4} castShadow>
-        <coneGeometry args={[1.2, 1.6, 4]} />
-        <meshStandardMaterial color="#cfc3ad" roughness={0.8} />
-      </mesh>
-      <mesh position={[32.58, 7.9, -3]} rotation-y={-Math.PI / 2} material={clock}>
-        <circleGeometry args={[0.5, 24]} />
-      </mesh>
+      <mesh geometry={parts.stone} material={stone} castShadow receiveShadow />
+      <mesh geometry={parts.dark} material={dark} />
+      <mesh geometry={parts.glass} material={glass} castShadow receiveShadow />
+      <mesh geometry={parts.clocks} material={clock} />
       <Rails x0={6} x1={28} z={4} />
-      <CableCar p={[18.4, 0, 4]} />
+      <CableCar p={FERRY_CAR.p} />
       <Envelopes />
     </group>
   );
@@ -281,87 +724,46 @@ export function FerryBuilding() {
 
 /** Envelopes fly off Cuso while he delivers the newsletter. */
 function Envelopes() {
-  const group = useRef<Group>(null);
+  const mesh = useRef<InstancedMesh>(null);
+  const COUNT = 7;
+  const material = useMemo(() => {
+    const map = drawn(128, 86, (ctx) => {
+      ctx.fillStyle = "#fbfaf6";
+      ctx.fillRect(0, 0, 128, 86);
+      ctx.strokeStyle = "#c9c3b6";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(2, 2);
+      ctx.lineTo(64, 48);
+      ctx.lineTo(126, 2);
+      ctx.stroke();
+      ctx.fillStyle = "#3d5afe";
+      ctx.fillRect(100, 58, 18, 20); // stamp
+    });
+    return new MeshStandardMaterial({ map, side: DoubleSide, roughness: 0.7 });
+  }, []);
   useFrame(({ clock }) => {
-    const g = group.current;
-    if (!g) return;
+    const m = mesh.current;
+    if (!m) return;
     const day = dayNow();
     const here = day.a.id === "newsletter" && day.t === 0 && day.mode === "story";
-    g.visible = here;
+    m.visible = here;
     if (!here) return;
-    g.children.forEach((child, i) => {
-      const phase = (clock.elapsedTime * 0.22 + i / g.children.length) % 1;
-      child.position.set(rig.cuso.x - 0.6 - phase * 5, rig.cuso.y + 1.1 + phase * 3.2 + Math.sin(phase * 9 + i) * 0.3, rig.cuso.z + phase * 2.4);
-      child.rotation.set(phase * 4 + i, phase * 6, Math.sin(phase * 7) * 0.6);
-      child.scale.setScalar(Math.sin(phase * Math.PI));
-    });
+    for (let i = 0; i < COUNT; i++) {
+      const phase = (clock.elapsedTime * 0.22 + i / COUNT) % 1;
+      placer.position.set(rig.cuso.x - 0.6 - phase * 5, rig.cuso.y + 1.1 + phase * 3.2 + Math.sin(phase * 9 + i) * 0.3, rig.cuso.z + phase * 2.4);
+      placer.rotation.set(phase * 4 + i, phase * 6, Math.sin(phase * 7) * 0.6);
+      placer.scale.setScalar(Math.max(0.001, Math.sin(phase * Math.PI)));
+      placer.updateMatrix();
+      m.setMatrixAt(i, placer.matrix);
+    }
+    placer.scale.setScalar(1);
+    m.instanceMatrix.needsUpdate = true;
   });
   return (
-    <group ref={group}>
-      {Array.from({ length: 7 }, (_, i) => (
-        <mesh key={i} castShadow>
-          <planeGeometry args={[0.36, 0.24]} />
-          <meshStandardMaterial color="#ffffff" side={DoubleSide} roughness={0.7} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-/** 22:00 Embarcadero pier with Cuso's laptop, a mug and a lamp. */
-export function Pier() {
-  const pilings = useRef<InstancedMesh>(null);
-  const lamp = useRef<PointLight>(null);
-  const bulb = useGlow("#ffd58f", 4, 0);
-  const screen = useMemo(() => chartTexture(), []);
-  const posts = useMemo(() => {
-    const out: [number, number][] = [];
-    for (let x = 31.6; x < 41; x += 1.6) for (const z of [22, 26]) out.push([x, z]);
-    return out;
-  }, []);
-
-  useLayoutEffect(() => {
-    const mesh = pilings.current;
-    if (!mesh) return;
-    const o = new Object3D();
-    posts.forEach(([x, z], i) => {
-      o.position.set(x, -0.2, z);
-      o.updateMatrix();
-      mesh.setMatrixAt(i, o.matrix);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-  }, [posts]);
-
-  useFrame(() => {
-    if (lamp.current) lamp.current.intensity = rig.night * 18;
-  });
-
-  return (
-    <group>
-      <Box p={[36, 0.25, 24]} s={[10, 0.6, 4.4]} color="#8a7560" />
-      <instancedMesh ref={pilings} args={[undefined, undefined, posts.length]}>
-        <cylinderGeometry args={[0.16, 0.16, 1.2, 8]} />
-        <meshStandardMaterial color="#5b4a3a" roughness={1} />
-      </instancedMesh>
-      <Box p={[36, 1.05, 21.95]} s={[10, 0.08, 0.08]} color="#3b3b40" />
-      <Box p={[36, 0.75, 21.95]} s={[10, 0.06, 0.06]} color="#3b3b40" />
-      {/* lamp */}
-      <Box p={[35.2, 2.1, 22.2]} s={[0.1, 3.1, 0.1]} color="#2e2e33" />
-      <mesh position={[35.2, 3.7, 22.2]} material={bulb}>
-        <sphereGeometry args={[0.22, 16, 12]} />
-      </mesh>
-      <pointLight ref={lamp} position={[35.2, 3.4, 22.4]} color="#ffcf8a" distance={10} decay={1.6} intensity={0} />
-      {/* laptop and mug */}
-      <Box p={[35.1, 0.58, 24.1]} s={[1.1, 0.05, 0.75]} color="#c9c9cf" rough={0.4} />
-      <mesh position={[35.1, 0.95, 23.74]} rotation-x={-0.25}>
-        <planeGeometry args={[1.1, 0.7]} />
-        <meshStandardMaterial map={screen} emissive="#ffffff" emissiveMap={screen} emissiveIntensity={1.2} />
-      </mesh>
-      <mesh position={[32.3, 0.79, 24.6]} castShadow>
-        <cylinderGeometry args={[0.19, 0.17, 0.46, 16]} />
-        <meshStandardMaterial color="#f5f3ee" roughness={0.4} />
-      </mesh>
-    </group>
+    <instancedMesh ref={mesh} args={[undefined, material, COUNT]} castShadow frustumCulled={false}>
+      <planeGeometry args={[0.36, 0.24]} />
+    </instancedMesh>
   );
 }
 
@@ -374,7 +776,7 @@ function catenary(x0: number, y0: number, x1: number, y1: number, sag: number, z
   });
 }
 
-const BAY_TOWERS = [52, 70, 88, 106];
+export const BAY_TOWERS = [52, 70, 88, 106];
 const BAY_DECK = 7;
 const BAY_CABLES: [number, number, number, number, number][] = [
   [31, BAY_DECK + 1, BAY_TOWERS[0], 26, 6],
@@ -514,7 +916,7 @@ export function Roads() {
 }
 
 /** Golden Gate Bridge across the strait to the north-west: the 06:00 backdrop. */
-const GG = { x: -80, deck: 7, towers: [-70, -134], south: -52, north: -152, top: 30, red: "#c0442c" };
+export const GG = { x: -80, deck: 7, towers: [-70, -134], south: -52, north: -152, top: 30, red: "#c0442c" };
 const GG_SPANS: [number, number, number, number, number][] = [
   [GG.south, GG.deck + 1.2, GG.towers[0], GG.top - 0.6, 3],
   [GG.towers[0], GG.top - 0.6, GG.towers[1], GG.top - 0.6, 20],
@@ -605,49 +1007,28 @@ export function GoldenGate() {
   );
 }
 
-function Rails({ x0, x1, z }: { x0: number; x1: number; z: number }) {
-  return (
-    <>
-      {[-0.42, 0.42].map((dz) => (
-        <Box key={dz} p={[(x0 + x1) / 2, 0.02, z + dz]} s={[x1 - x0, 0.04, 0.08]} color="#5a5650" rough={0.5} />
-      ))}
-    </>
-  );
-}
-
-function CableCar({ p, drive }: { p: V3; drive?: { from: number; to: number; speed: number } }) {
-  const group = useRef<Group>(null);
-  const panel = useSign(useBrand(), { bg: "#f3e8cf", fg: "#6b2a1f", width: 1024, height: 200 });
-  const windows = useGlow("#ffdca8", 1.4, 0.05);
-  useFrame(({ clock }) => {
-    if (!drive || !group.current) return;
-    const s = (Math.sin(clock.elapsedTime * drive.speed * Math.PI * 2) + 1) / 2;
-    group.current.position.x = drive.from + (drive.to - drive.from) * s;
-  });
-  return (
-    <group ref={group} position={p}>
-      <Box p={[0, 0.55, 0]} s={[3.8, 0.7, 1.7]} color="#7a2f22" rough={0.6} />
-      <Box p={[0, 1.3, 0]} s={[3.8, 0.8, 1.5]} color="#efe3c6" rough={0.7} />
-      <mesh position={[0, 1.32, 0.76]} material={windows}>
-        <planeGeometry args={[3.4, 0.5]} />
-      </mesh>
-      <Box p={[0, 1.82, 0]} s={[4.1, 0.16, 1.9]} color="#5b2219" rough={0.6} />
-      <mesh position={[0, 0.58, 0.86]}>
-        <planeGeometry args={[2.8, 0.5]} />
-        <meshStandardMaterial map={panel} roughness={0.7} />
-      </mesh>
-    </group>
-  );
-}
-
 function StreetLamp({ p }: { p: V3 }) {
   const bulb = useGlow("#ffd58f", 3.5, 0);
+  const iron = useMat("#2e2e33", 0.55, 0.35);
+  const parts = useMemo(
+    () => ({
+      // base, tapered post, collar, lantern cap and finial
+      iron: merged([
+        cyl([0, 0.16, 0], 0.1, 0.13, 0.32, 12),
+        cyl([0, 0.36, 0], 0.07, 0.1, 0.08, 12),
+        cyl([0, 1.62, 0], 0.035, 0.055, 2.5, 10),
+        cyl([0, 2.9, 0], 0.075, 0.045, 0.08, 12),
+        cyl([0, 3.27, 0], 0.03, 0.15, 0.12, 12),
+        cyl([0, 3.37, 0], 0.012, 0.02, 0.1, 6),
+      ]),
+      globe: placed(new CylinderGeometry(0.13, 0.08, 0.3, 12), [0, 3.08, 0]),
+    }),
+    [],
+  );
   return (
     <group position={p}>
-      <Box p={[0, 1.5, 0]} s={[0.08, 3, 0.08]} color="#2e2e33" />
-      <mesh position={[0, 3.05, 0]} material={bulb}>
-        <sphereGeometry args={[0.16, 12, 10]} />
-      </mesh>
+      <mesh geometry={parts.iron} material={iron} castShadow />
+      <mesh geometry={parts.globe} material={bulb} />
     </group>
   );
 }

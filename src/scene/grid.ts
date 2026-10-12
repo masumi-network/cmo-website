@@ -6,6 +6,9 @@ export const LAND: [number, number][] = [
   [31, 10], [31, 30], [26, 46], [0, 48], [-30, 47], [-63, 46], [-65, 10],
 ];
 
+/** Land bounds, for the ground mesh and its texture. */
+export const LAND_BOUNDS = { minX: -90, maxX: 45, minZ: -60, maxZ: 52 };
+
 export const STREET = 3;
 export const SIDEWALK = 0.9;
 /** Street centre lines. The grid is SF-like: long blocks east to west. */
@@ -27,3 +30,31 @@ export const WALK_X = [-3, 29];
 export const WALK_Z = [-6, 4, 14];
 /** Cuso keeps to the south (z) or east (x) side of a walking street, clear of the cable cars. */
 export const WALK_OFFSET = 1.6;
+
+/** Half a street plus one sidewalk: where the kerb meets a block. */
+export const EDGE = STREET / 2 + SIDEWALK;
+
+/**
+ * Parks: whole blocks [x0, x1, z0, z1] in street coordinates. Streets on a
+ * park's edge stay open (with their sidewalk as the kerb); streets inside it
+ * are closed, so a street that reaches a park always ends at a T junction.
+ */
+export const PARKS: [number, number, number, number][] = [
+  [-67, -35, 14, 24], // Golden Gate Park
+  [-51, -19, 24, 44], // Twin Peaks, open grass on top
+  [-3, 13, -36, -16], // Pioneer Park on Telegraph Hill (Coit Tower)
+  [-19, -3, 34, 44], // Dolores Park
+];
+
+/** Inside a park's kerb: lawn. */
+export const inPark = (x: number, z: number) =>
+  PARKS.some(([x0, x1, z0, z1]) => x > x0 + EDGE && x < x1 - EDGE && z > z0 + EDGE && z < z1 - EDGE);
+
+export type Ground = "street" | "sidewalk" | "grass" | "block";
+
+/** What the ground is at x, z. The ground texture (groundMask) paints exactly this. */
+export function groundAt(x: number, z: number): Ground {
+  if (inPark(x, z)) return "grass";
+  const d = Math.min(...X_STREETS.map((s) => Math.abs(x - s)), ...Z_STREETS.map((s) => Math.abs(z - s)));
+  return d < STREET / 2 ? "street" : d < EDGE ? "sidewalk" : "block";
+}

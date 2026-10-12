@@ -78,7 +78,14 @@ function keepClear(camera: Vector3) {
   }
 }
 
-const smoothstep = (a: number, b: number, x: number) => {
+/** Dev only: `?cam=px,py,pz,tx,ty,tz` pins the camera, for close-up screenshots of one object. */
+const PIN = (() => {
+  if (process.env.NODE_ENV === "production" || typeof window === "undefined") return null;
+  const v = new URLSearchParams(window.location.search).get("cam")?.split(",").map(Number);
+  return v?.length === 6 && v.every(Number.isFinite) ? v : null;
+})();
+
+const smoothstep =(a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
@@ -132,6 +139,12 @@ export function CameraRig() {
       // A little parallax with the pointer.
       right.subVectors(tgt, pos).cross(up).normalize();
       pos.addScaledVector(right, rig.pointer.x * 0.35).addScaledVector(up, rig.pointer.y * 0.2);
+    }
+
+    if (PIN) {
+      pos.set(PIN[0], PIN[1], PIN[2]);
+      tgt.set(PIN[3], PIN[4], PIN[5]);
+      look.current = null;
     }
 
     if (!look.current) {

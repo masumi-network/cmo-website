@@ -4,8 +4,9 @@
 import { chapters } from "@/content/day";
 import { heightAt } from "@/lib/terrain";
 
-export { LAND, STREET, SIDEWALK, X_STREETS, Z_STREETS, insideLand } from "./grid";
-import { STREET, SIDEWALK, X_STREETS, Z_STREETS, WALK_Z, insideLand } from "./grid";
+export { LAND, PARKS, STREET, SIDEWALK, X_STREETS, Z_STREETS, insideLand } from "./grid";
+import { EDGE, STREET, SIDEWALK, X_STREETS, Z_STREETS, WALK_Z, groundAt, inPark, insideLand } from "./grid";
+import { FOOTING } from "./materials";
 
 /** Places the generator keeps clear: [x, z, radius]. */
 export const CLEAR: [number, number, number][] = [
@@ -14,14 +15,8 @@ export const CLEAR: [number, number, number][] = [
   [-5.2, 29, 4.8], // Mission wall
   [7, 8, 5.4], // Union Square
   [6.5, -11, 5.8], // Transamerica Pyramid
-  [2, -26, 8.5], // Telegraph Hill
-  [-34, 30, 11.5], // Twin Peaks
-];
-
-/** Blocks that are parks: [x0, x1, z0, z1] in street coordinates. */
-export const PARKS: [number, number, number, number][] = [
-  [-67, -35, 14, 24], // Golden Gate Park
-  [-35, -19, 34, 44], // Dolores Park
+  [2, -26, 4.5], // Coit Tower's lawn on Telegraph Hill
+  [-35, 34, 10], // Twin Peaks: open grass on both peaks, trees only low down
 ];
 
 /** True if something at x,z (radius r, height h) gets between a camera and its subject. */
@@ -61,12 +56,26 @@ const TRIMS = ["#fbf7ef", "#f3ece0", "#e8e1d4"];
 const STONE = ["#e3d9c8", "#d6cbb7", "#cfc4b0", "#e9e1d3"];
 const GLASS = ["#9fb0bf", "#8fa3b4", "#a9b6c0"];
 
-const fits = (x: number, z: number, w: number, d: number, h: number) =>
-  [[x - w / 2, z - d / 2], [x + w / 2, z - d / 2], [x - w / 2, z + d / 2], [x + w / 2, z + d / 2]].every(([a, b]) => insideLand(a, b)) &&
-  CLEAR.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) >= r) &&
-  !blocksView(x, z, heightAt(x, z) + h, Math.max(w, d) / 2);
+const footprint = (x: number, z: number, w: number, d: number) => [[x - w / 2, z - d / 2], [x + w / 2, z - d / 2], [x - w / 2, z + d / 2], [x + w / 2, z + d / 2], [x, z]];
 
-const isPark = (x: number, z: number) => PARKS.some(([x0, x1, z0, z1]) => x > x0 && x < x1 && z > z0 && z < z1);
+/**
+ * Where a building's ground floor sits on a slope: level with its highest
+ * corner, so nothing is sunk; the footing (FOOTING) shows on the downhill side.
+ * Null if the slope drops more than the footing can cover.
+ */
+function base(x: number, z: number, w: number, d: number) {
+  const ground = footprint(x, z, w, d).map(([a, b]) => heightAt(a, b));
+  const top = Math.max(...ground);
+  return top - Math.min(...ground) < FOOTING - 0.1 ? top : null;
+}
+
+const clearOf = (x: number, z: number) => CLEAR.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) >= r);
+
+const fits = (x: number, z: number, w: number, d: number, h: number, y: number | null): y is number =>
+  y !== null &&
+  footprint(x, z, w, d).every(([a, b]) => insideLand(a, b)) &&
+  clearOf(x, z) &&
+  !blocksView(x, z, y + h, Math.max(w, d) / 2);
 /** Financial District down through SoMa. */
 const isDowntown = (x: number, z: number) => x > -3 && x < 31 && z > -36 && z < 34;
 
@@ -77,7 +86,7 @@ export function generateCity() {
   const towers: Tower[] = [];
   const trees: Tree[] = [];
   const lamps: Lamp[] = [];
-  const edge = STREET / 2 + SIDEWALK;
+  const edge = EDGE;
 
   for (let i = 0; i < X_STREETS.length - 1; i++) {
     for (let j = 0; j < Z_STREETS.length - 1; j++) {
@@ -88,11 +97,11 @@ export function generateCity() {
       const cx = (x0 + x1) / 2;
       const cz = (z0 + z1) / 2;
 
-      if (isPark(cx, cz)) {
+      if (inPark(cx, cz)) {
         for (let k = 0; k < 14; k++) {
           const x = x0 + rand() * (x1 - x0);
           const z = z0 + rand() * (z1 - z0);
-          if (insideLand(x, z) && !blocksView(x, z, heightAt(x, z) + 2.6, 1)) trees.push({ x, y: heightAt(x, z), z, s: 0.8 + rand() * 0.6 });
+          if (insideLand(x, z) && clearOf(x, z) && !blocksView(x, z, heightAt(x, z) + 2.6, 1)) trees.push({ x, y: heightAt(x, z), z, s: 0.8 + rand() * 0.6 });
         }
         continue;
       }
@@ -107,12 +116,13 @@ export function generateCity() {
           // Nothing near the Transamerica Pyramid outgrows it: Cuso stands on top.
           const nearPyramid = Math.hypot(x - 6.5, cz + 11) < 22;
           const h = Math.min(7 + rand() ** 1.6 * 24, nearPyramid ? 17 : 31);
-          if (!fits(x, cz, tw, td, h)) continue;
+          const y = base(x, cz, tw, td);
+          if (!fits(x, cz, tw, td, h, y)) continue;
           const tiers: Tier[] = [{ w: tw, d: td, y: 0, h: h > 14 ? h * 0.6 : h }];
           if (h > 14) tiers.push({ w: tw * 0.78, d: td * 0.78, y: h * 0.6, h: h > 22 ? h * 0.25 : h * 0.4 });
           if (h > 22) tiers.push({ w: tw * 0.56, d: td * 0.56, y: h * 0.85, h: h * 0.15 });
           const glass = rand() < 0.5;
-          towers.push({ x, y: heightAt(x, cz), z: cz, w: tw, d: td, h, glass, color: glass ? pick(GLASS) : pick(STONE), tiers });
+          towers.push({ x, y, z: cz, w: tw, d: td, h, glass, color: glass ? pick(GLASS) : pick(STONE), tiers });
         }
         continue;
       }
@@ -127,9 +137,10 @@ export function generateCity() {
           const floors = rand() < 0.55 ? 2 : 3;
           const h = floors * 2.2 + 0.5;
           const hx = x + w / 2;
-          if (fits(hx, z, w, depth, h)) {
+          const y = base(hx, z, w, depth);
+          if (fits(hx, z, w, depth, h, y)) {
             houses.push({
-              x: hx, y: heightAt(hx, z), z, w, d: depth, h, facing,
+              x: hx, y, z, w, d: depth, h, facing,
               color: pick(PAINTED), trim: pick(TRIMS),
               roof: rand() < 0.4 ? "gable" : "flat",
               bay: rand() < 0.7,
@@ -147,7 +158,8 @@ export function generateCity() {
     for (let x = -64; x < 29; x += 4) {
       for (const side of [-1, 1]) {
         const z = sz + side * (STREET / 2 + SIDEWALK / 2);
-        if (!insideLand(x, z) || isDowntown(x, z) || CLEAR.some(([cx, cz, r]) => Math.hypot(x - cx, z - cz) < r)) continue;
+        // Only on a sidewalk: not where a park closes the street.
+        if (!insideLand(x, z) || isDowntown(x, z) || !clearOf(x, z) || groundAt(x, z) !== "sidewalk") continue;
         if (X_STREETS.some((sx) => Math.abs(x - sx) < STREET)) continue;
         const roll = rand();
         const y = heightAt(x, z);
@@ -160,9 +172,6 @@ export function generateCity() {
   return { houses, towers, trees, lamps };
 }
 
-/** Land bounds, for the ground texture. */
-export const LAND_BOUNDS = { minX: -90, maxX: 45, minZ: -60, maxZ: 52 };
-
 /** The generated city, computed once. */
 export const CITY = generateCity();
 
@@ -171,10 +180,11 @@ type Box = { minX: number; maxX: number; minZ: number; maxZ: number; top: number
 /** Solid boxes the camera must not enter: every building plus landmark buildings. */
 export const OBSTACLES: Box[] = [
   ...[...CITY.houses, ...CITY.towers].map((b) => ({ minX: b.x - b.w / 2, maxX: b.x + b.w / 2, minZ: b.z - b.d / 2, maxZ: b.z + b.d / 2, top: b.y + b.h + 0.6 })),
-  { minX: -17.5, maxX: -10.5, minZ: -13.4, maxZ: -7.4, top: heightAt(-14, -10.4) + 8.5 }, // Russian Hill rooftop
+  { minX: -17.5, maxX: -10.5, minZ: -13.6, maxZ: -7.4, top: heightAt(-14, -10.4) + 8.5 }, // Russian Hill rooftop
   { minX: -15, maxX: -7, minZ: 7, maxZ: 11.6, top: heightAt(-11, 9.3) + 6.8 }, // Hayes Valley shop
   { minX: 3.5, maxX: 10.5, minZ: 6.4, maxZ: 11.6, top: heightAt(7, 9) + 9.6 }, // Union Square + billboard
   { minX: -6, maxX: -5.4, minZ: 26.4, maxZ: 31.6, top: 5.4 }, // Mission wall
+  { minX: 1.3, maxX: 2.7, minZ: -26.7, maxZ: -25.3, top: heightAt(2, -26) + 6.4 }, // Coit Tower (6.06 tall on its plaza, coit-tower.tsx)
 ];
 
 /** True if a point is inside a building. */
