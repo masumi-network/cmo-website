@@ -12,7 +12,9 @@ export const metadata: Metadata = {
   openGraph: { images: "/og-image.png" },
 };
 
-export const viewport: Viewport = { themeColor: "#f7f6f2" };
+// cover: the city runs under the notch; --edge-* in globals.css keeps the UI clear of it.
+// resizes-visual: the on-screen keyboard never resizes the page, so the story does not jump.
+export const viewport: Viewport = { themeColor: "#f7f6f2", viewportFit: "cover", interactiveWidget: "resizes-visual" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

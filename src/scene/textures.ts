@@ -18,11 +18,16 @@ function canvasTexture(width: number, height: number, draw: (ctx: CanvasRenderin
 
 const fontFamily = () => getComputedStyle(document.body).fontFamily || "sans-serif";
 
-type SignStyle = { bg: string; fg: string; sub?: string; width?: number; height?: number; tracking?: number };
+/** `panel` is the [width, height] of the face the sign is drawn on, in world units. */
+type SignStyle = { bg: string; fg: string; panel: readonly [number, number]; sub?: string; width?: number; tracking?: number };
+
+/** Canvas size for a sign: same shape as its panel, so the text is never stretched. */
+export const signSize = (panel: readonly [number, number], width = 1024): [number, number] => [width, Math.round((width * panel[1]) / panel[0])];
 
 /** A sign with one line of big text and an optional small line under it. */
 export function useSign(text: string, style: SignStyle) {
-  const { bg, fg, sub, width = 1024, height = 256, tracking = 0.14 } = style;
+  const { bg, fg, sub, panel, tracking = 0.14 } = style;
+  const [width, height] = signSize(panel, style.width);
   const texture = useMemo(
     () =>
       canvasTexture(width, height, (ctx) => {
@@ -41,7 +46,7 @@ export function useSign(text: string, style: SignStyle) {
         }
         ctx.fillText(text, width / 2, sub ? height * 0.4 : height / 2);
         if (sub) {
-          const s = height * 0.15;
+          const s = Math.min(height * 0.15, size * 0.5); // never as big as the brand
           ctx.font = `500 ${s}px ${fontFamily()}`;
           ctx.letterSpacing = "0px";
           ctx.globalAlpha = 0.85;

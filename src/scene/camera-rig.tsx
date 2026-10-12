@@ -6,8 +6,9 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
-import { PerspectiveCamera, Vector3 } from "three";
+import { PerspectiveCamera, Vector3, type Camera } from "three";
 import { chapters, overview } from "@/content/day";
+import { usePan } from "@/lib/pan";
 import { insideBuilding } from "./layout";
 import { damp, dayNow, rig, setLerp } from "./shared";
 
@@ -54,6 +55,9 @@ function fitOverview(aspect: number, fov: number) {
   return fit;
 }
 
+/** Where the fitted overview looks (the middle of the pins). */
+export const overviewCenter = () => ({ x: fit.tgt.x, z: fit.tgt.z });
+
 const eye = new Vector3();
 const probe = new Vector3();
 
@@ -90,12 +94,89 @@ const smoothstep =(a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 
+/**
+ * The biggest free stretch of screen, top to bottom, between the things drawn
+ * over the scene (`edges`: [top, bottom] in px). On phones Cuso stands in it.
+ */
+export function largestGap(edges: readonly (readonly [number, number])[], height: number): [number, number] {
+  const sorted = [...edges].sort((p, q) => p[0] - q[0]);
+  let best: [number, number] = [0, height];
+  let size = -1;
+  let y = 0;
+  for (const [top, bottom] of [...sorted, [height, height] as const]) {
+    const end = Math.min(top, height);
+    if (end - y > size) {
+      size = end - y;
+      best = [y, end];
+    }
+    y = Math.max(y, bottom);
+  }
+  return best;
+}
+
+/** What covers the scene right now: the top bar and every card (`data-card`). */
+function freeBand(height: number) {
+  const edges: [number, number][] = [];
+  for (const el of document.querySelectorAll("header, [data-card]")) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.bottom > 0 && r.top < height) edges.push([r.top, r.bottom]);
+  }
+  return largestGap(edges, height);
+}
+
+/** Room kept above his head for the speech bubble, in px. */
+const BUBBLE = 72;
+const screenY = (y: number, height: number) => ((1 - ndc.set(rig.cuso.x, rig.cuso.y + y, rig.cuso.z).project(probeCam).y) * height) / 2;
+
+/**
+ * Phones: pull back until Cuso and his bubble fit the free band, then return
+ * how far (px) to slide the picture so he stands in the middle of it.
+ */
+function fitBand(camPos: Vector3, camTgt: Vector3, fov: number, size: { width: number; height: number }) {
+  const [top, bottom] = freeBand(size.height);
+  probeCam.fov = fov;
+  probeCam.aspect = size.width / size.height;
+  probeCam.updateProjectionMatrix();
+  const aim = () => {
+    probeCam.position.copy(camPos);
+    probeCam.lookAt(camTgt);
+    probeCam.updateMatrixWorld();
+  };
+  aim();
+  const room = Math.max(48, (bottom - top) * 0.85 - BUBBLE);
+  const tall = screenY(0, size.height) - screenY(1.9, size.height);
+  if (tall > room) camPos.sub(camTgt).multiplyScalar(Math.min(2, tall / room)).add(camTgt);
+  keepClear(camPos);
+  aim();
+  const middle = (screenY(1.9, size.height) - BUBBLE + screenY(0, size.height)) / 2;
+  return middle - (top + bottom) / 2;
+}
+
+/**
+ * Cuso's box on screen (left,top,right,bottom in px) as `data-cuso` on the
+ * canvas, so tests can check that no card covers him.
+ */
+function publishCuso(canvas: HTMLCanvasElement, camera: Camera, height: number) {
+  camera.updateMatrixWorld();
+  const head = ndc.set(rig.cuso.x, rig.cuso.y + 1.9, rig.cuso.z).project(camera);
+  const top = ((1 - head.y) * height) / 2;
+  const feet = ndc.set(rig.cuso.x, rig.cuso.y, rig.cuso.z).project(camera);
+  const bottom = ((1 - feet.y) * height) / 2;
+  const x = ((feet.x + 1) * canvas.clientWidth) / 2;
+  const half = (bottom - top) / 3; // he is about two thirds as wide as he is tall
+  const box = [x - half, top, x + half, bottom].map(Math.round).join(",");
+  if (canvas.dataset.cuso !== box) canvas.dataset.cuso = box;
+}
+
 export function CameraRig() {
   const look = useRef<Vector3 | null>(null);
+  const slide = useRef(0);
 
-  useFrame(({ camera, size }, dt) => {
+  useFrame(({ camera, size, gl }, dt) => {
     const day = dayNow();
     const portrait = size.width < size.height;
+    const phone = portrait && size.width < 768;
+    let slideTo = 0;
     const cam = camera as PerspectiveCamera;
     const fov = portrait ? 52 : 35;
     if (cam.fov !== fov) {
@@ -104,17 +185,21 @@ export function CameraRig() {
     }
 
     if (day.mode === "explore") {
+      // The fitted overview, moved and zoomed by the visitor (drag, pinch, wheel).
       const f = fitOverview(size.width / size.height, cam.fov);
-      pos.copy(f.pos);
-      tgt.copy(f.tgt);
+      const { pan, zoom } = usePan.getState();
+      tgt.copy(f.tgt).add(tmp.set(pan.x, 0, pan.z));
+      pos.subVectors(f.pos, f.tgt).multiplyScalar(zoom).add(tgt);
     } else {
       // Follow where Cuso really is (he walks at his own pace behind the scroll).
       const tv = rig.travel;
       const a = chapters[tv.leg];
       const b = chapters[Math.min(tv.leg + 1, chapters.length - 1)];
       const t = smoothstep(0, 1, tv.t);
-      setLerp(pos, a.camera.position, b.camera.position, t);
-      setLerp(tgt, a.camera.target, b.camera.target, t);
+      const shotA = phone ? a.phone : a.camera;
+      const shotB = phone ? b.phone : b.camera;
+      setLerp(pos, shotA.position, shotB.position, t);
+      setLerp(tgt, shotA.target, shotB.target, t);
       // Lead cam: ahead of Cuso and off to one side, so we see his face (and his
       // arrow the right way round) as he walks towards us. From a few steps out
       // until a few steps from arrival.
@@ -129,9 +214,11 @@ export function CameraRig() {
         pos.lerp(chasePos, chase);
         tgt.lerp(chaseTgt, chase);
       }
-      if (portrait) {
-        // Phones: Cuso centred and a step back. The hero card sits on top, so
-        // Cuso goes low; everywhere else cards sit at the bottom, so he goes high.
+      if (phone) {
+        slideTo = fitBand(pos, tgt, fov, size);
+      } else if (portrait) {
+        // Tablets upright: Cuso centred and a step back. The hero card sits on
+        // top, so Cuso goes low; everywhere else he goes high.
         const low = (id: string) => (id === "arrive" ? 2.4 : -0.2);
         tgt.lerp(tmp.copy(rig.cuso).setY(rig.cuso.y + low(a.id) + (low(b.id) - low(a.id)) * t), 0.7);
         pos.sub(tgt).multiplyScalar(1.3).add(tgt);
@@ -152,10 +239,15 @@ export function CameraRig() {
       look.current = tgt.clone();
     }
     const k = damp(day.mode === "explore" ? 2 : 3.2, dt);
+    // Slide the picture (not the camera) so Cuso sits in the free band.
+    slide.current += (slideTo - slide.current) * k;
+    if (Math.abs(slide.current) > 0.5) cam.setViewOffset(size.width, size.height, 0, slide.current, size.width, size.height);
+    else if (cam.view?.enabled) cam.clearViewOffset();
     camera.position.lerp(pos, k);
     look.current.lerp(tgt, k);
     camera.lookAt(look.current);
     rig.target.copy(look.current);
+    publishCuso(gl.domElement, camera, size.height);
   });
 
   return null;

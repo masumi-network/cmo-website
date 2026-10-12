@@ -2,7 +2,8 @@
 
 export const SECTION_VH = 1.6;
 
-export const sectionHeight = () => window.innerHeight * SECTION_VH;
+/** Measured, not computed: sections are in svh, and innerHeight changes as phone browser bars show and hide. */
+export const sectionHeight = () => document.querySelector<HTMLElement>("main > section")?.offsetHeight || window.innerHeight * SECTION_VH;
 
 export function goToChapter(index: number) {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

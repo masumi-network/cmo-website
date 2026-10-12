@@ -6,16 +6,17 @@
 import { useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, CircleGeometry, ConeGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, PlaneGeometry, TorusGeometry, TubeGeometry, Vector3, MeshStandardMaterial, Object3D, RepeatWrapping, SRGBColorSpace, type Group, type InstancedMesh, type Texture } from "three";
+import { BoxGeometry, BufferGeometry, CanvasTexture, Color, CatmullRomCurve3, CircleGeometry, ConeGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, PlaneGeometry, TorusGeometry, TubeGeometry, Vector3, MeshStandardMaterial, Object3D, RepeatWrapping, SRGBColorSpace, type Group, type InstancedMesh, type Texture } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { heightAt } from "@/lib/terrain";
 import { useCity } from "@/lib/store";
 import { dayNow, rig, useNightGlow } from "./shared";
 import { towerMaterial, worldMaterial } from "./materials";
-import { ROADS, piers, roadGeometry } from "./roads";
+import { BAY_ANCHORS, CABLE, DECKS, DECK_Y, ROADS, SLAB, bayDeckY, deckGeometry, railingGeometry, roadGeometry, spanGeometry, type Road } from "./roads";
 import { CableCar, Rails } from "./cable-car";
 import { Box, useBrand, useGlow, type V3 } from "./parts";
 import { useSign } from "./textures";
+import { FLAT, reliefBuilder } from "./houses";
 
 const LANDMARK_TEXTURES = {
   apartment: "/textures/apartment.jpg",
@@ -111,6 +112,72 @@ export const ROOFTOP = {
   bulkhead: { x: -16.25, z: -8.6, w: 1.62, d: 1.42, top: 9.175 },
 };
 
+type Span = [number, number];
+type Rect = [number, number, number, number];
+
+/**
+ * The apartment facade (apartment.jpg, on all four walls) measured from the
+ * photo, as shares of it (u from the left, v from the base up to the roof):
+ * two bays with their floor cornices, hoods and sills on the middle windows,
+ * the entry. The photo is never stretched: it spans the full height and is
+ * as wide as its aspect allows, centred on each wall, with plain stucco (the
+ * `plain` spot of the photo) beside it. Nothing stands out further than the
+ * cornice (ROOFTOP.cornice.out), so Cuso's jump beside the south wall and the
+ * collision solids stay as they are.
+ */
+export const APARTMENT = {
+  /** Height over width of apartment.jpg (768 x 1152). */
+  aspect: 1152 / 768,
+  /** A spot of plain stucco wall on the photo. */
+  plain: [0.012, 0.55] as Span,
+  bays: [[[0.035, 0.385], [0.14, 0.29]], [[0.615, 0.965], [0.71, 0.86]]] as [Span, Span][],
+  bayV: [0, 0.925] as Span,
+  bands: [[0.9, 0.94], [0.665, 0.695], [0.415, 0.445], [0.175, 0.205]] as Span[],
+  ledges: [[0.425, 0.575, 0.878, 0.892], [0.43, 0.57, 0.72, 0.732], [0.425, 0.575, 0.652, 0.666], [0.43, 0.57, 0.478, 0.49], [0.425, 0.575, 0.404, 0.418], [0.43, 0.57, 0.238, 0.25]] as Rect[],
+  posts: [[0.365, 0.4, 0, 0.205], [0.595, 0.63, 0, 0.205]] as Rect[],
+  entry: [0.35, 0.645, 0.205, 0.238] as Rect,
+  /** Window openings, for the night glow: three per bay and floor, the middle column, the transom. */
+  windows: [
+    ...[[0.74, 0.878], [0.495, 0.644], [0.249, 0.397], [0.04, 0.165]].flatMap(([v0, v1]) =>
+      [[0.065, 0.11], [0.16, 0.254], [0.306, 0.349]].flatMap(([u0, u1]) => [[u0, u1, v0, v1], [1 - u1, 1 - u0, v0, v1]]),
+    ),
+    [0.456, 0.54, 0.735, 0.865], [0.456, 0.54, 0.492, 0.628], [0.456, 0.54, 0.253, 0.384], [0.452, 0.543, 0.154, 0.171],
+  ] as Rect[],
+  depth: { bay: 0.2, ledge: 0.07, post: 0.1, entry: 0.16 },
+};
+
+/** How wide the photo is on a wall: the wall's height over the photo's aspect. */
+export const apartmentPhotoWidth = () => (ROOFTOP.roof - ROOFTOP.base) / APARTMENT.aspect;
+
+/** The apartment's relief (one wall), in the relief frame of houses.tsx: scale it by (apartmentPhotoWidth, roof - base, 1). */
+export function apartmentRelief() {
+  const a = APARTMENT;
+  const { box, bay, geometry } = reliefBuilder(apartmentPhotoWidth(), 0);
+  const band = ROOFTOP.cornice.out - a.depth.bay;
+  for (const [wall, front] of a.bays) {
+    bay(wall, front, a.bayV[0], a.bayV[1], a.depth.bay);
+    for (const [v0, v1] of a.bands) bay(wall, front, v0, v1, a.depth.bay, band);
+  }
+  for (const [u0, u1, v0, v1] of a.ledges) box(u0, u1, v0, v1, a.depth.ledge);
+  for (const [u0, u1, v0, v1] of a.posts) box(u0, u1, v0, v1, a.depth.post);
+  box(a.entry[0], a.entry[1], a.entry[2], a.entry[3], a.depth.entry);
+  return geometry();
+}
+
+/** The apartment's walls and roof as one box; each wall shows the photo centred at its own aspect (u past 0..1 is plain stucco). */
+export function apartmentWalls() {
+  const { x0, x1, z0, z1, roof, base } = ROOFTOP;
+  const g = new BoxGeometry(x1 - x0, roof - base, z1 - z0);
+  const uv = g.attributes.uv;
+  // faces in order +x, -x, +y, -y, +z, -z; four corners each
+  const across = [z1 - z0, z1 - z0, 0, 0, x1 - x0, x1 - x0];
+  for (let i = 0; i < uv.count; i++) {
+    const w = across[Math.floor(i / 4)];
+    if (w) uv.setX(i, 0.5 + ((uv.getX(i) - 0.5) * w) / apartmentPhotoWidth());
+  }
+  return g;
+}
+
 /** 06:00 Russian Hill rooftop. Cuso stands on its north edge, over the bay. */
 export function Rooftop() {
   const { apartment } = useLandmarkTextures();
@@ -120,9 +187,57 @@ export function Rooftop() {
   const stucco = useMat("#d9cdb9", 0.92);
   const metal = useMat("#6c6a67", 0.45, 0.5);
   const materials = useMemo(() => {
-    const wall = new MeshStandardMaterial({ map: apartment, roughness: 0.8 });
+    // At night some windows light up: the facade's own window pixels, brightened, are the glow map.
+    const W = 384;
+    const H = 576;
+    const glow = drawn(W, H, (ctx) => {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, H);
+      ctx.filter = "brightness(1.5)";
+      const img = apartment.image as HTMLImageElement;
+      const sx = img.width / W;
+      const sy = img.height / H;
+      APARTMENT.windows.forEach(([u0, u1, v0, v1], k) => {
+        if (k % 3 === 1) return; // dark rooms
+        const [x, y, w, h] = [u0 * W, (1 - v1) * H, (u1 - u0) * W, (v1 - v0) * H];
+        ctx.drawImage(img, x * sx, y * sy, w * sx, h * sy, x, y, w, h);
+      });
+    });
+    const wall = new MeshStandardMaterial({ map: apartment, roughness: 0.8, emissive: "#ffd6a0", emissiveMap: glow, emissiveIntensity: 0 });
+    // Beside the photo, and on the relief's sides, tops and undersides: one flat colour (the photo there, blurred).
+    wall.customProgramCacheKey = () => "apartment";
+    wall.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <map_fragment>",
+        `vec2 fUv = vMapUv;
+        float fFlat = step(1.5, fUv.x);
+        fUv.x -= ${FLAT.toFixed(1)} * fFlat;
+        if (fUv.x < 0.0 || fUv.x > 1.0) { fUv = vec2(${APARTMENT.plain.join(", ")}); fFlat = 1.0; }
+        diffuseColor *= texture2D(map, fUv, fFlat * 3.0);`,
+      );
+    };
     return [wall, wall, roof, roof, wall, wall];
   }, [apartment, roof]);
+  useNightGlow(materials[0] as MeshStandardMaterial, 1.2, 0);
+  const walls = useMemo(() => apartmentWalls(), []);
+  // Bays, floor cornices, hoods, sills and the entry on all four walls, lined up with the photo.
+  const relief = useMemo(() => {
+    const cx = (x0 + x1) / 2;
+    const cz = (z0 + z1) / 2;
+    const o = new Object3D();
+    const sides: [number, number, number][] = [[cx, z1, 0], [x1, cz, Math.PI / 2], [cx, z0, Math.PI], [x0, cz, -Math.PI / 2]];
+    const g = mergeGeometries(
+      sides.map(([x, z, ry]) => {
+        o.position.set(x, base, z);
+        o.rotation.set(0, ry, 0);
+        o.scale.set(apartmentPhotoWidth(), top - base, 1);
+        o.updateMatrix();
+        return apartmentRelief().applyMatrix4(o.matrix);
+      }),
+    );
+    g.setAttribute("uv", g.attributes.aUv);
+    return g;
+  }, [x0, x1, z0, z1, base, top]);
   const parts = useMemo(() => {
     const cx = (x0 + x1) / 2;
     const cz = (z0 + z1) / 2;
@@ -167,9 +282,8 @@ export function Rooftop() {
   }, [x0, x1, z0, z1, top, t, parapet, c, b]);
   return (
     <group position-y={heightAt(-14, -10.4)}>
-      <mesh position={[(x0 + x1) / 2, (base + top) / 2, (z0 + z1) / 2]} material={materials} castShadow receiveShadow>
-        <boxGeometry args={[x1 - x0, top - base, z1 - z0]} />
-      </mesh>
+      <mesh position={[(x0 + x1) / 2, (base + top) / 2, (z0 + z1) / 2]} geometry={walls} material={materials} castShadow receiveShadow />
+      <mesh geometry={relief} material={materials[0]} castShadow receiveShadow />
       <mesh geometry={parts.trim} material={trim} castShadow receiveShadow />
       <mesh geometry={parts.stucco} material={stucco} castShadow receiveShadow />
       <mesh geometry={parts.metal} material={metal} castShadow receiveShadow />
@@ -177,9 +291,13 @@ export function Rooftop() {
   );
 }
 
+/** Sign faces in world units [width, height]; their canvases follow the same shape. */
+export const SHOP_SIGN = [6.8, 0.8] as const;
+export const AD_PANEL = [5.58, 2.78] as const;
+
 /** 07:00 Hayes Valley shop. The sign shows the visitor's brand. */
 export function Shopfront() {
-  const sign = useSign(useBrand(), { bg: "#efe6d0", fg: "#1f3b2f" });
+  const sign = useSign(useBrand(), { bg: "#efe6d0", fg: "#1f3b2f", panel: SHOP_SIGN });
   // the gooseneck lamps light the sign at night
   const signMat = useMemo(() => new MeshStandardMaterial({ map: sign, roughness: 0.7, emissive: "#fff1d8", emissiveMap: sign, emissiveIntensity: 0 }), [sign]);
   useNightGlow(signMat, 0.55, 0);
@@ -266,7 +384,7 @@ export function Shopfront() {
       <mesh geometry={parts.shades} material={lampGlow} />
       {/* the visitor's brand on the sign band */}
       <mesh position={[-11, 3.17, 11.685]} material={signMat}>
-        <planeGeometry args={[6.8, 0.8]} />
+        <planeGeometry args={SHOP_SIGN} />
       </mesh>
       <StreetLamp p={[-6.6, 0, 12.1]} />
     </group>
@@ -370,7 +488,7 @@ export const UNION_CAR = { p: [2.1, 0, 14] as V3 };
 
 /** 12:00 Union Square: rooftop billboard with the visitor's ad, cable car below. */
 export function UnionSquare() {
-  const ad = useSign(useBrand(), { bg: "#3d5afe", fg: "#ffffff", sub: "Weekend sale · 20% off", tracking: 0.08 });
+  const ad = useSign(useBrand(), { bg: "#3d5afe", fg: "#ffffff", sub: "Weekend sale · 20% off", tracking: 0.08, panel: AD_PANEL });
   const stone = useStone();
   const { x0, x1, z0, z1, roof: top, wall: t, parapet, cornice: c, belt } = UNION;
   const roof = useRoof(x1 - x0, z1 - z0);
@@ -439,7 +557,7 @@ export function UnionSquare() {
       <mesh geometry={parts.steel} material={steel} castShadow receiveShadow />
       <mesh geometry={parts.lamps} material={lamp} castShadow />
       <mesh position={[8.2, 8, 6.95]} material={adMat}>
-        <planeGeometry args={[5.58, 2.78]} />
+        <planeGeometry args={AD_PANEL} />
       </mesh>
       {/* shuttles west of the Bay Bridge ramp */}
       <Rails x0={-2.5} x1={8} z={14} />
@@ -777,27 +895,40 @@ function catenary(x0: number, y0: number, x1: number, y1: number, sag: number, z
 }
 
 export const BAY_TOWERS = [52, 70, 88, 106];
-const BAY_DECK = 7;
+const [BAY_WEST, BAY_EAST] = BAY_ANCHORS;
+/** Cables run from the anchorages (ends hidden inside them) over the towers. */
 const BAY_CABLES: [number, number, number, number, number][] = [
-  [31, BAY_DECK + 1, BAY_TOWERS[0], 26, 6],
+  [BAY_WEST, bayDeckY(BAY_WEST) - 0.4, BAY_TOWERS[0], 26, 6],
   ...BAY_TOWERS.slice(1).map((x, i): [number, number, number, number, number] => [BAY_TOWERS[i], 26, x, 26, 12]),
-  [BAY_TOWERS[BAY_TOWERS.length - 1], 26, 124, BAY_DECK + 1, 6],
+  [BAY_TOWERS[BAY_TOWERS.length - 1], 26, BAY_EAST, bayDeckY(BAY_EAST) - 0.4, 6],
 ];
+const bayRoad = (name: string) => ROADS.find((r) => r.name === name) as Road;
+/**
+ * Bay Bridge towers: two legs (`leg`: x by z) with the road passing between
+ * them (inner faces at `inner`), X-bracing (`braces`: centre heights, `rise`:
+ * height each diagonal climbs) and struts (`struts`, `strutH` tall), all clear
+ * of the traffic on the deck.
+ */
+export const BAY_TOWER = { inner: 1.8, leg: [0.9, 0.7], braces: [11.5, 18.5], rise: 2.17, struts: [DECK_Y - 1.5, 15, 22, 25.7], strutH: 0.5 };
+const BAY_LEG = BAY_TOWER.inner + BAY_TOWER.leg[1] / 2;
+const BAY_BRACE = { len: Math.hypot(2 * BAY_LEG, BAY_TOWER.rise), angle: Math.atan2(BAY_TOWER.rise, 2 * BAY_LEG) };
 
-/** Bay Bridge (west span): steel towers with X-bracing, cables, suspenders and the light sculpture. */
+/** Bay Bridge (west span): steel towers with X-bracing, cables, suspenders, the light sculpture, side spans down to the anchorages, the Yerba Buena tunnel portal. */
 export function BayBridge() {
   const lights = useRef<InstancedMesh>(null);
   const glow = useGlow("#eef3ff", 5, 0);
-  const { baysteel } = useLandmarkTextures();
+  const { baysteel, concrete } = useLandmarkTextures();
   const steel = useMemo(() => worldMaterial(baysteel, 2.2), [baysteel]);
   const deck = useMemo(() => worldMaterial(baysteel, 2.2, "#b4b0aa"), [baysteel]);
+  const stone = useMemo(() => worldMaterial(concrete, 3), [concrete]);
+  const grey = useMat("#9a9488", 0.9);
   const cableMat = useMemo(() => new MeshStandardMaterial({ color: "#8d959e", roughness: 0.45, metalness: 0.4 }), []);
   const lightPoints = useMemo(() => {
     const pts: V3[] = [];
-    for (const z of [13, 15]) {
+    for (const z of [14 - CABLE, 14 + CABLE]) {
       for (const [x0, y0, x1, y1, sag] of BAY_CABLES) {
         for (const p of catenary(x0, y0, x1, y1, sag, z, "x", 20)) {
-          for (let y = BAY_DECK + 0.6; y < p[1]; y += 1.4) pts.push([p[0], y, z]);
+          for (let y = bayDeckY(p[0]) + 0.6; y < p[1]; y += 1.4) pts.push([p[0], y, z]);
         }
       }
     }
@@ -805,21 +936,52 @@ export function BayBridge() {
   }, []);
   const cables = useMemo(
     () =>
-      [13, 15].flatMap((z) =>
+      [14 - CABLE, 14 + CABLE].flatMap((z) =>
         BAY_CABLES.map(([x0, y0, x1, y1, sag]) => new TubeGeometry(new CatmullRomCurve3(catenary(x0, y0, x1, y1, sag, z, "x", 40).map((p) => new Vector3(...p))), 80, 0.18, 6)),
       ),
     [],
   );
   const suspenders = useMemo(() => {
     const pts: number[] = [];
-    for (const z of [13, 15]) {
+    for (const z of [14 - CABLE, 14 + CABLE]) {
       for (const [x0, y0, x1, y1, sag] of BAY_CABLES) {
         for (const [x, y] of catenary(x0, y0, x1, y1, sag, z, "x", Math.round(Math.abs(x1 - x0) / 1.6))) {
-          if (y > BAY_DECK + 0.8) pts.push(x, y, z, x, BAY_DECK - 0.1, z); // ends hidden inside the deck
+          const d = bayDeckY(x);
+          if (y > d + 0.8) pts.push(x, y, z, x, d - 0.1, z); // ends hidden inside the deck
         }
       }
     }
     return new BufferGeometry().setAttribute("position", new Float32BufferAttribute(pts, 3));
+  }, []);
+  // Side spans down to the anchorages, the anchorages, and the tunnel portal into Yerba Buena Island.
+  const parts = useMemo(() => {
+    const east = bayRoad("bay-bridge-east");
+    const [px, py] = east.points[east.points.length - 1];
+    return {
+      // side spans and the open railing along the whole deck
+      spans: merged([spanGeometry(bayRoad("bay-bridge-west")), spanGeometry(east), railingGeometry(DECKS[1].points)]),
+      // grey concrete like the tower piers: the piers, and the anchorages with a coping and vertical ribs
+      grey: merged([
+        ...BAY_TOWERS.map((x) => box([x, DECK_Y - 4, 14], [2.4, 7, 2 * BAY_LEG + 1.1])),
+        ...BAY_ANCHORS.flatMap((x) => {
+          const top = bayDeckY(x) - SLAB;
+          const h = top - 0.25 + 1.2;
+          return [
+            box([x, -1.2 + h / 2, 14], [2, h, 4.2]),
+            box([x, top - 0.125, 14], [2.3, 0.25, 4.5]),
+            ...[-1.4, -0.47, 0.47, 1.4].flatMap((dz) => [-1, 1].map((s) => box([x + s * 1.04, -1.2 + (h - 0.2) / 2, 14 + dz], [0.08, h - 0.2, 0.32]))),
+            ...[-0.5, 0.5].flatMap((dx) => [-1, 1].map((s) => box([x + dx, -1.2 + (h - 0.2) / 2, 14 + s * 2.14], [0.32, h - 0.2, 0.08]))),
+          ];
+        }),
+      ]),
+      stone: merged([
+        // portal: jambs either side of the road, a lintel over it, a coping on top
+        ...[-1, 1].map((s) => box([px + 0.4, (py + 1.9 - 1.2) / 2, 14 + s * 2], [0.8, py + 1.9 + 1.2, 1])), // down into the water
+        box([px + 0.4, py + 1.6, 14], [0.8, 0.6, 3]),
+        box([px + 0.36, py + 1.95, 14], [0.95, 0.12, 5.2]),
+      ]),
+      tunnel: box([px + 0.55, py + 0.65, 14], [0.5, 1.3, 3]),
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -835,44 +997,43 @@ export function BayBridge() {
     mesh.computeBoundingSphere();
   }, [lightPoints]);
 
-  const length = 140 - 31;
+  // The level main deck between the end towers; its top sits just under the road (Roads draws the asphalt).
+  const x0 = BAY_TOWERS[0];
+  const length = BAY_TOWERS[BAY_TOWERS.length - 1] - x0;
   return (
     <group>
-      <mesh position={[31 + length / 2, BAY_DECK, 14]} material={deck} castShadow receiveShadow>
+      <mesh position={[x0 + length / 2, DECK_Y - 0.28, 14]} material={deck} castShadow receiveShadow>
         <boxGeometry args={[length, 0.5, 3]} />
       </mesh>
-      <mesh position={[31 + length / 2, BAY_DECK - 0.8, 14]} material={steel} castShadow>
+      <mesh position={[x0 + length / 2, DECK_Y - 1.08, 14]} material={steel} castShadow>
         <boxGeometry args={[length, 1.1, 2.6]} />
       </mesh>
-      {[-1.42, 1.42].map((dz) => (
-        <mesh key={dz} position={[31 + length / 2, BAY_DECK + 0.55, 14 + dz]} material={steel}>
-          <boxGeometry args={[length, 0.6, 0.16]} />
-        </mesh>
-      ))}
+      <mesh geometry={parts.spans} material={steel} castShadow receiveShadow />
+      <mesh geometry={parts.stone} material={stone} castShadow receiveShadow />
+      <mesh geometry={parts.grey} material={grey} castShadow receiveShadow />
+      <mesh geometry={parts.tunnel}>
+        <meshBasicMaterial color="#0b0c0e" />
+      </mesh>
       {BAY_TOWERS.map((x) => (
         <group key={x} position={[x, 0, 14]}>
-          {[-1.15, 1.15].map((dz) => (
+          {[-BAY_LEG, BAY_LEG].map((dz) => (
             <mesh key={dz} position={[0, 13, dz]} material={steel} castShadow>
-              <boxGeometry args={[0.9, 26, 0.7]} />
+              <boxGeometry args={[BAY_TOWER.leg[0], 26, BAY_TOWER.leg[1]]} />
             </mesh>
           ))}
-          {/* X-bracing between the legs, above and below the deck */}
-          {[11.5, 18.5].map((y) =>
+          {/* X-bracing between the legs, above the traffic */}
+          {BAY_TOWER.braces.map((y) =>
             [-1, 1].map((k) => (
-              <mesh key={`${y}${k}`} position={[0, y, 0]} rotation-x={k * 0.72} material={steel} castShadow>
-                <boxGeometry args={[0.35, 0.35, 3.3]} />
+              <mesh key={`${y}${k}`} position={[0, y, 0]} rotation-x={k * BAY_BRACE.angle} material={steel} castShadow>
+                <boxGeometry args={[0.35, 0.35, BAY_BRACE.len]} />
               </mesh>
             )),
           )}
-          {[BAY_DECK - 1.5, 15, 22, 25.7].map((y) => (
+          {BAY_TOWER.struts.map((y) => (
             <mesh key={y} position={[0, y, 0]} material={steel} castShadow>
-              <boxGeometry args={[0.6, 0.5, 3]} />
+              <boxGeometry args={[0.6, BAY_TOWER.strutH, 2 * BAY_LEG]} />
             </mesh>
           ))}
-          <mesh position={[0, BAY_DECK - 4, 0]} castShadow receiveShadow>
-            <boxGeometry args={[2.4, 7, 3.6]} />
-            <meshStandardMaterial color="#9a9488" roughness={0.9} />
-          </mesh>
         </group>
       ))}
       {cables.map((g, i) => (
@@ -888,59 +1049,109 @@ export function BayBridge() {
   );
 }
 
-/** Roads tying the bridges to the land, on piers where they are elevated. */
+/**
+ * The road surface on both main decks and the roads at the four bridge ends
+ * (roads.ts): one mesh each for asphalt, lane marks and concrete. The asphalt
+ * is mapped like the street texture, so a road and the street it lands on match.
+ */
 export function Roads() {
   const { asphalt, concrete } = useLandmarkTextures();
   const materials = useMemo(() => {
-    const road = asphalt.clone();
-    road.repeat.set(1 / 3, 1 / 3);
-    const wall = concrete.clone();
-    wall.repeat.set(1 / 3, 1 / 3);
-    return [new MeshStandardMaterial({ map: road, roughness: 0.9 }), new MeshStandardMaterial({ map: wall, roughness: 0.85, side: DoubleSide })];
+    const road = worldMaterial(asphalt, 6);
+    road.roughness = 0.85;
+    road.metalness = 0;
+    const marks = new MeshStandardMaterial({ color: new Color(0.86, 0.84, 0.78), roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+    return { road, marks, concrete: worldMaterial(concrete, 3) };
   }, [asphalt, concrete]);
-  const geometries = useMemo(() => ROADS.map(roadGeometry), []);
-  const pierList = useMemo(() => ROADS.flatMap((r) => piers(r)), []);
+  const geometry = useMemo(() => {
+    const roads = ROADS.map(roadGeometry);
+    const decks = DECKS.map((d) => deckGeometry(d.points));
+    return {
+      road: merged([...roads, ...decks].map((g) => g.asphalt)),
+      marks: merged([...roads, ...decks].map((g) => g.marks)),
+      concrete: merged(roads.map((g) => g.concrete)),
+    };
+  }, []);
   return (
     <group>
-      {geometries.map((g, i) => (
-        <mesh key={i} geometry={g} material={materials} castShadow receiveShadow />
-      ))}
-      {pierList.map(([x, z, g, top]) => (
-        <mesh key={`${x}${z}`} position={[x, (g + top) / 2, z]} castShadow receiveShadow>
-          <boxGeometry args={[1.2, top - g, 1.6]} />
-          <meshStandardMaterial map={materials[1].map} roughness={0.9} />
-        </mesh>
-      ))}
+      <mesh geometry={geometry.road} material={materials.road} receiveShadow />
+      <mesh geometry={geometry.marks} material={materials.marks} receiveShadow />
+      <mesh geometry={geometry.concrete} material={materials.concrete} castShadow receiveShadow />
     </group>
   );
 }
 
 /** Golden Gate Bridge across the strait to the north-west: the 06:00 backdrop. */
-export const GG = { x: -80, deck: 7, towers: [-70, -134], south: -52, north: -152, top: 30, red: "#c0442c" };
+/** `anchorTop`: the anchorages stop under the road slab, so the road runs on over them. */
+export const GG = { x: -80, deck: DECK_Y, towers: [-70, -134], south: -52, north: -152, top: 30, anchorTop: DECK_Y - SLAB, red: "#c0442c" };
+/**
+ * Golden Gate towers: legs in three tiers [y0, y1, width across] that step in
+ * on the outside as they rise, inner faces at `inner` so the road passes
+ * between them; portal struts (`struts`, `strutH` tall) over the traffic.
+ */
+export const GG_TOWER = {
+  inner: 1.8,
+  tiers: [[0, 11, 1.1], [11, 21, 0.95], [21, GG.top, 0.8]] as [number, number, number][],
+  struts: [9.6, 15.5, 20.5, 25.5, GG.top - 0.3],
+  strutH: 0.7,
+};
 const GG_SPANS: [number, number, number, number, number][] = [
-  [GG.south, GG.deck + 1.2, GG.towers[0], GG.top - 0.6, 3],
+  // cable ends go down into the anchorages, under the road
+  [GG.south, GG.deck - 0.4, GG.towers[0], GG.top - 0.6, 3],
   [GG.towers[0], GG.top - 0.6, GG.towers[1], GG.top - 0.6, 20],
-  [GG.towers[1], GG.top - 0.6, GG.north, GG.deck + 1.2, 3],
+  [GG.towers[1], GG.top - 0.6, GG.north, GG.deck - 0.4, 3],
 ];
 
+/**
+ * Golden Gate anchorages at both deck ends: a concrete block that steps in
+ * under the road, with pilasters, and an Art Deco pylon either side of the
+ * road in the bridge's steel. Nothing reaches over the road (|x| < 1.5 above anchorTop).
+ */
+function ggAnchorages() {
+  const concrete: BufferGeometry[] = [];
+  const steel: BufferGeometry[] = [];
+  const top = GG.anchorTop;
+  for (const z of [GG.south, GG.north]) {
+    concrete.push(box([GG.x, (top - 1.4 - 0.8) / 2, z], [4.6, top - 1.4 + 0.8, 4])); // base, into the water
+    concrete.push(box([GG.x, top - 0.75, z], [4.2, 1.3, 3.6])); // stepped top under the road
+    concrete.push(box([GG.x, top - 1.47, z], [4.8, 0.14, 4.2])); // string course between them
+    for (const dx of [-1.6, -0.55, 0.55, 1.6]) for (const s of [-1, 1]) concrete.push(box([GG.x + dx, (top - 1.6 - 0.45) / 2, z + s * 2.03], [0.34, top - 1.6 + 0.45, 0.08])); // pilasters
+    for (const s of [-1, 1]) {
+      const x = GG.x + s * 2.05;
+      // stepped pylon beside the road, on the anchorage
+      steel.push(box([x, top + 1.2, z], [0.6, 2.4, 1.5]));
+      steel.push(box([x, top + 2.85, z], [0.48, 0.9, 1.2]));
+      steel.push(box([x, top + 3.6, z], [0.36, 0.6, 0.9]));
+      steel.push(box([x, top + 4.05, z], [0.22, 0.3, 0.55]));
+      steel.push(box([x, top + 2.42, z], [0.7, 0.08, 1.6])); // ledges at the steps
+      steel.push(box([x, top + 3.32, z], [0.56, 0.06, 1.3]));
+      for (const dz of [-0.4, 0, 0.4]) steel.push(box([x - s * 0.31, top + 1.3, z + dz], [0.04, 1.8, 0.12])); // fluting on the road side
+    }
+  }
+  return { concrete: merged(concrete), steel: merged(steel) };
+}
+
 export function GoldenGate() {
-  const { ggsteel } = useLandmarkTextures();
+  const { ggsteel, concrete } = useLandmarkTextures();
   // Riveted International Orange steel on towers and deck; the deck top is road.
   const paint = useMemo(() => worldMaterial(ggsteel, 2.2), [ggsteel]);
   const deck = useMemo(() => worldMaterial(ggsteel, 2.2, "#b4b0aa"), [ggsteel]);
   const cable = useMemo(() => new MeshStandardMaterial({ color: GG.red, roughness: 0.5, metalness: 0.3 }), []);
   const truss = useMemo(() => new MeshStandardMaterial({ color: "#7e2c1e", roughness: 0.7, metalness: 0.2 }), []);
+  const stone = useMemo(() => worldMaterial(concrete, 3), [concrete]);
+  const anchorages = useMemo(() => ggAnchorages(), []);
+  const railing = useMemo(() => railingGeometry(DECKS[0].points), []);
   // Main cables as tubes; suspenders as thin vertical strokes down to the deck.
   const cables = useMemo(
     () =>
-      [-1.25, 1.25].flatMap((dx) =>
+      [-CABLE, CABLE].flatMap((dx) =>
         GG_SPANS.map(([z0, y0, z1, y1, sag]) => new TubeGeometry(new CatmullRomCurve3(catenary(z0, y0, z1, y1, sag, GG.x + dx, "z", 40).map((p) => new Vector3(...p))), 80, 0.2, 6)),
       ),
     [],
   );
   const suspenders = useMemo(() => {
     const pts: number[] = [];
-    for (const dx of [-1.25, 1.25]) {
+    for (const dx of [-CABLE, CABLE]) {
       for (const [z0, y0, z1, y1, sag] of GG_SPANS) {
         for (const [x, y, z] of catenary(z0, y0, z1, y1, sag, GG.x + dx, "z", Math.round(Math.abs(z1 - z0) / 1.6))) {
           if (y > GG.deck + 0.8) pts.push(x, y, z, x, GG.deck - 0.1, z); // ends hidden inside the deck
@@ -952,47 +1163,35 @@ export function GoldenGate() {
 
   return (
     <group>
-      {/* deck and truss */}
-      <mesh position={[GG.x, GG.deck, (GG.south + GG.north) / 2]} material={deck} castShadow receiveShadow>
+      {/* deck and truss, the deck's top just under the road (Roads draws the asphalt) */}
+      <mesh position={[GG.x, GG.deck - 0.28, (GG.south + GG.north) / 2]} material={deck} castShadow receiveShadow>
         <boxGeometry args={[3, 0.5, GG.south - GG.north]} />
       </mesh>
-      <mesh position={[GG.x, GG.deck - 0.75, (GG.south + GG.north) / 2]} material={truss} castShadow>
+      <mesh position={[GG.x, GG.deck - 1.03, (GG.south + GG.north) / 2]} material={truss} castShadow>
         <boxGeometry args={[2.6, 1, GG.south - GG.north]} />
       </mesh>
-      {/* railings along both edges */}
-      {[-1.42, 1.42].map((dx) => (
-        <mesh key={dx} position={[GG.x + dx, GG.deck + 0.55, (GG.south + GG.north) / 2]} material={paint}>
-          <boxGeometry args={[0.16, 0.6, GG.south - GG.north]} />
-        </mesh>
-      ))}
-      {/* anchorages */}
-      {[GG.south, GG.north].map((z) => (
-        <mesh key={z} position={[GG.x, GG.deck / 2, z]} castShadow receiveShadow>
-          <boxGeometry args={[4.6, GG.deck + 1.6, 4]} />
-          <meshStandardMaterial color="#b9ad98" roughness={0.9} />
-        </mesh>
-      ))}
+      {/* open railings along both edges, just outside the road */}
+      <mesh geometry={railing} material={paint} castShadow />
+      {/* anchorages and their pylons */}
+      <mesh geometry={anchorages.concrete} material={stone} castShadow receiveShadow />
+      <mesh geometry={anchorages.steel} material={paint} castShadow receiveShadow />
       {/* Art Deco towers: legs step in as they rise, portal struts between them */}
       {GG.towers.map((z) => (
         <group key={z} position={[GG.x, 0, z]}>
-          {[-1.25, 1.25].map((dx) =>
-            [
-              [0, 11, 1.1],
-              [11, 21, 0.95],
-              [21, GG.top, 0.8],
-            ].map(([y0, y1, w]) => (
-              <mesh key={`${dx}${y0}`} position={[dx, (y0 + y1) / 2, 0]} material={paint} castShadow receiveShadow>
+          {[-1, 1].map((s) =>
+            GG_TOWER.tiers.map(([y0, y1, w]) => (
+              <mesh key={`${s}${y0}`} position={[s * (GG_TOWER.inner + w / 2), (y0 + y1) / 2, 0]} material={paint} castShadow receiveShadow>
                 <boxGeometry args={[w, y1 - y0, w * 1.5]} />
               </mesh>
             )),
           )}
-          {[9.6, 15.5, 20.5, 25.5, GG.top - 0.3].map((y) => (
+          {GG_TOWER.struts.map((y) => (
             <mesh key={y} position={[0, y, 0]} material={paint} castShadow>
-              <boxGeometry args={[3.2, 0.7, 0.7]} />
+              <boxGeometry args={[2 * GG_TOWER.inner + 0.8, GG_TOWER.strutH, 0.7]} />
             </mesh>
           ))}
           <mesh position={[0, -1.5, 0]} castShadow receiveShadow>
-            <boxGeometry args={[4.6, 3, 4]} />
+            <boxGeometry args={[2 * (GG_TOWER.inner + 1.1) + 0.6, 3, 4]} />
             <meshStandardMaterial color="#b9ad98" roughness={0.9} />
           </mesh>
         </group>

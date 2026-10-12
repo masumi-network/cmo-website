@@ -37,9 +37,18 @@ function rng(seed: number) {
   return () => ((s = (s * 16807) % 2147483647) / 2147483647);
 }
 
+/** Row house bodies are this much narrower than their plot (a seam between houses). */
+export const HOUSE_GAP = 0.06;
+/** Height over width of a facade photo (houses-atlas.jpg tiles are 682.7 x 1024 texels). */
+export const FACADE_ASPECT = 1.5;
+
 // `y` is the ground under the centre; `h` is height above it.
 export type House = {
-  x: number; y: number; z: number; w: number; d: number; h: number;
+  x: number; y: number; z: number; w: number; d: number;
+  /** Set by the facade photo, which is never stretched: (w - HOUSE_GAP) * FACADE_ASPECT. */
+  h: number;
+  /** Floors in the facade photo (2 or 3). */
+  floors: 2 | 3;
   /** +1 faces south (+z), -1 faces north. */
   facing: 1 | -1;
   color: string; trim: string;
@@ -135,12 +144,13 @@ export function generateCity() {
         while (x1 - x >= 2.6) {
           const w = Math.min(2.6 + rand() * 0.8, x1 - x);
           const floors = rand() < 0.55 ? 2 : 3;
-          const h = floors * 2.2 + 0.5;
+          // Room is checked at the old storey heights (at least as tall), so the row stays as it was.
+          const room = floors * 2.2 + 0.5;
           const hx = x + w / 2;
           const y = base(hx, z, w, depth);
-          if (fits(hx, z, w, depth, h, y)) {
+          if (fits(hx, z, w, depth, room, y)) {
             houses.push({
-              x: hx, y, z, w, d: depth, h, facing,
+              x: hx, y, z, w, d: depth, h: (w - HOUSE_GAP) * FACADE_ASPECT, floors, facing,
               color: pick(PAINTED), trim: pick(TRIMS),
               roof: rand() < 0.4 ? "gable" : "flat",
               bay: rand() < 0.7,

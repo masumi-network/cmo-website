@@ -34,7 +34,7 @@ export function AskBar({ onGo, className }: { onGo: (index: number) => void; cla
         placeholder="Ask Cuso anything…"
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
-        className="min-w-0 flex-1 bg-transparent text-base text-card-foreground outline-none placeholder:text-muted-foreground"
+        className="h-full min-w-0 flex-1 bg-transparent text-base text-card-foreground outline-none placeholder:text-muted-foreground"
       />
       <Button type="submit" size="icon" aria-label="Send to Cuso">
         <ArrowRight className="size-[18px]" />

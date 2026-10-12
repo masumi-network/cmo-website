@@ -29,21 +29,16 @@ import { useCity } from "@/lib/store";
 import { heightAt, headlandHeight } from "@/lib/terrain";
 import { activeIndex } from "@/lib/time";
 import { LAND, LAND_BOUNDS, insideLand } from "./grid";
-import { CITY, type House, type Tower } from "./layout";
+import { CITY, type Tower } from "./layout";
 import { useNightGlow } from "./shared";
-import { FOOTING, groundMaterial, houseMaterial, roofMaterial, towerMaterial, worldMaterial } from "./materials";
+import { FOOTING, groundMaterial, towerMaterial, worldMaterial } from "./materials";
+import { Houses } from "./houses";
 import { Instances } from "./parts";
 import { groundMask } from "./textures";
 import { Trees } from "./trees";
 import { Cars } from "./traffic";
 
 const box = new BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
-
-/** A roof prism; the gable faces the street. */
-const gable = new ExtrudeGeometry(new Shape([new Vector2(-0.5, 0), new Vector2(0.5, 0), new Vector2(0, 1)]), {
-  depth: 1,
-  bevelEnabled: false,
-}).translate(0, 0, -0.5);
 
 const TEXTURES = {
   atlas: "/textures/houses-atlas.jpg",
@@ -162,47 +157,6 @@ function Headlands({ map }: { map: Texture }) {
   }, []);
   const material = useMemo(() => new MeshStandardMaterial({ map, vertexColors: true, roughness: 1 }), [map]);
   return <mesh geometry={geometry} material={material} receiveShadow castShadow />;
-}
-
-/** Atlas tiles: 2-storey fronts are 0, 2, 4; 3-storey are 1, 3, 5. Siding tint per tile. */
-const TWO_STOREY = [0, 2, 4];
-const THREE_STOREY = [1, 3, 5];
-const SIDING = ["#d3e2ee", "#d4e6d6", "#f3e3b2", "#eccfd2", "#d3dccd", "#f1efe9"];
-const tileOf = (h: House, i: number) => (h.h > 6 ? THREE_STOREY : TWO_STOREY)[(i * 7 + Math.round(h.x * 3)) % 3];
-
-const houseAttributes = {
-  aTile: (h: House, i: number) => tileOf(h, i),
-  aFacing: (h: House) => h.facing,
-};
-const houseBody = (h: House, o: Object3D, i: number) => {
-  o.position.set(h.x, h.y - FOOTING, h.z);
-  o.scale.set(h.w - 0.06, h.h + FOOTING, h.d);
-  return SIDING[tileOf(h, i)];
-};
-const houseCornice = (h: House, o: Object3D) => {
-  o.position.set(h.x, h.y + h.h - 0.18, h.z + h.facing * 0.06);
-  o.scale.set(h.w + 0.02, 0.22, h.d + 0.14);
-  return h.trim;
-};
-const houseRoof = (h: House, o: Object3D) => {
-  o.position.set(h.x, h.y + h.h, h.z);
-  o.scale.set(h.w, h.w * 0.42, h.d);
-  return "#8a8580";
-};
-
-/** Victorian row houses: a real facade on the street side, lap siding elsewhere, shingled gables. */
-function Houses({ houses, tex }: { houses: House[]; tex: Textures }) {
-  const walls = useMemo(() => houseMaterial(tex.atlas, tex.siding), [tex]);
-  const trim = useMemo(() => new MeshStandardMaterial({ roughness: 0.7 }), []);
-  const shingles = useMemo(() => roofMaterial(tex.shingles), [tex]);
-  const gables = useMemo(() => houses.filter((h) => h.roof === "gable"), [houses]);
-  return (
-    <>
-      <Instances items={houses} geometry={box} material={walls} place={houseBody} attributes={houseAttributes} />
-      <Instances items={houses} geometry={box} material={trim} place={houseCornice} />
-      <Instances items={gables} geometry={gable} material={shingles} place={houseRoof} />
-    </>
-  );
 }
 
 type TierItem = { tower: Tower; i: number };

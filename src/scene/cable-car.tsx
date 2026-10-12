@@ -29,6 +29,8 @@ const FLOOR = 0.4; // underside of the body
 const SEAT = 0.92; // top of the lower body: bench height
 const WIN = 1.0; // window sill
 const BOARD = 1.62; // letterboard (cream band under the roof)
+/** The brand's route board on each side, [width, height]. */
+export const ROUTE_BOARD = [2.5, 0.24] as const;
 const EAVE = 1.84; // underside of the roof
 const ROOF = 2.42; // roof half-length (overhangs the dash)
 const ROOF_W = 0.93; // roof half-width (overhangs the sides)
@@ -145,7 +147,7 @@ export function carGeometry(): CarParts {
     const z = s * (W + 0.003);
     gold.push(box(BODY * 2 - 0.08, 0.012, 0.01, 0, SEAT - 0.045, z), box(BODY * 2 - 0.08, 0.012, 0.01, 0, FLOOR + 0.045, z));
     // Route board with the brand, framed in gold.
-    board.push(sidePlane(2.5, 0.24, 0, 0.665, s, W + 0.005));
+    board.push(sidePlane(ROUTE_BOARD[0], ROUTE_BOARD[1], 0, 0.665, s, W + 0.005));
     gold.push(box(2.54, 0.012, 0.008, 0, 0.665 + 0.126, z), box(2.54, 0.012, 0.008, 0, 0.665 - 0.126, z));
     gold.push(box(0.012, 0.264, 0.008, 1.264, 0.665, z), box(0.012, 0.264, 0.008, -1.264, 0.665, z));
   }
@@ -306,7 +308,7 @@ function ground(x: number, z: number) {
 export function CableCar({ p }: { p: V3 }) {
   const m = paints();
   const parts = (carParts ??= carGeometry());
-  const panel = useSign(useBrand(), { bg: "#f3e8cf", fg: "#6b2a1f", width: 1536, height: 160 });
+  const panel = useSign(useBrand(), { bg: "#f3e8cf", fg: "#6b2a1f", width: 1536, panel: ROUTE_BOARD });
   const glass = useMemo(() => new MeshStandardMaterial({ color: "#1d2127", roughness: 0.15, metalness: 0.5, emissive: "#ffd9a0", emissiveIntensity: 0 }), []);
   useNightGlow(glass, 1.5);
   useEffect(() => () => glass.dispose(), [glass]);

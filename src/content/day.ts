@@ -59,6 +59,12 @@ export type Chapter = {
   /** Where Cuso stands. */
   spot: Vec3;
   camera: Shot;
+  /**
+   * The same place on a phone (portrait, under 768 px wide). Cuso is centred
+   * (side 0); the camera rig then slides the picture up or down so he stands
+   * in the free space between the top bar and the cards.
+   */
+  phone: Shot;
   /** Dark UI on top of a dark scene. */
   dark: boolean;
 };
@@ -76,6 +82,7 @@ export const chapters: readonly Chapter[] = [
     poster: "/concepts/01-hero-rooftop.jpg",
     spot: [-14, RUSSIAN_HILL_ROOF, -12.9],
     camera: frame([-14, RUSSIAN_HILL_ROOF, -12.9], { yaw: 37, distance: 7.5, height: 2.0, look: 2.2 }),
+    phone: frame([-14, RUSSIAN_HILL_ROOF, -12.9], { yaw: 37, distance: 9.5, height: 2.2, look: 1, side: 0 }),
     dark: false,
   },
   {
@@ -90,6 +97,7 @@ export const chapters: readonly Chapter[] = [
     poster: "/concepts/02-brand-brain.jpg",
     spot: at(-9.6, 0, 14.6),
     camera: frame(at(-9.6, 0, 14.6), { yaw: 18, distance: 7, height: 1.3, look: 1.8 }),
+    phone: frame(at(-9.6, 0, 14.6), { yaw: 18, distance: 10, height: 5, look: 1.8, side: 0 }),
     dark: false,
   },
   {
@@ -104,6 +112,7 @@ export const chapters: readonly Chapter[] = [
     poster: "/concepts/03-social.jpg",
     spot: at(-2.8, 0, 29.6),
     camera: frame(at(-2.8, 0, 29.6), { yaw: 68, distance: 6.8, height: 1.3, look: 1.8, side: 0.28 }),
+    phone: frame(at(-2.8, 0, 29.6), { yaw: 68, distance: 9, height: 1.4, look: 1, side: 0 }),
     dark: false,
   },
   {
@@ -118,6 +127,7 @@ export const chapters: readonly Chapter[] = [
     poster: "/concepts/04-ads.jpg",
     spot: [5.6, UNION_SQUARE_ROOF, 10.4],
     camera: frame([5.6, UNION_SQUARE_ROOF, 10.4], { yaw: 12, distance: 9, height: -1.2, look: 1.9, side: -0.05 }),
+    phone: frame([5.6, UNION_SQUARE_ROOF, 10.4], { yaw: 20, distance: 14, height: 0.6, look: 1.4, side: -0.3 }),
     dark: false,
   },
   {
@@ -132,6 +142,7 @@ export const chapters: readonly Chapter[] = [
     poster: "/concepts/05-seo.jpg",
     spot: [6.5, PYRAMID_TIP, -11],
     camera: frame([6.5, PYRAMID_TIP, -11], { yaw: 285, distance: 9, height: 4.2, look: -0.6, side: 0.25 }),
+    phone: frame([6.5, PYRAMID_TIP, -11], { yaw: 285, distance: 11.5, height: 4.2, look: 0.2, side: 0 }),
     dark: false,
   },
   {
@@ -146,6 +157,7 @@ export const chapters: readonly Chapter[] = [
     poster: "/concepts/06-newsletter.jpg",
     spot: at(19.95, 0.34, 5.1),
     camera: frame(at(19.95, 0.34, 5.1), { yaw: 42, distance: 7, height: 0.8, look: 1.5 }),
+    phone: frame(at(19.95, 0.34, 5.1), { yaw: 42, distance: 9, height: 1, look: 1, side: 0 }),
     dark: false,
   },
   {
@@ -160,6 +172,7 @@ export const chapters: readonly Chapter[] = [
     poster: "/concepts/07-night.jpg",
     spot: [33.6, 0.55, 24.2],
     camera: frame([33.6, 0.55, 24.2], { yaw: 315, distance: 6.5, height: 1.1, look: 1.3, side: -0.3 }),
+    phone: frame([33.6, 0.55, 24.2], { yaw: 315, distance: 5, height: 5.5, look: 0.6, side: 0 }),
     dark: true,
   },
   {
@@ -174,6 +187,7 @@ export const chapters: readonly Chapter[] = [
     poster: "/concepts/09-finale.jpg",
     spot: [-14, RUSSIAN_HILL_ROOF, -12.9],
     camera: frame([-14, RUSSIAN_HILL_ROOF, -12.9], { yaw: 322, distance: 30, height: 13, look: 2, side: 0.2 }),
+    phone: frame([-14, RUSSIAN_HILL_ROOF, -12.9], { yaw: 332, distance: 34, height: 15, look: 2, side: 0 }),
     dark: false,
   },
 ];

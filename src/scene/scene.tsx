@@ -66,7 +66,7 @@ export default function Scene({ onReady, onGo, lite }: Props) {
       </Suspense>
       <CameraRig />
       {lite ? (
-        <EffectComposer multisampling={0}>
+        <EffectComposer multisampling={2}>
           <Bloom mipmapBlur luminanceThreshold={0.9} intensity={0.5} />
           <Vignette offset={0.3} darkness={0.4} />
           <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />

@@ -17,6 +17,7 @@ import {
   CylinderGeometry,
   DataTexture,
   DoubleSide,
+  ExtrudeGeometry,
   Float32BufferAttribute,
   HalfFloatType,
   LinearFilter,
@@ -32,6 +33,7 @@ import {
   RedFormat,
   RepeatWrapping,
   ShaderChunk,
+  Shape,
   Vector2,
   Vector3,
   Vector4,
@@ -52,6 +54,7 @@ import { headlandHeight } from "@/lib/terrain";
 import { facadeMaterial } from "./facade";
 import { BAY_TOWERS, GG } from "./landmarks";
 import { LAND, insideLand } from "./layout";
+import { BAY_ANCHORS, ISLAND, ROADS, piers } from "./roads";
 import { useGlow } from "./parts";
 import { rig } from "./shared";
 
@@ -84,36 +87,202 @@ const hash = (x: number, z: number) => {
 
 /** Sea wall bevel: the cliff extrusion in city.tsx sticks out this far past LAND. */
 const SEA_WALL = 0.6;
-export const HILLS: [number, number, number, number, string][] = [
-  // x, z, radius, height, color
-  [142, 14, 9, 4.5, "#8f8a68"],
-];
+/** Yerba Buena Island, as roads.ts plans the tunnel into it: [x, z, radius, height, color] (tested to match ISLAND). */
+export const HILLS: [number, number, number, number, string][] = [[ISLAND.x, ISLAND.z, ISLAND.r, ISLAND.h, "#8f8a68"]];
 
-/** Islands in the bay (Treasure Island / Yerba Buena), grassed like the headlands. */
+function valueNoise(x: number, z: number) {
+  const xi = Math.floor(x);
+  const zi = Math.floor(z);
+  const u = (x - xi) * (x - xi) * (3 - 2 * (x - xi));
+  const v = (z - zi) * (z - zi) * (3 - 2 * (z - zi));
+  const a = hash(xi, zi);
+  const b = hash(xi + 1, zi);
+  const c = hash(xi, zi + 1);
+  const d = hash(xi + 1, zi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+/**
+ * Yerba Buena's ground. Along the Bay Bridge road (west side, z near 14) it is
+ * exactly the dome roads.ts plans the tunnel portal on; elsewhere it peaks in
+ * the middle and gets lumpy. The water line is the circle of ISLAND.r.
+ */
+export function yerbaBuenaHeight(x: number, z: number) {
+  const rho = Math.hypot(x - ISLAND.x, z - ISLAND.z) / ISLAND.r;
+  if (rho >= 1) return -Infinity;
+  const dome = Math.sqrt(1 - rho * rho);
+  // a spur along the road, where the tunnel goes in
+  const free = Math.max(smoothstep(2.5, 7, Math.abs(z - ISLAND.z)), smoothstep(ISLAND.x - 2, ISLAND.x + 2, x));
+  const lumps = 0.22 * (valueNoise(x / 3.2, z / 3.2) - 0.5) + 0.08 * (valueNoise(x / 1.2, z / 1.2) - 0.5);
+  // a low rock cliff at the shore, then a hill rising to a rounded top
+  const hill = 0.07 * Math.min(1, (1 - rho) * 12) + 0.93 * Math.cos((rho * Math.PI) / 2) ** 1.6 * (1 + lumps);
+  return ISLAND.y + ISLAND.h * (dome + (hill - dome) * free);
+}
+
+/** Treasure Island: flat made land north of Yerba Buena, with a causeway. [x, z, half x, half z, corner]. */
+const TREASURE_ISLAND: [number, number, number, number, number][] = [
+  [143, -7, 10, 8.5, 2.5],
+  [141.5, 3.5, 2.2, 4, 0.6],
+];
+const TREASURE_Y = 0.35;
+const roundedBoxDistance = (x: number, z: number, [cx, cz, hx, hz, r]: number[]) => {
+  const qx = Math.abs(x - cx) - hx + r;
+  const qz = Math.abs(z - cz) - hz + r;
+  return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - r;
+};
+
+function yerbaBuenaGeometry() {
+  const A = 96;
+  const RINGS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.78, 0.85, 0.9, 0.94, 0.97, 0.99, 1, 1.1];
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const col: number[] = [];
+  for (let r = 0; r < RINGS.length; r++) {
+    for (let k = 0; k < (r === 0 ? 1 : A); k++) {
+      const theta = (k / A) * Math.PI * 2;
+      const x = ISLAND.x + ISLAND.r * RINGS[r] * Math.cos(theta);
+      const z = ISLAND.z + ISLAND.r * RINGS[r] * Math.sin(theta);
+      const y = RINGS[r] >= 1 ? (r === RINGS.length - 1 ? -1.2 : ISLAND.y) : yerbaBuenaHeight(x, z);
+      pos.push(x - ISLAND.x, y, z - ISLAND.z);
+      uv.push(x / 26, -z / 26); // world-space, like the headlands
+      col.push(0.82 + 0.18 * hash(k, r), 0, 0); // brightness; tinted below once normals exist
+    }
+  }
+  const index: number[] = [];
+  for (let k = 0; k < A; k++) index.push(0, 1 + ((k + 1) % A), 1 + k);
+  for (let r = 1; r < RINGS.length - 1; r++) {
+    const s0 = 1 + (r - 1) * A;
+    const s1 = 1 + r * A;
+    for (let k = 0; k < A; k++) {
+      const k1 = (k + 1) % A;
+      index.push(s0 + k, s0 + k1, s1 + k, s0 + k1, s1 + k1, s1 + k);
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute("position", new Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new Float32BufferAttribute(uv, 2));
+  g.setAttribute("color", new Float32BufferAttribute(col, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  // steep ground is grey rock (the texture would streak there), the rest scrub, a little darker on slopes
+  const n = g.attributes.normal;
+  const rock = new Color("#8a8379");
+  const c = new Color();
+  for (let i = 0; i < n.count; i++) {
+    const steep = smoothstep(0.75, 0.45, n.getY(i));
+    const k = col[i * 3] * (1 - Math.min(0.35, (1 - n.getY(i)) * 0.7));
+    c.setRGB(1, 0.98, 0.92).lerp(rock, steep).multiplyScalar(k);
+    col[i * 3] = c.r;
+    col[i * 3 + 1] = c.g;
+    col[i * 3 + 2] = c.b;
+  }
+  g.setAttribute("color", new Float32BufferAttribute(col, 3));
+  return g;
+}
+
+/** Eucalyptus woods on Yerba Buena, clear of the bridge road. [x, y, z, size]. */
+function yerbaBuenaTrees() {
+  const rand = rng(11);
+  const out: [number, number, number, number][] = [];
+  while (out.length < 120) {
+    const a = rand() * Math.PI * 2;
+    const rho = Math.sqrt(rand()) * 0.88;
+    const x = ISLAND.x + Math.cos(a) * rho * ISLAND.r;
+    const z = ISLAND.z + Math.sin(a) * rho * ISLAND.r;
+    if (x < ISLAND.x - 3 && Math.abs(z - ISLAND.z) < 3) continue; // the portal and the road
+    out.push([x, yerbaBuenaHeight(x, z) - 0.15, z, 0.28 + rand() * 0.28]);
+  }
+  return out;
+}
+
+function treasureIslandGeometry() {
+  // shape space is (x, -z), counter-clockwise
+  const shapes = TREASURE_ISLAND.map(([cx, cz, hx, hz, r]) => {
+    const [x0, x1, y0, y1] = [cx - hx, cx + hx, -(cz + hz), -(cz - hz)];
+    const s = new Shape();
+    s.moveTo(x0 + r, y0);
+    s.lineTo(x1 - r, y0);
+    s.absarc(x1 - r, y0 + r, r, -Math.PI / 2, 0, false);
+    s.lineTo(x1, y1 - r);
+    s.absarc(x1 - r, y1 - r, r, 0, Math.PI / 2, false);
+    s.lineTo(x0 + r, y1);
+    s.absarc(x0 + r, y1 - r, r, Math.PI / 2, Math.PI, false);
+    s.lineTo(x0, y0 + r);
+    s.absarc(x0 + r, y0 + r, r, Math.PI, Math.PI * 1.5, false);
+    return s;
+  });
+  const g = new ExtrudeGeometry(shapes, { depth: TREASURE_Y + 1.2 - 0.1, bevelEnabled: true, bevelSize: 0.1, bevelThickness: 0.1, bevelSegments: 1 });
+  g.rotateX(-Math.PI / 2);
+  g.translate(0, -1.2, 0);
+  return g;
+}
+
+/** The 1939 exposition hangars and Building One, low and pale. */
+function treasureBuildingsGeometry() {
+  const parts: BufferGeometry[] = [];
+  for (const [x, z] of [[138, -10.5], [141.2, -10.5], [144.4, -10.5]]) {
+    parts.push(box(2.4, 0.7, 3.6, x, TREASURE_Y + 0.35, z, "#c9c3b5"));
+    parts.push(paint(new CylinderGeometry(1.2, 1.2, 3.6, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2).scale(1, 0.4, 1).translate(x, TREASURE_Y + 0.7, z), "#aaa498"));
+  }
+  parts.push(box(4, 0.9, 1.4, 141.5, TREASURE_Y + 0.45, -3, "#d6d0c2")); // Building One
+  parts.push(box(1, 1.4, 1, 141.5, TREASURE_Y + 0.7, -3, "#d6d0c2"));
+  return mergeGeometries(parts);
+}
+
+/** Yerba Buena (wooded, rocky shore, the Bay Bridge tunnel) and flat Treasure Island to its north. */
 export function Hills({ map }: { map: Texture }) {
-  const grass = useMemo(() => {
-    const t = map.clone();
-    t.repeat.set(3, 3);
-    return t;
-  }, [map]);
+  const ground = useMemo(() => yerbaBuenaGeometry(), []);
+  const flat = useMemo(() => treasureIslandGeometry(), []);
+  const buildings = useMemo(() => treasureBuildingsGeometry(), []);
+  const trees = useMemo(() => yerbaBuenaTrees(), []);
+  const materials = useMemo(
+    () => ({
+      ground: new MeshStandardMaterial({ map, vertexColors: true, roughness: 1 }),
+      lawn: new MeshStandardMaterial({ color: "#8d9868", roughness: 1 }),
+      wall: new MeshStandardMaterial({ color: "#a9a397", roughness: 0.95 }),
+      paint: new MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }),
+      leaves: new MeshStandardMaterial({ roughness: 0.9, flatShading: true }),
+    }),
+    [map],
+  );
+  const woods = useRef<InstancedMesh>(null);
+  useEffect(() => {
+    const mesh = woods.current;
+    if (!mesh) return;
+    const o = new Object3D();
+    const c = new Color();
+    trees.forEach(([x, y, z, s], i) => {
+      o.position.set(x, y + s * 0.9, z);
+      o.scale.set(s, s * 1.6, s);
+      o.rotation.set(0, i, 0);
+      o.updateMatrix();
+      mesh.setMatrixAt(i, o.matrix);
+      mesh.setColorAt(i, c.set(["#5d7448", "#677d4f", "#55693f"][i % 3]));
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [trees]);
   return (
     <>
-      {HILLS.map(([x, z, r, h]) => (
-        <mesh key={`${x}${z}`} position={[x, -0.6, z]} scale={[r, h, r]} castShadow receiveShadow>
-          <sphereGeometry args={[1, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial map={grass} roughness={1} />
-        </mesh>
-      ))}
+      <mesh geometry={ground} material={materials.ground} position={[ISLAND.x, 0, ISLAND.z]} castShadow receiveShadow />
+      <mesh geometry={flat} material={[materials.lawn, materials.wall]} receiveShadow castShadow />
+      <mesh geometry={buildings} material={materials.paint} castShadow receiveShadow />
+      <instancedMesh ref={woods} args={[undefined, materials.leaves, trees.length]} castShadow receiveShadow>
+        <icosahedronGeometry args={[1, 1]} />
+      </instancedMesh>
     </>
   );
 }
 
-/** Treasure Island (the first island in HILLS): centre and radius at the water line. */
-const TREASURE = HILLS[0];
-/** Footings in the water: [x, z, half x, half z]. Bridge towers, anchorages, Ferry Building base. */
+/** Footings in the water: [x, z, half x, half z]. Bridge towers and anchorages, road piers, Ferry Building base. */
 const FOOTINGS: [number, number, number, number][] = [
-  ...[...GG.towers, GG.south, GG.north].map((z): [number, number, number, number] => [GG.x, z, 2.3, 2]),
-  ...BAY_TOWERS.map((x): [number, number, number, number] => [x, 14, 1.2, 1.8]),
+  ...[...GG.towers, GG.south, GG.north].map((z): [number, number, number, number] => [GG.x, z, GG.towers.includes(z) ? 3.2 : 2.3, 2]),
+  ...BAY_TOWERS.map((x): [number, number, number, number] => [x, 14, 1.2, 2.7]),
+  ...BAY_ANCHORS.map((x): [number, number, number, number] => [x, 14, 1.15, 2.25]),
+  ...ROADS.flatMap((r) => piers(r))
+    .filter(([, , ground]) => ground < WATER_Y)
+    .map(([x, z]): [number, number, number, number] => [x, z, 0.5, 0.5]),
   [33.4, -3, 2.5, 7],
 ];
 
@@ -154,7 +323,8 @@ function solidDistance(x: number, z: number) {
     const qz = Math.abs(z - cz) - hz;
     d = Math.min(d, Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0));
   }
-  d = Math.min(d, Math.hypot(x - TREASURE[0], z - TREASURE[1]) - TREASURE[2]);
+  d = Math.min(d, Math.hypot(x - ISLAND.x, z - ISLAND.z) - ISLAND.r);
+  for (const part of TREASURE_ISLAND) d = Math.min(d, roundedBoxDistance(x, z, part) - 0.1);
   return Math.min(d, alcatrazDistance(x, z));
 }
 
@@ -1142,4 +1312,7 @@ export const bayGeometries = () => ({
   alcatraz: alcatrazGeometry(),
   alcatrazParts: alcatrazParts(),
   beam: beamGeometry(),
+  yerbaBuena: yerbaBuenaGeometry(),
+  treasureIsland: treasureIslandGeometry(),
+  treasureBuildings: treasureBuildingsGeometry(),
 });

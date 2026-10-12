@@ -3,7 +3,7 @@
 Last updated: 2026-10-12 · Status: dummy · Launch blocker: decide real vs scripted
 
 ## What it does
-- An "Ask Cuso anything…" bar (desktop, chapters 07:00 to 22:00).
+- An "Ask Cuso anything…" bar (tablet and desktop, chapters 07:00 to 22:00). Centred from 1100 px wide; narrower screens put it beside the cards so it never covers them. Not on phones or short screens: there the bottom of the screen belongs to the cards.
 - Cuso answers in his speech bubble and walks to the place that fits: "run my ads" → Union Square.
 - The reply is also announced to screen readers (`aria-live`).
 

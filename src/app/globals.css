@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
+/* Landscape phones and other short screens. */
+@custom-variant short {
+  @media (max-height: 500px) {
+    @slot;
+  }
+}
 
 /* Four colors (see the canvas UI kit): ink, paper, Cuso blue, muted. */
 :root {
@@ -18,6 +24,17 @@
   --ring: #3d5afe;
   --cuso: #3d5afe;
   --destructive: #b42318;
+  /* Screen edge for the UI, clear of the notch and the home bar. */
+  --edge: 1rem;
+  --edge-l: max(var(--edge), env(safe-area-inset-left));
+  --edge-r: max(var(--edge), env(safe-area-inset-right));
+  --edge-b: max(var(--edge), env(safe-area-inset-bottom));
+}
+
+@media (min-width: 48rem) and (min-height: 501px) {
+  :root {
+    --edge: 3rem;
+  }
 }
 
 .dark {
@@ -62,6 +79,19 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+/* Touch: one swipe, one chapter. Sections are taller than the screen, so the
+   page can rest anywhere in a chapter's first part (where the camera rests),
+   never halfway between two places. */
+@media (pointer: coarse) {
+  html {
+    scroll-snap-type: y mandatory;
+  }
+  main > section {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 }
 

@@ -82,30 +82,48 @@ function rawHeadland(x: number, z: number) {
  * road it cuts and fills: its grade is limited, and the hills are carved
  * around it (see headlandHeight).
  */
-const MARIN_ROAD_CTRL: [number, number][] = [[-80, -152], [-80, -162], [-83, -172], [-90, -184], [-100, -196], [-112, -206], [-126, -214]];
+// It runs on north-west over the ridges and out of sight into the fog (the headlands end at z -290).
+const MARIN_ROAD_CTRL: [number, number][] = [[-80, -152], [-80, -162], [-83, -172], [-90, -184], [-100, -196], [-112, -206], [-126, -214], [-141, -224], [-154, -238], [-164, -254], [-171, -272], [-174, -288]];
 const MARIN_GRADE = 0.18;
 
+/** The deck's road surface; the first few units stay level with it. */
+const MARIN_DECK = 7;
+const MARIN_LEVEL = 4;
+
 export const MARIN_ROAD: [number, number, number][] = (() => {
+  // Smooth curves through the control points (Catmull-Rom), about one point per unit.
+  const c = (i: number) => MARIN_ROAD_CTRL[Math.min(MARIN_ROAD_CTRL.length - 1, Math.max(0, i))];
   const xz: [number, number][] = [];
   for (let i = 0; i < MARIN_ROAD_CTRL.length - 1; i++) {
-    const [ax, az] = MARIN_ROAD_CTRL[i];
-    const [bx, bz] = MARIN_ROAD_CTRL[i + 1];
-    const n = Math.ceil(Math.hypot(bx - ax, bz - az));
-    for (let k = 0; k < n; k++) xz.push([ax + ((bx - ax) * k) / n, az + ((bz - az) * k) / n]);
+    const [p0, p1, p2, p3] = [c(i - 1), c(i), c(i + 1), c(i + 2)];
+    const n = Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]));
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      const f = (a: number, b: number, d: number, e: number) => 0.5 * (2 * b + (d - a) * t + (2 * a - 5 * b + 4 * d - e) * t * t + (3 * b - a - 3 * d + e) * t * t * t);
+      xz.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+    }
   }
   xz.push(MARIN_ROAD_CTRL[MARIN_ROAD_CTRL.length - 1]);
-  // Follow the hills, but never steeper than MARIN_GRADE (forward, then backward).
-  const y = xz.map(([x, z]) => Math.max(rawHeadland(x, z), -0.2) + 0.3);
-  y[0] = 7;
-  for (let i = 1; i < y.length; i++) y[i] = Math.min(Math.max(y[i], y[i - 1] - MARIN_GRADE), y[i - 1] + MARIN_GRADE);
-  for (let i = y.length - 2; i > 0; i--) y[i] = Math.min(Math.max(y[i], y[i + 1] - MARIN_GRADE), y[i + 1] + MARIN_GRADE);
-  y[0] = 7;
-  return xz.map(([x, z], i) => [x, y[i], z]);
+  // Follow the hills, but never steeper than MARIN_GRADE (forward, then backward)...
+  const y = xz.map(([x, z], i) => (i < MARIN_LEVEL ? MARIN_DECK : Math.max(rawHeadland(x, z), -0.2) + 0.3));
+  for (let i = MARIN_LEVEL; i < y.length; i++) y[i] = Math.min(Math.max(y[i], y[i - 1] - MARIN_GRADE), y[i - 1] + MARIN_GRADE);
+  for (let i = y.length - 2; i >= MARIN_LEVEL; i--) y[i] = Math.min(Math.max(y[i], y[i + 1] - MARIN_GRADE), y[i + 1] + MARIN_GRADE);
+  // ... then round off the crests and dips (a 5 point average keeps the grade limit).
+  const at = (i: number) => y[Math.min(y.length - 1, Math.max(0, i))];
+  const smooth = y.map((_, i) => (at(i - 2) + at(i - 1) + at(i) + at(i + 1) + at(i + 2)) / 5);
+  return xz.map(([x, z], i) => [x, smooth[i], z]);
 })();
+
+/** Where the carve can reach (the road plus its 6 unit blend), so the rest of the hills skip the search. */
+const MARIN_BOX = {
+  x0: Math.min(...MARIN_ROAD.map(([x]) => x)) - 6,
+  x1: Math.max(...MARIN_ROAD.map(([x]) => x)) + 6,
+  z0: Math.min(...MARIN_ROAD.map(([, , z]) => z)) - 6,
+};
 
 export function headlandHeight(x: number, z: number) {
   const raw = rawHeadland(x, z);
-  if (raw <= -1.5 || z > -146) return raw;
+  if (raw <= -1.5 || z > -146 || x < MARIN_BOX.x0 || x > MARIN_BOX.x1 || z < MARIN_BOX.z0) return raw;
   // Carve the roadbed: within 2 units the ground meets the road; it blends out by 6.
   let best = Infinity;
   let roadY = 0;

@@ -110,10 +110,11 @@ export function Experience() {
 
   return (
     <>
-      <div className="fixed inset-0 bg-[#e9dfd0]" data-scene={!env ? "pending" : !env.webgl ? "static" : ready ? "ready" : "loading"}>
+      {/* lvh: phone browser bars sliding in and out never resize the 3D. */}
+      <div className="fixed inset-x-0 top-0 h-lvh bg-[#e9dfd0]" data-scene={!env ? "pending" : !env.webgl ? "static" : ready ? "ready" : "loading"}>
         <Posters visible={!env?.webgl || !ready} />
         {env?.webgl && (
-          <div className={cn("fixed inset-0 transition-opacity duration-1000", ready ? "opacity-100" : "opacity-0")}>
+          <div className={cn("fixed inset-x-0 top-0 h-lvh transition-opacity duration-1000", ready ? "opacity-100" : "opacity-0")}>
             <Scene onReady={onReady} onGo={onGo} lite={env.lite} />
           </div>
         )}
@@ -123,7 +124,14 @@ export function Experience() {
         <Chapters onGo={onGo} />
       </main>
       {showAsk && (
-        <div className={cn("fixed bottom-10 left-1/2 z-20 hidden w-[480px] -translate-x-1/2 md:block", chapters[active].dark && "dark")}>
+        // Beside the cards on tablets, centred once there is room.
+        <div
+          className={cn(
+            "fixed bottom-10 z-20 hidden w-[min(480px,calc(100vw-554px))] md:block short:hidden min-[1100px]:right-auto min-[1100px]:left-1/2 min-[1100px]:w-[480px] min-[1100px]:-translate-x-1/2",
+            id === "night" ? "left-(--edge-l)" : "right-(--edge-r)",
+            chapters[active].dark && "dark",
+          )}
+        >
           <AskBar onGo={onGo} />
         </div>
       )}

@@ -10,6 +10,7 @@ import { chapters } from "@/content/day";
 import { heightAt } from "@/lib/terrain";
 import { CAR } from "@/scene/cable-car";
 import { FERRY, FERRY_CAR, FLAG, PYRAMID, ROOFTOP, SPIRE, UNION, UNION_CAR, WINGS, pyramidHalf } from "@/scene/landmarks";
+import { reliefDepth } from "@/scene/houses";
 import { CITY } from "@/scene/layout";
 import { DECK, RAIL } from "@/scene/pier";
 import { HULL } from "@/scene/rig";
@@ -113,9 +114,9 @@ function landmarkSolids(): Solid[] {
   return out;
 }
 
-/** Row houses (with their front cornice and gable) and towers, as built in city.tsx. */
+/** Row houses (with their facade relief and gable, houses.tsx) and towers, as built in city.tsx. */
 const citySolids: Solid[] = [
-  ...CITY.houses.map((h) => around("house", h.x, h.z, h.w / 2 + 0.01, h.d / 2 + 0.13, h.y - 1, h.y + h.h + (h.roof === "gable" ? h.w * 0.42 : 0))),
+  ...CITY.houses.map((h) => around("house", h.x, h.z, h.w / 2 + 0.01, h.d / 2 + reliefDepth(h), h.y - 1, h.y + h.h + (h.roof === "gable" ? h.w * 0.42 : 0))),
   ...CITY.towers.map((t) => around("tower", t.x, t.z, t.w / 2, t.d / 2, t.y - 1, t.y + t.h)),
 ];
 const SOLIDS = [...citySolids, ...landmarkSolids()];

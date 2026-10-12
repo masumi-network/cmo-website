@@ -34,6 +34,20 @@ Open `screenshots/` and check, desktop and mobile:
 - [ ] Cards line up (48 px edge, same widths)
 - [ ] Night (22:00) uses the dark cards and HUD
 
+Mobile (every chapter, at 375x667, 390x844, 412x915, one landscape phone 844x390, tablet 768x1024):
+
+- [ ] Cuso and his bubble sit in the free space between the top bar and the cards (e2e checks the box on Pixel 7)
+- [ ] The chapter's subject is in frame: Golden Gate (06:00), shop sign (07:00), mural (09:00), billboard (12:00), pyramid (15:00), cable car (18:00), pier and laptop (22:00), Coit Tower and the city (tomorrow)
+- [ ] Bubble text wraps inside the screen; nothing scrolls sideways
+- [ ] Cards fit the screen, nothing cut off at the bottom; landscape: no card under the top bar
+- [ ] Tap targets 44 px or more (wordmark, Explore, pins, buttons)
+- [ ] Explore on a phone: pins readable and not cut off, drag moves the map, Recenter comes back
+- [ ] One swipe moves one chapter; the page never rests between two places
+- [ ] Forms: error and success states keep Cuso in view (the camera re-fits); the brand form at 07:00 and Approve at 09:00 work
+- [ ] `?static` and `?lite` on a phone
+
+E2E saves `screenshots/mobile-phone-<n>-<chapter>.png` for every chapter on Pixel 7. Real phones still need a check (keyboard, browser bars, notch), see section 4.
+
 ## 3. Feature map
 
 - Changed a feature? Update its doc in `docs/features/` and its row in `docs/features/README.md`.
@@ -41,5 +55,5 @@ Open `screenshots/` and check, desktop and mobile:
 
 ## 4. Before release (not done by `verify`)
 
-- Real phone check (iOS Safari, Android Chrome): load time, 30 fps, touch.
+- Real phone check (iOS Safari, Android Chrome): load time, 30 fps, touch, swipe snapping, the keyboard on the 07:00 and waitlist forms, browser bars hiding, landscape with a notch.
 - Launch blockers in the feature map are cleared.

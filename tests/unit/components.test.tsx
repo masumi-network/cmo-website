@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalCard } from "@/components/cards";
+import { ApprovalCard, WeeklyNote } from "@/components/cards";
 import { AskBar } from "@/components/ask-bar";
 import { BrandForm } from "@/components/brand-form";
 import { WaitlistForm } from "@/components/waitlist-form";
@@ -20,6 +20,25 @@ describe("ApprovalCard", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+  });
+});
+
+describe("WeeklyNote", () => {
+  it("folds its list on phones until the headline is tapped", async () => {
+    render(<WeeklyNote />);
+    const toggle = screen.getByRole("button", { name: "Here's what I learned this week." });
+    const list = document.getElementById("weekly-items")!;
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(list).toHaveClass("hidden");
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(list).not.toHaveClass("hidden");
+  });
+
+  it("agrees to the plan", async () => {
+    render(<WeeklyNote />);
+    await userEvent.click(screen.getByRole("button", { name: "Sounds good" }));
+    expect(screen.getByText("Plan updated for next week")).toBeInTheDocument();
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MAST_TOP, ROUTES, bakeShore, bayGeometries, boatAt, shoreDistance, sailTrim, track } from "@/scene/bay";
+import { HILLS, MAST_TOP, ROUTES, WATER_Y, bakeShore, bayGeometries, boatAt, shoreDistance, sailTrim, track, yerbaBuenaHeight } from "@/scene/bay";
+import { BAY_ANCHORS, ISLAND, ROADS, piers } from "@/scene/roads";
 import { insideLand } from "@/scene/layout";
 
 const shore = bakeShore();
@@ -35,12 +36,22 @@ describe("shore distance (the water shader's foam and shallows)", () => {
     expect(shoreDistance(shore, -80, -134)).toBeLessThan(0.5);
     expect(shoreDistance(shore, 70, 14)).toBeLessThan(0.5);
     expect(shoreDistance(shore, 35.5, -3)).toBeLessThan(0.5);
+    for (const x of BAY_ANCHORS) expect(shoreDistance(shore, x, 14), `anchorage ${x}`).toBeLessThan(0.5);
+    const inWater = ROADS.flatMap((r) => piers(r)).filter(([, , ground]) => ground < WATER_Y);
+    expect(inWater.length).toBeGreaterThan(0);
+    for (const [x, z] of inWater) expect(shoreDistance(shore, x, z), `pier ${x},${z}`).toBeLessThan(0.6);
+  });
+
+  it("has Treasure Island as flat land north of Yerba Buena", () => {
+    expect(shoreDistance(shore, 143, -7)).toBeLessThan(0);
+    expect(shoreDistance(shore, 141.5, 4)).toBeLessThan(0); // the causeway
+    expect(shoreDistance(shore, 120, -7)).toBeGreaterThan(8);
   });
 
   it("measures distance in world units", () => {
     // The east shore of the city is at x = 31 (plus the sea wall bevel).
-    expect(shoreDistance(shore, 41, 20)).toBeGreaterThan(8.5);
-    expect(shoreDistance(shore, 41, 20)).toBeLessThan(10);
+    expect(shoreDistance(shore, 41, 24)).toBeGreaterThan(8.5);
+    expect(shoreDistance(shore, 41, 24)).toBeLessThan(10);
   });
 });
 
@@ -123,6 +134,25 @@ describe("sail trim (wind from the west)", () => {
     const reach = sailTrim(Math.PI);
     const run = sailTrim(Math.PI / 2 + 0.4);
     expect(Math.abs(run.boom)).toBeGreaterThan(Math.abs(reach.boom));
+  });
+});
+
+describe("Yerba Buena", () => {
+  it("is the dome roads.ts plans the tunnel on, so the portal sits in the hillside", () => {
+    expect(HILLS[0].slice(0, 4)).toEqual([ISLAND.x, ISLAND.z, ISLAND.r, ISLAND.h]);
+    const east = ROADS.find((r) => r.name === "bay-bridge-east");
+    const [x, y, z] = east!.points[east!.points.length - 1];
+    expect(yerbaBuenaHeight(x, z)).toBeCloseTo(y, 1);
+    // the road comes in over open water and ground lower than itself
+    for (const [px, py, pz] of east!.points) expect(Math.max(WATER_Y, yerbaBuenaHeight(px, pz))).toBeLessThan(py + 0.2);
+    // and the hill covers the tunnel behind the portal
+    expect(yerbaBuenaHeight(x + 2, z)).toBeGreaterThan(y + 1.5);
+  });
+
+  it("is a hill that peaks in the middle and meets the water at its radius", () => {
+    expect(yerbaBuenaHeight(ISLAND.x, ISLAND.z)).toBeGreaterThan(ISLAND.y + ISLAND.h * 0.9);
+    expect(yerbaBuenaHeight(ISLAND.x + ISLAND.r * 0.999, ISLAND.z)).toBeLessThan(WATER_Y + 0.3);
+    expect(yerbaBuenaHeight(ISLAND.x + ISLAND.r + 0.1, ISLAND.z)).toBe(-Infinity);
   });
 });
 

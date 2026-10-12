@@ -12,15 +12,16 @@
 // ground halfway between the axles. Logos and hidden parts are dropped and the
 // rest is merged into a few named materials (paint, glass, trim, light_front,
 // light_rear, and tyre and rim for the wheel), so a car is a handful of draw calls. Then
-// gltf-transform welds and simplifies the positions (meshoptimizer), the
-// script puts back smooth normals from the full detail mesh, and
-// gltf-transform meshopt-compresses it (drei's useGLTF decodes meshopt).
+// each part gets creased normals at full detail, is simplified with
+// meshoptimizer to within ERROR metres (normals included, creases and the
+// seams between materials kept), and gltf-transform meshopt-compresses the
+// car (drei's useGLTF decodes meshopt).
 // The wheels come out as one wheel (tyre + rim) round its own axle, so the
 // game can roll it; the node's extras hold { length, width, wheelbase,
 // wheels: [x, y, z, radius] x4 (front left, front right, rear left, rear right) }.
 //
 // Tools are pinned and installed outside the project (not in package.json),
-// into $CAR_TOOLS or <tmpdir>/cmo-car-tools: @gltf-transform/cli, occt-import-js.
+// into $CAR_TOOLS or <tmpdir>/cmo-car-tools: @gltf-transform/cli, meshoptimizer, occt-import-js.
 // --debug keeps every source group as its own material (named after it) and
 // skips simplifying, to see which group is which.
 
@@ -29,6 +30,7 @@ import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, sta
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createInterface } from "node:readline";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -36,11 +38,18 @@ const SRC = join(ROOT, "3d-assets-raw");
 const OUT = join(ROOT, "public/models/cars");
 const TOOLS = process.env.CAR_TOOLS ?? join(tmpdir(), "cmo-car-tools");
 const WORK = join(TOOLS, "work");
-const PINNED = ["@gltf-transform/cli@4.5.0", "occt-import-js@0.0.23"];
+const PINNED = ["@gltf-transform/cli@4.5.0", "meshoptimizer@1.2.0", "occt-import-js@0.0.23"];
 const args = process.argv.slice(2);
 const DEBUG = args.includes("--debug");
-const WHEEL_ERROR = 0.012;
 const ONLY = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
+
+/**
+ * How far (metres) a simplified part may stray from the source. The glossy
+ * paint and glass show every dent, the dark matte trim hides them.
+ */
+const ERROR = { paint: 0.0015, glass: 0.0015, light_front: 0.0015, light_rear: 0.0015, trim: 0.003, tyre: 0.0025, rim: 0.002 };
+/** How much a turned normal counts against that error: keeps curved panels from going flat. */
+const NORMAL_WEIGHT = 0.05;
 
 /** Base look of each material; traffic.tsx overrides them. */
 const LOOK = {
@@ -60,7 +69,6 @@ const LOOK = {
 const CARS = {
   model: {
     length: 4.69,
-    error: 0.0025,
     read: () => readObj(findFile(unzip("Tesla+Model+obj.zip"), ".obj")),
     part({ name, mtl }) {
       if (mtl === "Logo" || name.startsWith("Headligt_Glass")) return null; // the glass would hide the lamp
@@ -75,7 +83,6 @@ const CARS = {
   },
   cybertruck: {
     length: 5.68,
-    error: 0.0025,
     crease: 0.3, // flat steel panels
     read: () => readObj(join(SRC, "Tesla_Cybertruck.obj")),
     part({ mtl }, x, y, z) {
@@ -88,7 +95,7 @@ const CARS = {
   },
   roadster: {
     length: 4.3,
-    error: 0.002,
+    tyreCrease: Math.PI, // smooth all round: hides the maker's lettering on the sidewall
     read: () => readStep(findFile(unzip("Tesla+Roadster+Files.zip"), ".STEP")),
     part({ name }) {
       const [node, k] = [name.split("#")[0], Number(name.split("#")[1])];
@@ -101,8 +108,9 @@ const CARS = {
       if (node.includes("Headlights")) return k < 2 || k === 3 || k === 4 ? "light_front" : "trim";
       // Body pieces have no names: picked by eye with --debug.
       if ([1, 4].includes(k)) return "light_rear";
-      if ([17, 24, 25, 27, 28, 33, 34, 35].includes(k)) return "paint";
-      if ((k >= 7 && k <= 16) || k === 18 || k === 21 || k === 26) return null; // logo, letters, slivers, a copy of the headlight bezel
+      if ([24, 25, 27, 28, 33, 34, 35].includes(k)) return "paint";
+      // 7..16: logo and letters; 17: the plate with the CAD maker's name cut in; 18, 21, 26: slivers, a copy of the headlight bezel.
+      if ((k >= 7 && k <= 17) || k === 18 || k === 21 || k === 26) return null;
       return "trim";
     },
   },
@@ -156,8 +164,8 @@ async function readStep(file) {
   const res = occt.ReadStepFile(new Uint8Array(readFileSync(file)), {
     linearUnit: "meter",
     linearDeflectionType: "bounding_box_ratio",
-    linearDeflection: 0.002,
-    angularDeflection: 0.5,
+    linearDeflection: 0.001,
+    angularDeflection: 0.2, // radians: fine enough that curved panels do not band
   });
   if (!res.success) throw new Error("STEP read failed");
   const groups = [];
@@ -251,10 +259,10 @@ function box(soups, filter = () => true) {
 }
 
 /**
- * Smooth normals for a triangle soup, split where faces meet at more than
- * `angle`. Returns, for each position, the normals found there.
+ * Smooth normals at every corner of a triangle soup, split where faces meet
+ * at more than `angle` (radians): smooth panels, sharp creases.
  */
-function creasedNormals(soup, angle = 0.6) {
+function cornerNormals(soup, angle = 0.6) {
   const count = soup.length / 9;
   const face = new Float32Array(count * 3); // area weighted
   const at = new Map();
@@ -271,47 +279,69 @@ function creasedNormals(soup, angle = 0.6) {
     return [face[t * 3] / l, face[t * 3 + 1] / l, face[t * 3 + 2] / l];
   };
   const cos = Math.cos(angle);
-  const found = new Map();
+  const normals = new Float32Array(soup.length);
   for (let t = 0; t < count; t++) {
     const u = unit(t);
     for (let c = 0; c < 3; c++) {
-      const key = posKey(soup, t * 3 + c);
       const n = [0, 0, 0];
-      for (const f of at.get(key)) {
+      for (const f of at.get(posKey(soup, t * 3 + c))) {
         const v = unit(f);
         if (u[0] * v[0] + u[1] * v[1] + u[2] * v[2] < cos) continue;
         for (let k = 0; k < 3; k++) n[k] += face[f * 3 + k];
       }
       const l = Math.hypot(...n) || 1;
-      if (!found.has(key)) found.set(key, []);
-      const list = found.get(key);
-      const m = n.map((x) => x / l);
-      if (!list.some((o) => o[0] * m[0] + o[1] * m[1] + o[2] * m[2] > 0.9999)) list.push(m);
-    }
-  }
-  return found;
-}
-
-/**
- * Normals for the simplified soup, taken from the full detail mesh (the
- * simplifier keeps original vertices): at each corner, the one closest to the face.
- */
-function transferNormals(soup, found) {
-  const normals = new Float32Array(soup.length);
-  for (let t = 0; t < soup.length / 9; t++) {
-    const f = faceNormal(soup, t);
-    const l = Math.hypot(...f) || 1;
-    for (let c = 0; c < 3; c++) {
-      let best = f.map((x) => x / l);
-      let dot = 0.2; // a corner whose normals all face away keeps the flat normal
-      for (const n of found.get(posKey(soup, t * 3 + c)) ?? []) {
-        const d = (n[0] * f[0] + n[1] * f[1] + n[2] * f[2]) / l;
-        if (d > dot) [best, dot] = [n, d];
-      }
-      normals.set(best, (t * 3 + c) * 3);
+      normals.set(n.map((x) => x / l), (t * 3 + c) * 3);
     }
   }
   return normals;
+}
+
+/**
+ * Simplifies one part to within `error` metres (meshoptimizer), keeping its
+ * creases and smooth shading: vertices are split where the normal is, so a
+ * crease is a seam the simplifier keeps, and the normals count towards the
+ * error. Corners on `locked` positions (where the part meets another) stay,
+ * so seams between materials never open. Returns the soup and its normals.
+ */
+function simplify(soup, error, crease, locked) {
+  const normals = cornerNormals(soup, crease);
+  const ids = new Map();
+  const pos = [];
+  const nrm = [];
+  const index = new Uint32Array(soup.length / 3);
+  for (let i = 0; i < index.length; i++) {
+    const key = `${posKey(soup, i)},${posKey(normals, i)}`;
+    if (!ids.has(key)) {
+      ids.set(key, pos.length / 3);
+      pos.push(soup[i * 3], soup[i * 3 + 1], soup[i * 3 + 2]);
+      nrm.push(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+    }
+    index[i] = ids.get(key);
+  }
+  const p = Float32Array.from(pos);
+  const n = Float32Array.from(nrm);
+  const lock = Uint8Array.from({ length: p.length / 3 }, (_, v) => (locked.has(posKey(p, v)) ? 1 : 0));
+  // Permissive: a crease may still collapse where that stays within the error (tyre tread, tiny bevels).
+  const w = Array(3).fill(NORMAL_WEIGHT);
+  const [kept] = simplifier.simplifyWithAttributes(index, p, 3, n, 3, w, lock, 0, error, ["ErrorAbsolute", "Permissive"]);
+  const low = new Float32Array(kept.length * 3);
+  const lowNormals = new Float32Array(kept.length * 3);
+  kept.forEach((v, i) => {
+    low.set(p.subarray(v * 3, v * 3 + 3), i * 3);
+    lowNormals.set(n.subarray(v * 3, v * 3 + 3), i * 3);
+  });
+  return [low, lowNormals];
+}
+
+/** Positions (keys) that more than one part uses: the seams between materials. */
+function seams(parts) {
+  const seen = new Map();
+  for (const [part, soup] of parts) for (let i = 0; i < soup.length / 3; i++) {
+    const key = posKey(soup, i);
+    const was = seen.get(key);
+    seen.set(key, was === undefined || was === part ? part : null);
+  }
+  return new Set([...seen].filter(([, part]) => part === null).map(([key]) => key));
 }
 
 function faceNormal(soup, t) {
@@ -398,31 +428,6 @@ function writeGlb(file, name, parts, size, normalsOf = new Map()) {
   writeFileSync(file, Buffer.concat([header, ...chunk(j, 0x4e4f534a), ...chunk(b, 0x004e4942)]));
 }
 
-/** Material name -> triangle soup, from an uncompressed GLB with separate vertex buffers. */
-function readGlb(file) {
-  const buf = readFileSync(file);
-  const jsonLength = buf.readUInt32LE(12);
-  const json = JSON.parse(buf.subarray(20, 20 + jsonLength).toString());
-  const bin = buf.subarray(20 + jsonLength + 8);
-  const read = (i) => {
-    const a = json.accessors[i];
-    const view = json.bufferViews[a.bufferView];
-    const Type = { 5126: Float32Array, 5125: Uint32Array, 5123: Uint16Array }[a.componentType];
-    const n = a.count * (a.type === "VEC3" ? 3 : 1);
-    const at = (view.byteOffset ?? 0) + (a.byteOffset ?? 0);
-    return new Type(bin.buffer.slice(bin.byteOffset + at, bin.byteOffset + at + n * Type.BYTES_PER_ELEMENT));
-  };
-  const parts = new Map();
-  for (const prim of json.meshes[0].primitives) {
-    const pos = read(prim.attributes.POSITION);
-    const index = read(prim.indices);
-    const soup = new Float32Array(index.length * 3);
-    index.forEach((v, i) => soup.set(pos.subarray(v * 3, v * 3 + 3), i * 3));
-    parts.set(json.materials[prim.material].name, soup);
-  }
-  return parts;
-}
-
 // ---------------------------------------------------------------------------
 
 function tools() {
@@ -436,6 +441,8 @@ function tools() {
 }
 
 const gltf = tools();
+const { MeshoptSimplifier: simplifier } = await import(pathToFileURL(createRequire(join(TOOLS, "package.json")).resolve("meshoptimizer")));
+await simplifier.ready;
 mkdirSync(WORK, { recursive: true });
 mkdirSync(OUT, { recursive: true });
 for (const [name, car] of Object.entries(CARS)) {
@@ -447,19 +454,15 @@ for (const [name, car] of Object.entries(CARS)) {
     writeGlb(raw, name, parts, size);
     gltf("meshopt", raw, out);
   } else {
-    // Simplify positions only (normal seams would stop it), then bring the smooth
-    // normals back. The wheel is simplified on its own: it is small, so it gets a
-    // coarser error (the error is relative to each mesh's size).
     const low = new Map();
-    const groups = { body: [car.error, (p) => p !== "tyre" && p !== "rim"], wheel: [WHEEL_ERROR, (p) => p === "tyre" || p === "rim"] };
-    for (const [group, [error, keep]] of Object.entries(groups)) {
-      const [raw, welded, simple] = ["raw", "weld", "simple"].map((step) => join(WORK, `${name}-${group}-${step}.glb`));
-      writeGlb(raw, name, new Map([...parts].filter(([part]) => keep(part))), size);
-      gltf("weld", raw, welded);
-      gltf("simplify", welded, simple, "--ratio", "0", "--error", String(error), "--vertex-layout", "separate");
-      for (const [part, soup] of readGlb(simple)) low.set(part, soup);
+    const normals = new Map();
+    const locked = seams(parts);
+    for (const [part, soup] of parts) {
+      const [simple, n] = simplify(soup, ERROR[part], (part === "tyre" && car.tyreCrease) || car.crease, locked);
+      low.set(part, simple);
+      normals.set(part, n);
+      console.log(`  ${part}: ${soup.length / 9} -> ${simple.length / 9} triangles`);
     }
-    const normals = new Map([...low].map(([part, soup]) => [part, transferNormals(soup, creasedNormals(parts.get(part), car.crease))]));
     const shaded = join(WORK, `${name}-shaded.glb`);
     writeGlb(shaded, name, low, size, normals);
     gltf("meshopt", shaded, out, "--quantization-volume", "scene");

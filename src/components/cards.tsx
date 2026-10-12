@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ChevronDown } from "lucide-react";
+import { useState } from "react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import type { Chapter } from "@/content/day";
@@ -10,6 +11,7 @@ import { useCity } from "@/lib/store";
 export function Card({ className, ...props }: React.ComponentProps<"section">) {
   return (
     <section
+      data-card
       className={cn("flex flex-col gap-4 rounded-lg bg-card p-6 text-card-foreground shadow-[0_10px_40px_rgb(17_17_20/0.08)]", className)}
       {...props}
     />
@@ -20,14 +22,15 @@ export function Eyebrow({ className, ...props }: React.ComponentProps<"div">) {
   return <div className={cn("font-mono text-xs tracking-[0.06em] text-muted-foreground uppercase", className)} {...props} />;
 }
 
-export function ChapterCard({ chapter, children }: { chapter: Chapter; children?: React.ReactNode }) {
+/** `brief`: on short screens the body gives way to the card above it. */
+export function ChapterCard({ chapter, brief = false, children }: { chapter: Chapter; brief?: boolean; children?: React.ReactNode }) {
   return (
-    <Card aria-labelledby={`${chapter.id}-title`} className="gap-2.5">
+    <Card aria-labelledby={`${chapter.id}-title`} className="gap-2.5 p-5 md:p-6">
       <div className="font-mono text-[13px] text-cuso">{chapter.time}</div>
-      <h2 id={`${chapter.id}-title`} className="text-3xl leading-[1.05] font-semibold tracking-[-0.03em]">
+      <h2 id={`${chapter.id}-title`} className="text-[26px] leading-[1.05] font-semibold tracking-[-0.03em] md:text-3xl short:text-[26px]">
         {chapter.title}
       </h2>
-      <p className="text-[15px] leading-normal text-muted-foreground">{chapter.body}</p>
+      <p className={cn("text-[15px] leading-normal text-muted-foreground", brief && "short:hidden")}>{chapter.body}</p>
       {children}
     </Card>
   );
@@ -62,7 +65,7 @@ export function ApprovalCard() {
         <Eyebrow className="normal-case">{sampleDraft.when}</Eyebrow>
       </div>
       {/* eslint-disable-next-line @next/next/no-img-element -- art crop of a local poster */}
-      <img src={sampleDraft.image} alt="" className="hidden h-44 w-full rounded-md object-cover object-[92%_20%] md:block" />
+      <img src={sampleDraft.image} alt="" className="hidden h-44 w-full rounded-md object-cover object-[92%_20%] md:block short:hidden" />
       <p className="text-[15px] leading-normal">{sampleDraft.caption}</p>
       {approved ? (
         <div className="flex h-12 items-center justify-between">
@@ -163,11 +166,24 @@ export function NewsletterCard() {
 export function WeeklyNote() {
   const agreed = useCity((s) => s.agreed);
   const agree = useCity((s) => s.agree);
+  const [open, setOpen] = useState(false);
+  const headline = "text-[26px] leading-tight font-semibold tracking-[-0.02em]";
   return (
-    <Card aria-label="Weekly note from Cuso" className="gap-5 p-7">
+    <Card aria-label="Weekly note from Cuso" className="gap-4 p-5 md:gap-5 md:p-7 short:gap-4 short:p-5">
       <Eyebrow>Weekly note · {sampleWeeklyNote.week}</Eyebrow>
-      <div className="text-[26px] leading-tight font-semibold tracking-[-0.02em]">Here&apos;s what I learned this week.</div>
-      <ol className="flex flex-col gap-3.5">
+      {/* Phones and short screens: the list folds away so the pier stays in view. */}
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="weekly-items"
+        onClick={() => setOpen(!open)}
+        className={cn(headline, "-my-1 flex min-h-11 cursor-pointer items-center justify-between gap-3 py-1 text-left text-[22px] md:hidden short:flex")}
+      >
+        Here&apos;s what I learned this week.
+        <ChevronDown className={cn("size-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      <div className={cn(headline, "hidden md:block short:hidden")}>Here&apos;s what I learned this week.</div>
+      <ol id="weekly-items" className={cn("flex-col gap-3.5", open ? "flex" : "hidden md:flex short:hidden")}>
         {sampleWeeklyNote.items.map((item, i) => (
           <li key={item} className="flex gap-3.5">
             <span className="pt-0.5 font-mono text-[13px] text-cuso">{String(i + 1).padStart(2, "0")}</span>

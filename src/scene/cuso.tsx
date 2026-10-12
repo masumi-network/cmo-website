@@ -38,7 +38,7 @@ export function Cuso() {
   const me = useRef({
     d: -1, phase: 0, walk: 0, dash: 0, air: 0,
     wave: 1, waveUntil: 2.2, cheerAt: -10, cheer: useCity.getState().cheer,
-    popAt: -10, wasMoving: false, nextBlink: 2,
+    popAt: -10, wasMoving: false, nextBlink: 2, says: "", talkAt: -10, fist: 0,
   });
 
   useEffect(() => {
@@ -91,9 +91,22 @@ export function Cuso() {
     const cheerU = (time - m.cheerAt) / 0.9;
     const cheer = cheerU >= 0 && cheerU < 1 ? Math.sin(Math.PI * cheerU) : 0;
 
+    // A new speech bubble (the same rule the Bubble uses): a small hand gesture.
+    const at = now.t < 0.001 ? now.leg : now.t > 0.999 ? now.leg + 1 : -1;
+    const says = state.mode === "story" && !moving && at >= 0 ? state.reply || chapters[at].bubble : "";
+    if (says !== m.says) {
+      m.says = says;
+      if (says) m.talkAt = time;
+    }
+    const talkU = (time - m.talkAt) / 1.6;
+    // On the move his raised hand closes into a loose fist; it opens again as he stops (0.25 s).
+    m.fist = Math.min(1, Math.max(0, m.fist + (moving ? dt : -dt) / 0.25));
+
     pose(skeleton, {
       walk: m.walk, dash: m.dash, air: Math.max(m.air, cheer * 0.4), wave: m.wave, cheer,
       phase: m.phase, time, lookX: rig.pointer.x, lookY: rig.pointer.y,
+      talk: talkU >= 0 && talkU < 1 ? Math.sin(Math.PI * talkU) : 0,
+      fist: m.fist,
     });
 
     // Blink every few seconds.
@@ -145,17 +158,32 @@ export function Cuso() {
 
 const anchor = new Vector3();
 
-/** What Cuso says, floating up and left of his head. */
+/** What Cuso says, floating beside his arrow tip (up and left when he faces us). */
 function Bubble() {
   const box = useRef<HTMLDivElement>(null);
-  // Like drei's default, but never under the top bar: when Cuso is framed
-  // high, the bubble drops down beside his head instead.
+  // Turns with him, so the bubble stays on his tip side.
+  const turn = useRef<Group>(null);
+  // Like drei's default, but never under the top bar or a card: when one is
+  // in the way, the bubble drops down below it, beside his head.
   const place = (el: Object3D, camera: Camera, size: { width: number; height: number }) => {
     anchor.setFromMatrixPosition(el.matrixWorld).project(camera);
     const x = ((anchor.x + 1) * size.width) / 2;
-    const y = ((1 - anchor.y) * size.height) / 2;
+    // Narrow phones: a long line wraps instead of running off the screen.
+    if (box.current) Object.assign(box.current.style, { whiteSpace: "normal", width: "max-content", maxWidth: `${size.width - 32}px` });
+    const w = box.current?.offsetWidth ?? 0;
+    const h = box.current?.offsetHeight ?? 0;
+    const shift = window.matchMedia("(min-width: 768px)").matches ? w : w / 2; // matches the bubble's translate
+    let left = Math.min(Math.max(x - shift, 16), size.width - w - 16); // keep it on screen
     const bar = document.querySelector("header")?.getBoundingClientRect().bottom ?? 0;
-    return [x, Math.max(y, bar + 12 + (box.current?.offsetHeight ?? 0))];
+    let y = Math.max(((1 - anchor.y) * size.height) / 2, bar + 12 + h);
+    for (const card of document.querySelectorAll("[data-card]")) {
+      const r = card.getBoundingClientRect();
+      if (!(r.width > 0 && r.left < left + w && r.right > left && r.top < y && r.bottom > y - h)) continue;
+      // Below the card, or (short screens, no room below) beside it.
+      if (r.bottom + 12 + h <= size.height - 16 || r.right + 12 + w > size.width - 16) y = r.bottom + 12 + h;
+      else left = r.right + 12;
+    }
+    return [left + shift, y];
   };
   const [text, setText] = useState("");
   const shown = useRef("");
@@ -169,6 +197,7 @@ function Bubble() {
   }, [reply, say]);
 
   useFrame(() => {
+    if (turn.current) turn.current.rotation.y = rig.heading;
     const { mode, reply } = useCity.getState();
     const tv = rig.travel;
     const at = tv.t < 0.001 ? tv.leg : tv.t > 0.999 ? tv.leg + 1 : -1;
@@ -179,13 +208,16 @@ function Bubble() {
     }
   });
 
-  if (!text) return null;
   return (
-    <Html position={[-0.45, 2.15, 0]} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }} calculatePosition={place}>
-      <div ref={box} className="-translate-x-1/2 -translate-y-full rounded-[20px] md:-translate-x-full md:rounded-[20px_20px_6px_20px] bg-[#f7f6f2] px-4 py-3 text-lg font-medium whitespace-nowrap text-[#111114] shadow-[0_10px_30px_rgb(17_17_20/0.12)]">
-        {text}
-      </div>
-    </Html>
+    <group ref={turn}>
+      {text && (
+        <Html position={[-0.6, 2.15, 0]} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }} calculatePosition={place}>
+          <div ref={box} className="-translate-x-1/2 -translate-y-full rounded-[20px] md:-translate-x-full md:rounded-[20px_20px_6px_20px] bg-[#f7f6f2] px-4 py-3 text-lg font-medium whitespace-nowrap text-[#111114] shadow-[0_10px_30px_rgb(17_17_20/0.12)]">
+            {text}
+          </div>
+        </Html>
+      )}
+    </group>
   );
 }
 

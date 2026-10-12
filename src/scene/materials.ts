@@ -51,18 +51,26 @@ function patch(material: MeshStandardMaterial, key: string, opts: { uniforms: Re
  * Row houses: the street-facing side shows one facade from the atlas (per
  * instance `aTile`), the other walls get tinted lap siding.
  * Needs instance attributes `aTile` and `aFacing` (+1 faces +z, -1 faces -z).
+ * `windows` holds an id per window of the atlas (0 = wall): at night about
+ * half of them light up, each one as a whole, the curtains glowing brightest.
+ * `relief`: for the bay windows, cornices and steps in front of the facade
+ * (houses.tsx); every face shows the photo at its `aUv`, or (u past 1.5, see
+ * FLAT in houses.tsx) one flat colour: the photo there, blurred, never lit.
  */
-export function houseMaterial(atlas: Texture, siding: Texture) {
-  return patch(new MeshStandardMaterial({ roughness: 0.85 }), "house", {
-    uniforms: { uAtlas: { value: atlas }, uSiding: { value: siding } },
-    vertHead: "attribute float aTile;\nattribute float aFacing;\nvarying vec2 vFront;\nvarying float vTile;\nvarying float vIsFront;",
+export function houseMaterial(atlas: Texture, siding: Texture, windows: Texture, relief = false) {
+  return patch(new MeshStandardMaterial({ roughness: 0.85 }), relief ? "house-relief" : "house", {
+    uniforms: { uAtlas: { value: atlas }, uSiding: { value: siding }, uWindows: { value: windows } },
+    vertHead: `attribute float aTile;\nattribute float aFacing;\n${relief ? "attribute vec2 aUv;\n" : ""}varying vec2 vFront;\nvarying float vTile;\nvarying float vIsFront;\nflat varying float vSeed;\nflat varying float vFlat;`,
     vert: /* glsl */ `
+      ${relief ? "vFlat = step(1.5, aUv.x);\n      vFront = vec2(aUv.x - 2.0 * vFlat, aUv.y);\n      vIsFront = 1.0;" : `vFlat = 0.0;
       float fSy = length(instanceMatrix[1].xyz);
       float fU = position.x + 0.5;
       vFront = vec2(aFacing > 0.0 ? fU : 1.0 - fU, (position.y * fSy - ${FOOTING.toFixed(2)}) / max(fSy - ${FOOTING.toFixed(2)}, 0.01));
+      vIsFront = step(0.5, normal.z * aFacing);`}
       vTile = aTile;
-      vIsFront = step(0.5, normal.z * aFacing);`,
-    fragHead: "uniform sampler2D uAtlas;\nuniform sampler2D uSiding;\nvarying vec2 vFront;\nvarying float vTile;\nvarying float vIsFront;\nfloat fLit = 0.0;",
+      // One value per house (the body and its relief share x and facing), so a window lights up as a whole.
+      vSeed = fract(sin(dot(vec2(instanceMatrix[3].x, aFacing), vec2(12.9898, 78.233))) * 43758.5453);`,
+    fragHead: "uniform sampler2D uAtlas;\nuniform sampler2D uSiding;\nuniform sampler2D uWindows;\nvarying vec2 vFront;\nvarying float vTile;\nvarying float vIsFront;\nflat varying float vSeed;\nflat varying float vFlat;\nfloat fLit = 0.0;",
     color: /* glsl */ `
       vec3 fTint = diffuseColor.rgb;
       float fWall = 1.0 - step(0.5, abs(vFNormal.y));
@@ -70,10 +78,10 @@ export function houseMaterial(atlas: Texture, siding: Texture) {
         vec2 fCell = vec2(mod(vTile, ${ATLAS_COLS}.0), floor(vTile / ${ATLAS_COLS}.0));
         vec2 fUv = (fCell + clamp(vFront, 0.002, 0.998)) / vec2(${ATLAS_COLS}.0, ${ATLAS_ROWS}.0);
         fUv.y = 1.0 - (fCell.y + 1.0 - clamp(vFront.y, 0.002, 0.998)) / ${ATLAS_ROWS}.0;
-        vec3 fF = texture2D(uAtlas, fUv).rgb;
+        vec3 fF = texture2D(uAtlas, fUv, vFlat * 3.0).rgb;
         diffuseColor.rgb = fF;
-        float fWin = fHash(floor(vFront * vec2(3.0, 5.0)) + vTile * 7.0 + floor(vFPos.xz));
-        fLit = fGlass(fF) * step(0.5, fWin);
+        float fId = floor(texture2D(uWindows, fUv).r * 255.0 + 0.5);
+        fLit = step(0.5, fId) * step(0.5, fHash(vec2(fId, vSeed * 31.0))) * (0.2 + fLuma(fF)) * (1.0 - vFlat);
       } else if (fWall > 0.5) {
         float fU2 = abs(vFNormal.x) > 0.5 ? vFPos.z : vFPos.x;
         diffuseColor.rgb = texture2D(uSiding, vec2(fU2, vFPos.y) / 2.4).rgb * fTint;
