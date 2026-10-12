@@ -1,0 +1,47 @@
+// Shared state between the HTML layer and the 3D scene. The scene reads it
+// inside useFrame via getState(), so scrolling never re-renders the canvas.
+
+import { create } from "zustand";
+import { sampleBrand } from "@/content/sample";
+
+export type Mode = "story" | "explore";
+
+type CityState = {
+  /** Scroll position in sections (2.5 = halfway through section 2). */
+  progress: number;
+  mode: Mode;
+  /** The visitor's website. Drives the signs in the city. */
+  website: string;
+  approved: boolean;
+  agreed: boolean;
+  /** Latest thing Cuso said in reply to the visitor. */
+  reply: string;
+  /** Bumps when Cuso should celebrate (spin). */
+  cheer: number;
+  setProgress: (progress: number) => void;
+  setMode: (mode: Mode) => void;
+  setWebsite: (website: string) => void;
+  setApproved: (approved: boolean) => void;
+  agree: () => void;
+  say: (reply: string) => void;
+};
+
+export const initialCity = {
+  progress: 0,
+  mode: "story" as Mode,
+  website: sampleBrand.website,
+  approved: false,
+  agreed: false,
+  reply: "",
+  cheer: 0,
+};
+
+export const useCity = create<CityState>((set) => ({
+  ...initialCity,
+  setProgress: (progress) => set({ progress }),
+  setMode: (mode) => set({ mode }),
+  setWebsite: (website) => set((s) => ({ website, cheer: s.cheer + 1, reply: "Got it. Putting your name up around town." })),
+  setApproved: (approved) => set((s) => ({ approved, cheer: approved ? s.cheer + 1 : s.cheer, reply: approved ? "Done. It goes out at 9." : "" })),
+  agree: () => set((s) => ({ agreed: true, cheer: s.cheer + 1, reply: "Great. Sleep well. I got this." })),
+  say: (reply) => set({ reply }),
+}));

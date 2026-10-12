@@ -1,0 +1,29 @@
+# Feature map
+
+Last updated: 2026-10-12
+
+Every feature of the site, where it lives, and what proves it works.
+`tests/unit/feature-map.test.ts` checks this table: every doc, code path and
+test path must exist, and every doc in this folder must be listed. Change a
+feature? Update its doc and its row in the same change.
+
+**Status:** `done` · `dummy` (works, fake data or fake backend) · `v0` (works, rough look) · `planned` (not built).
+**Launch:** `blocker` means it must change before the site replaces cmo.xyz.
+
+| ID | Feature | Status | Launch | Doc | Code | Tests |
+| --- | --- | --- | --- | --- | --- | --- |
+| F01 | Day story: scroll is one day, one job per hour | done | ok | [day-story](day-story.md) | `src/content/day.ts`, `src/components/chapters.tsx`, `src/components/hud.tsx`, `src/lib/time.ts`, `src/lib/navigate.ts` | `tests/unit/time.test.ts`, `tests/unit/content.test.ts`, `tests/e2e/day.spec.ts` |
+| F02 | City scene: miniature San Francisco in 3D | v0 | blocker | [city-scene](city-scene.md) | `src/scene/scene.tsx`, `src/scene/city.tsx`, `src/scene/landmarks.tsx`, `src/scene/atmosphere.tsx`, `src/scene/camera-rig.tsx` | `tests/e2e/day.spec.ts` |
+| F03 | Cuso: the real 3D mascot, moving and talking | v0 | blocker | [cuso-character](cuso-character.md) | `src/scene/cuso.tsx`, `public/models/cuso.glb` | `tests/e2e/day.spec.ts` |
+| F04 | Brand moves in: your website on the city's signs | dummy | ok | [brand-personalization](brand-personalization.md) | `src/components/brand-form.tsx`, `src/lib/brand.ts`, `src/scene/textures.ts` | `tests/unit/brand.test.ts`, `tests/unit/components.test.tsx`, `tests/e2e/day.spec.ts` |
+| F05 | Approvals: OK a draft, Cuso reacts | dummy | ok | [approvals](approvals.md) | `src/components/cards.tsx`, `src/lib/store.ts` | `tests/unit/components.test.tsx`, `tests/e2e/day.spec.ts` |
+| F06 | Weekly report: Cuso tells you what he learned | dummy | ok | [weekly-report](weekly-report.md) | `src/components/cards.tsx`, `src/content/sample.ts` | `tests/e2e/day.spec.ts` |
+| F07 | Explore mode: the city map with pins | done | ok | [explore-mode](explore-mode.md) | `src/scene/pins.tsx`, `src/components/hud.tsx`, `src/components/experience.tsx` | `tests/e2e/day.spec.ts` |
+| F08 | Ask Cuso: type a question, he answers and walks there | dummy | blocker | [ask-cuso](ask-cuso.md) | `src/lib/ask.ts`, `src/components/ask-bar.tsx` | `tests/unit/ask.test.ts`, `tests/unit/components.test.tsx`, `tests/e2e/day.spec.ts` |
+| F09 | Waitlist: email (and website) signup | dummy | blocker | [waitlist](waitlist.md) | `src/lib/waitlist.ts`, `src/components/waitlist-form.tsx`, `src/app/api/waitlist/route.ts` | `tests/unit/waitlist.test.ts`, `tests/unit/waitlist-route.test.ts`, `tests/unit/components.test.tsx`, `tests/e2e/day.spec.ts` |
+| F10 | Without 3D: posters, reduced motion, accessibility | done | ok | [fallback-and-access](fallback-and-access.md) | `src/components/experience.tsx`, `public/concepts` | `tests/e2e/day.spec.ts` |
+| F11 | Site check: Cuso reviews your site and reports back | planned | ok | [site-check](site-check.md) | | |
+
+## How we verify
+
+See [../VERIFY.md](../VERIFY.md). One command: `pnpm verify`.

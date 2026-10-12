@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Four colors (see the canvas UI kit): ink, paper, Cuso blue, muted. */
+:root {
+  --radius: 1.375rem;
+  --background: #f7f6f2;
+  --foreground: #111114;
+  --card: #f7f6f2;
+  --card-foreground: #111114;
+  --primary: #111114;
+  --primary-foreground: #f7f6f2;
+  --muted: #ece9e2;
+  --muted-foreground: #5e5e66;
+  --border: rgb(17 17 20 / 0.14);
+  --input: rgb(17 17 20 / 0.14);
+  --ring: #3d5afe;
+  --cuso: #3d5afe;
+  --destructive: #b42318;
+}
+
+.dark {
+  --background: #0b0b10;
+  --foreground: #f7f6f2;
+  --card: rgb(22 22 26 / 0.9);
+  --card-foreground: #f7f6f2;
+  --primary: #f7f6f2;
+  --primary-foreground: #111114;
+  --muted: rgb(247 246 242 / 0.1);
+  --muted-foreground: #a6a6ae;
+  --border: rgb(247 246 242 / 0.22);
+  --input: rgb(247 246 242 / 0.22);
+  --ring: #9daeff;
+  --cuso: #9daeff;
+  --destructive: #ffb4a8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-cuso: var(--cuso);
+  --color-destructive: var(--destructive);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --radius-lg: var(--radius);
+  --radius-md: 0.875rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/60;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

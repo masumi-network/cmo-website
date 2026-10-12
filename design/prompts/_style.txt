@@ -1,0 +1,4 @@
+
+CHARACTER (must match the attached references exactly): 'Cuso', a white cursor-arrow mascot with a thick rounded glossy black outline, two black vertical oval eyes, black rubber-hose arms with mitten hands, short black legs and chunky white sneakers. Soft matte white body. Same proportions as the reference. Only ONE Cuso in the image.
+
+LOOK: cinematic Unreal Engine 5 render, Lumen global illumination, stylized miniature diorama version of San Francisco with physically based materials, Pixar-meets-UE5. Soft volumetric light, gentle tilt-shift depth of field, subtle film grain. Calm, premium, restrained palette (warm neutrals, soft sky, one cobalt-blue accent #3D5AFE allowed on props only). No text, no letters, no numbers, no logos, no watermark. Signs, screens and billboards must be blank or show simple abstract shapes only.
