@@ -1,8 +1,9 @@
 // Textures drawn with the 2D canvas: signs that show the visitor's brand,
-// window grids for night lights, little screens.
+// the street map on the ground, little screens.
 
 import { useEffect, useMemo } from "react";
-import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from "three";
+import { CanvasTexture, SRGBColorSpace } from "three";
+import { LAND_BOUNDS, PARKS, SIDEWALK, STREET, X_STREETS, Z_STREETS } from "./layout";
 
 function canvasTexture(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) {
   const canvas = document.createElement("canvas");
@@ -53,23 +54,51 @@ export function useSign(text: string, style: SignStyle) {
   return texture;
 }
 
-/** Random lit windows, used as an emissive map on buildings. */
-export function windowsTexture(seed = 7) {
-  let s = seed;
-  const rand = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  const texture = canvasTexture(64, 128, (ctx) => {
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, 64, 128);
-    for (let y = 6; y < 124; y += 10) {
-      for (let x = 5; x < 60; x += 11) {
-        if (rand() < 0.42) {
-          ctx.fillStyle = rand() < 0.8 ? "#ffcf8a" : "#fff2d6";
-          ctx.fillRect(x, y, 6, 5);
-        }
-      }
+/**
+ * The ground: blocks, sidewalks, streets with lane marks, parks.
+ * Mapped onto the land's top face in world units (see Land in city.tsx).
+ */
+export function groundTexture() {
+  const { minX, maxX, minZ, maxZ } = LAND_BOUNDS;
+  const PX = 16; // pixels per world unit
+  const W = (maxX - minX) * PX;
+  const H = (maxZ - minZ) * PX;
+  const X = (x: number) => (x - minX) * PX;
+  const Z = (z: number) => (z - minZ) * PX;
+  const texture = canvasTexture(W, H, (ctx) => {
+    ctx.fillStyle = "#d6c9b1";
+    ctx.fillRect(0, 0, W, H);
+    // sidewalks, then asphalt on top
+    for (const [width, color] of [[STREET + SIDEWALK * 2, "#e3dac8"], [STREET, "#8f8a83"]] as const) {
+      ctx.fillStyle = color;
+      for (const x of X_STREETS) ctx.fillRect(X(x - width / 2), 0, width * PX, H);
+      for (const z of Z_STREETS) ctx.fillRect(0, Z(z - width / 2), W, width * PX);
     }
+    // centre lines
+    ctx.strokeStyle = "#c9c1b0";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([PX * 1.2, PX * 1.2]);
+    for (const x of X_STREETS) {
+      ctx.beginPath();
+      ctx.moveTo(X(x), 0);
+      ctx.lineTo(X(x), H);
+      ctx.stroke();
+    }
+    for (const z of Z_STREETS) {
+      ctx.beginPath();
+      ctx.moveTo(0, Z(z));
+      ctx.lineTo(W, Z(z));
+      ctx.stroke();
+    }
+    // parks
+    ctx.fillStyle = "#9db07c";
+    const edge = STREET / 2 + SIDEWALK;
+    for (const [x0, x1, z0, z1] of PARKS) ctx.fillRect(X(x0 + edge), Z(z0 + edge), (x1 - x0 - edge * 2) * PX, (z1 - z0 - edge * 2) * PX);
   });
-  texture.wrapS = texture.wrapT = RepeatWrapping;
+  texture.anisotropy = 16;
+  // ExtrudeGeometry gives the top face UVs of (x, -z) in world units.
+  texture.repeat.set(1 / (maxX - minX), 1 / (maxZ - minZ));
+  texture.offset.set(-minX / (maxX - minX), 1 + minZ / (maxZ - minZ));
   return texture;
 }
 

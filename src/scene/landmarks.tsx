@@ -10,6 +10,7 @@ import { Color, DoubleSide, MeshStandardMaterial, Object3D, type Group, type Ins
 import { brandFromUrl } from "@/lib/brand";
 import { useCity } from "@/lib/store";
 import { dayNow, rig, useNightGlow } from "./shared";
+import { facadeMaterial } from "./facade";
 import { chartTexture, useSign } from "./textures";
 
 const useBrand = () => (brandFromUrl(useCity((s) => s.website)) ?? "your brand").toUpperCase();
@@ -22,20 +23,34 @@ function useGlow(color: string, max: number, base = 0) {
 
 type V3 = [number, number, number];
 
-function Box({ p, s, color, rough = 0.85, ...rest }: { p: V3; s: V3; color: string; rough?: number; rotation?: V3 }) {
+type BoxProps = { p: V3; s: V3; color: string; rough?: number; rotation?: V3; walls?: { floor: number; window: number } };
+
+/** A box. With `walls` it gets windows from the facade shader. */
+function Box({ p, s, color, rough = 0.85, walls, ...rest }: BoxProps) {
+  const floor = walls?.floor;
+  const window = walls?.window;
+  const facade = useMemo(() => {
+    if (!floor || !window) return null;
+    const m = facadeMaterial({ floor, window, roughness: rough });
+    m.color.set(color);
+    return m;
+  }, [floor, window, color, rough]);
   return (
-    <mesh position={p} castShadow receiveShadow {...rest}>
+    <mesh position={p} castShadow receiveShadow {...rest} material={facade ?? undefined}>
       <boxGeometry args={s} />
-      <meshStandardMaterial color={color} roughness={rough} />
+      {!facade && <meshStandardMaterial color={color} roughness={rough} />}
     </mesh>
   );
 }
 
-/** 06:00 Russian Hill rooftop. Cuso stands on its front edge. */
+const HOUSE_WALLS = { floor: 2.2, window: 1.15 };
+const STONE_WALLS = { floor: 1.8, window: 1.2 };
+
+/** 06:00 Russian Hill rooftop. Cuso stands on its north edge, over the bay. */
 export function Rooftop() {
   return (
     <group>
-      <Box p={[-14, 4, -10.4]} s={[7, 8, 6]} color="#e8dccb" />
+      <Box p={[-14, 4, -10.4]} s={[7, 8, 6]} color="#e8dccb" walls={HOUSE_WALLS} />
       <Box p={[-14, 8.18, -7.55]} s={[7, 0.36, 0.3]} color="#d8cab5" />
       <Box p={[-17.35, 8.18, -10.4]} s={[0.3, 0.36, 6]} color="#d8cab5" />
       <Box p={[-10.65, 8.18, -10.4]} s={[0.3, 0.36, 6]} color="#d8cab5" />
@@ -50,20 +65,18 @@ export function Shopfront() {
   const glass = useGlow("#ffd9a0", 0.6, 0.35);
   return (
     <group>
-      <Box p={[-20, 2.2, 10.2]} s={[8, 4.4, 4.6]} color="#2f3a36" rough={0.6} />
-      <Box p={[-20, 5.4, 10.2]} s={[8, 2, 4.6]} color="#e9dcc8" />
-      <mesh position={[-21.2, 1.3, 12.52]} material={glass}>
+      <Box p={[-11, 2.2, 9.3]} s={[8, 4.4, 4.6]} color="#2f3a36" rough={0.6} />
+      <Box p={[-11, 5.4, 9.3]} s={[8, 2, 4.6]} color="#e9dcc8" walls={HOUSE_WALLS} />
+      <Box p={[-11, 6.55, 9.45]} s={[8.3, 0.3, 4.9]} color="#f7f2e8" />
+      <mesh position={[-12.2, 1.3, 11.62]} material={glass}>
         <planeGeometry args={[4.4, 2]} />
       </mesh>
-      <Box p={[-17.6, 1.1, 12.52]} s={[1.1, 2.2, 0.06]} color="#1d2422" rough={0.5} />
-      <mesh position={[-20, 3.3, 12.6]}>
+      <Box p={[-8.6, 1.1, 11.62]} s={[1.1, 2.2, 0.06]} color="#1d2422" rough={0.5} />
+      <mesh position={[-11, 3.3, 11.7]}>
         <planeGeometry args={[6.4, 1.1]} />
         <meshStandardMaterial map={sign} roughness={0.7} />
       </mesh>
-      {/* neighbours */}
-      <Box p={[-27, 3, 10.4]} s={[5.6, 6, 4.2]} color="#d9c7c0" />
-      <Box p={[-13.2, 2.6, 10.4]} s={[5, 5.2, 4.2]} color="#c9d6cc" />
-      <StreetLamp p={[-16, 0, 13.4]} />
+      <StreetLamp p={[-6.6, 0, 12.1]} />
     </group>
   );
 }
@@ -77,9 +90,9 @@ export function MuralWall() {
     const colors = ["#e8c9a8", "#9db7c9", "#d9a48f", "#c7d3b5", "#f0dcc4", "#a9b8d8", "#3d5afe", "#e3c4b9"];
     const out: { y: number; z: number; color: string }[] = [];
     for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 6; col++) {
-        if (row === 1 && col === 4) continue; // the slot the new post fills
-        out.push({ y: 1.2 + row * 1.35, z: 20.9 + col * 1.35, color: colors[(row * 5 + col * 3) % colors.length] });
+      for (let col = 0; col < 4; col++) {
+        if (row === 1 && col === 2) continue; // the slot the new post fills
+        out.push({ y: 1.2 + row * 1.35, z: 27.1 + col * 1.25, color: colors[(row * 5 + col * 3) % colors.length] });
       }
     }
     return out;
@@ -94,26 +107,26 @@ export function MuralWall() {
 
   return (
     <group>
-      <Box p={[-5.2, 2.7, 24.5]} s={[1.2, 5.4, 9.4]} color="#efe6da" />
+      <Box p={[-5.7, 2.7, 29]} s={[0.6, 5.4, 5.2]} color="#efe6da" />
       {tiles.map((t) => (
-        <mesh key={`${t.y}${t.z}`} position={[-4.58, t.y, t.z]} rotation-y={Math.PI / 2}>
-          <planeGeometry args={[1.2, 1.2]} />
+        <mesh key={`${t.y}${t.z}`} position={[-5.38, t.y, t.z]} rotation-y={Math.PI / 2}>
+          <planeGeometry args={[1.1, 1.1]} />
           <meshStandardMaterial color={t.color} roughness={0.8} />
         </mesh>
       ))}
-      <mesh ref={fresh} position={[-4.57, 2.55, 26.3]} rotation-y={Math.PI / 2} scale={0.001}>
-        <planeGeometry args={[1.2, 1.2]} />
+      <mesh ref={fresh} position={[-5.37, 2.55, 29.6]} rotation-y={Math.PI / 2} scale={0.001}>
+        <planeGeometry args={[1.1, 1.1]} />
         <meshStandardMaterial map={photo} roughness={0.7} />
       </mesh>
       {/* ladder */}
-      <group position={[-3.95, 0, 25.6]} rotation-z={0.18}>
+      <group position={[-4.75, 0, 28.5]} rotation-z={0.18}>
         <Box p={[0, 1.6, -0.35]} s={[0.08, 3.2, 0.08]} color="#a07a52" />
         <Box p={[0, 1.6, 0.35]} s={[0.08, 3.2, 0.08]} color="#a07a52" />
         {[0.4, 0.95, 1.5, 2.05, 2.6].map((y) => (
           <Box key={y} p={[0, y, 0]} s={[0.06, 0.06, 0.7]} color="#a07a52" />
         ))}
       </group>
-      <mesh position={[-2.2, 0.22, 25.2]} castShadow>
+      <mesh position={[-3.9, 0.22, 27.9]} castShadow>
         <cylinderGeometry args={[0.24, 0.2, 0.44, 16]} />
         <meshStandardMaterial color="#3d5afe" roughness={0.5} />
       </mesh>
@@ -126,18 +139,18 @@ export function UnionSquare() {
   const ad = useSign(useBrand(), { bg: "#3d5afe", fg: "#ffffff", sub: "Weekend sale · 20% off", tracking: 0.08 });
   return (
     <group>
-      <Box p={[7, 2.5, 5]} s={[7, 5, 6]} color="#d6d2ca" />
-      <Box p={[6.4, 6.6, 2.7]} s={[0.15, 3.2, 0.15]} color="#59595f" />
-      <Box p={[10, 6.6, 2.7]} s={[0.15, 3.2, 0.15]} color="#59595f" />
-      <Box p={[8.2, 8, 2.75]} s={[5.8, 3.1, 0.2]} color="#2b2b30" />
-      <mesh position={[8.2, 8, 2.86]}>
+      <Box p={[7, 2.5, 9]} s={[7, 5, 5.2]} color="#d6d2ca" walls={STONE_WALLS} />
+      <Box p={[6.4, 6.6, 6.9]} s={[0.15, 3.2, 0.15]} color="#59595f" />
+      <Box p={[10, 6.6, 6.9]} s={[0.15, 3.2, 0.15]} color="#59595f" />
+      <Box p={[8.2, 8, 6.95]} s={[5.8, 3.1, 0.2]} color="#2b2b30" />
+      <mesh position={[8.2, 8, 7.06]}>
         <planeGeometry args={[5.5, 2.8]} />
         <meshStandardMaterial map={ad} roughness={0.6} emissive="#ffffff" emissiveMap={ad} emissiveIntensity={0.15} />
       </mesh>
       {/* the scissor lift Cuso works from */}
-      <Box p={[5.6, 5.08, 7.4]} s={[2, 0.16, 1.6]} color="#f2b632" />
-      <Rails x0={-2} x1={24} z={12} />
-      <CableCar p={[11, 0, 12]} drive={{ from: 0, to: 20, speed: 0.05 }} />
+      <Box p={[5.6, 5.08, 10.4]} s={[2, 0.16, 1.6]} color="#f2b632" />
+      <Rails x0={-2} x1={24} z={14} />
+      <CableCar p={[11, 0, 14]} drive={{ from: 0, to: 20, speed: 0.05 }} />
     </group>
   );
 }
@@ -149,7 +162,7 @@ export function Pyramid() {
     if (flag.current) flag.current.rotation.y = Math.sin(clock.elapsedTime * 2.4) * 0.25;
   });
   return (
-    <group position={[10, 0, -10]}>
+    <group position={[6.5, 0, -11]}>
       <mesh position={[0, 14, 0]} rotation-y={Math.PI / 4} castShadow receiveShadow>
         <coneGeometry args={[5.2, 28, 4, 1]} />
         <meshStandardMaterial color="#f1ece4" roughness={0.55} />
@@ -186,17 +199,18 @@ export function FerryBuilding() {
   const clock = useGlow("#fff3d6", 2.2, 0.1);
   return (
     <group>
-      <Box p={[29.5, 1.4, -3]} s={[3, 2.8, 12]} color="#e9e0cf" />
-      <Box p={[29.5, 4.6, -3]} s={[1.6, 9.2, 1.6]} color="#ede4d3" />
-      <mesh position={[29.5, 9.8, -3]} rotation-y={Math.PI / 4} castShadow>
+      <Box p={[33.4, -0.15, -3]} s={[5, 0.9, 14]} color="#b9a98e" />
+      <Box p={[33.4, 1.7, -3]} s={[3, 2.8, 12]} color="#e9e0cf" walls={STONE_WALLS} />
+      <Box p={[33.4, 4.9, -3]} s={[1.6, 9.2, 1.6]} color="#ede4d3" />
+      <mesh position={[33.4, 10.1, -3]} rotation-y={Math.PI / 4} castShadow>
         <coneGeometry args={[1.2, 1.6, 4]} />
         <meshStandardMaterial color="#cfc3ad" roughness={0.8} />
       </mesh>
-      <mesh position={[28.68, 7.6, -3]} rotation-y={-Math.PI / 2} material={clock}>
+      <mesh position={[32.58, 7.9, -3]} rotation-y={-Math.PI / 2} material={clock}>
         <circleGeometry args={[0.5, 24]} />
       </mesh>
-      <Rails x0={6} x1={30} z={2.1} />
-      <CableCar p={[18.4, 0, 2.1]} />
+      <Rails x0={6} x1={28} z={4} />
+      <CableCar p={[18.4, 0, 4]} />
       <Envelopes />
     </group>
   );

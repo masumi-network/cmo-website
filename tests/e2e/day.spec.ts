@@ -28,6 +28,7 @@ test("the day loads with the 3D city and Cuso", async ({ page }) => {
 });
 
 test("every chapter has its card, and the HUD follows the scroll", async ({ page, isMobile }) => {
+  test.slow(); // walks the whole day with the 3D city on (software WebGL in CI)
   await open(page);
   await waitForCity(page);
   const titles = ["Learns your brand", "Runs your social", "Runs your ads", "Gets you found on Google", "Sends your newsletter", "Learns while you sleep"];

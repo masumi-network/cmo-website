@@ -5,12 +5,12 @@
 
 import { Environment, Lightformer } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
-import { Bloom, EffectComposer, N8AO, TiltShift2, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, TiltShift2, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import { Suspense, useEffect } from "react";
 import { Atmosphere } from "./atmosphere";
 import { CameraRig } from "./camera-rig";
-import { Buildings, Hills, Land, Trees, Water } from "./city";
+import { City } from "./city";
 import { Cuso } from "./cuso";
 import { BayBridge, CoitTower, FerryBuilding, GoldenGate, MuralWall, Pier, Pyramid, Rooftop, Shopfront, UnionSquare } from "./landmarks";
 import { Pins } from "./pins";
@@ -46,11 +46,7 @@ export default function Scene({ onReady, onGo, lite }: Props) {
           <Lightformer intensity={1.6} position={[0, 12, 12]} scale={[40, 12, 1]} />
           <Lightformer intensity={0.8} position={[-20, 6, -10]} rotation-y={Math.PI / 2} scale={[30, 8, 1]} />
         </Environment>
-        <Land />
-        <Water lite={lite} />
-        <Hills />
-        <Buildings />
-        <Trees />
+        <City lite={lite} />
         <Rooftop />
         <Shopfront />
         <MuralWall />
@@ -77,6 +73,8 @@ export default function Scene({ onReady, onGo, lite }: Props) {
           <N8AO aoRadius={1.2} intensity={1.4} distanceFalloff={0.6} quality="performance" />
           <Bloom mipmapBlur luminanceThreshold={0.9} intensity={0.6} />
           <TiltShift2 blur={0.04} />
+          <HueSaturation saturation={0.08} />
+          <BrightnessContrast contrast={0.06} />
           <Vignette offset={0.3} darkness={0.45} />
           <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
         </EffectComposer>

@@ -6,6 +6,7 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { BackSide, Color, Fog, ShaderMaterial, Vector3, type DirectionalLight, type HemisphereLight, type Mesh } from "three";
 import { lightingAt } from "@/lib/time";
+import { facadeNight } from "./facade";
 import { dayNow, rig, updateNightGlow } from "./shared";
 
 const sunDir = new Vector3();
@@ -100,6 +101,7 @@ export function Atmosphere() {
     domeRef.current?.position.copy(camera.position);
 
     rig.night = L.night;
+    facadeNight.value = L.night;
     updateNightGlow(L.night);
   });
 
@@ -114,8 +116,8 @@ export function Atmosphere() {
         ref={sun}
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.04}
+        shadow-bias={-0.0008}
+        shadow-normalBias={0.1}
         shadow-camera-near={1}
         shadow-camera-far={220}
       />
