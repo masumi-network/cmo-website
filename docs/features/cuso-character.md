@@ -1,22 +1,25 @@
 # F03 · Cuso
 
-Last updated: 2026-10-12 · Status: v0 · Launch blocker: walk cycle
+Last updated: 2026-10-12 · Status: done
 
 ## What it does
-- The real mascot (`public/models/cuso.glb`, Draco compressed) stands in every chapter.
-- He says one line per chapter in a speech bubble, and replies when you ask him something.
-- He hops between places, turns to face the camera, and follows your pointer a little.
-- He spins when you approve something, change your website or agree to his plan.
+- The real mascot (`public/models/cuso.glb`) is rigged in the browser and travels the city's streets between chapters: down from the rooftop, along the walking streets, up onto Union Square's roof, a big jump to the pyramid tip, onto the cable car and the pier.
+- He moves at his own natural pace behind the scroll: he walks near places (feet locked to the distance walked, so they never slide), dashes the long street stretches like a cursor, and jumps onto roofs. If you jump far ahead (the rail, Ask Cuso) he blinks there like a cursor (a quick pop).
+- A chase camera follows where he really is, then settles into the next chapter's shot once he arrives. It pulls in and rises so a building never blocks the view.
+- Standing, nothing moves him as a block: he breathes, shifts his weight, blinks, turns his torso toward your pointer, waves when he arrives, and cheers with a little hop when you approve something. The baked clips in the GLB are no longer used.
+- Cars wait when he is in their lane.
 
 ## How it works
-- `src/scene/cuso.tsx`. Clips in the file: `Idle`, `Hop`, `Hello`, `Spin`, `Blink`.
-- Scale 6.2, so Cuso is about door height (1.9 units).
-- The Draco decoder is self-hosted in `public/draco/` (copied from `three/examples/jsm/libs/draco/gltf`).
+- `rig.ts`: turns Mesh0 into a `SkinnedMesh` at load time. Bones: root, hips, body, two arms, and thigh, shin, foot per leg. Weights come from where each vertex sits on the flat character (`weightsAt`), with smooth falloffs, so limbs bend like rubber hoses. Idempotent (the GLTF scene is cached).
+- `gait.ts`: all poses through the bones, blended by weight: walk cycle (pendulum legs, knee bend on the swing leg, flat feet, lowered arm swing, bob, sway, lean), dash, tucked jump, wave, cheer and a breathing idle with a pointer look. `STRIDE` and `SPEED` are tuned to his short legs.
+- `routes.ts`: one path per move (chapter i to i + 1), each segment tagged walk, dash or jump. Each chapter has an approach from a walking street to its spot; between them, Dijkstra on the walking streets (`WALK_X`, `WALK_Z` in `grid.ts`). Street stretches walk 4 units at each end and dash in between. `sampleDay(distance)` puts all moves on one line through the day.
+- `cuso.tsx`: scroll sets a target distance; Cuso closes the gap at the speed of the segment he is on (or blinks if it is over 70 units), drives the gait, blinks his eyes, and publishes where he is (`rig.travel`) for the camera and his speech bubble.
+- `camera-rig.tsx`: blends chapter shots by Cuso's real progress, with the chase cam in between; `keepClear` uses `OBSTACLES` from `layout.ts`.
+
+## Acceptance
+- Route tests: start and end on the spots, walk on land or the pier, on the ground, never through a building, no jumps in the path itself, walking (not dashing) near places, one continuous day line.
+- Layout tests: chapter cameras never start inside a building.
 
 ## Known limits
-- The model has **no skeleton**. All clips move the whole body, so he cannot walk yet. Travel is a hop arc.
-- `Blink` animates the same node as the other clips, so it is not used.
-
-## Before launch
-- Rig Cuso (legs, arms) in Blender and add a walk cycle plus the poses from the mascot sheet: thinking, researching, creating, done, sleeping.
-- Re-export with the same clip names, plus `Walk`.
+- The baked texture shows his face on the back too (the model is flat), so from behind the arrow looks mirrored.
+- Walking streets have no traffic and clear sidewalks; other streets have cars.

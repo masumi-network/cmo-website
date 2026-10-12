@@ -11,7 +11,14 @@ export type ChapterId =
   | "night"
   | "join";
 
+import { at, heightAt } from "@/lib/terrain";
+
 export type Vec3 = readonly [number, number, number];
+
+// Rooftops are flat, so spots on them use the ground under the building's centre.
+const RUSSIAN_HILL_ROOF = 8 + heightAt(-14, -10.4);
+const UNION_SQUARE_ROOF = 5 + heightAt(7, 9);
+const PYRAMID_TIP = 28 + heightAt(6.5, -11);
 
 type Shot = { position: Vec3; target: Vec3 };
 
@@ -67,8 +74,8 @@ export const chapters: readonly Chapter[] = [
     place: "Russian Hill",
     bubble: "Morning! I'm Cuso.",
     poster: "/concepts/01-hero-rooftop.jpg",
-    spot: [-14, 8, -12.9],
-    camera: frame([-14, 8, -12.9], { yaw: 352, distance: 7, height: 1.6, look: 1.9 }),
+    spot: [-14, RUSSIAN_HILL_ROOF, -12.9],
+    camera: frame([-14, RUSSIAN_HILL_ROOF, -12.9], { yaw: 37, distance: 7.5, height: 2.0, look: 2.2 }),
     dark: false,
   },
   {
@@ -81,8 +88,8 @@ export const chapters: readonly Chapter[] = [
     place: "Hayes Valley",
     bubble: "Reading your About page. I like your tone.",
     poster: "/concepts/02-brand-brain.jpg",
-    spot: [-9.6, 0, 14.6],
-    camera: frame([-9.6, 0, 14.6], { yaw: 18, distance: 7, height: 1.3, look: 1.8 }),
+    spot: at(-9.6, 0, 14.6),
+    camera: frame(at(-9.6, 0, 14.6), { yaw: 18, distance: 7, height: 1.3, look: 1.8 }),
     dark: false,
   },
   {
@@ -95,8 +102,8 @@ export const chapters: readonly Chapter[] = [
     place: "Mission",
     bubble: "This one for Tuesday morning?",
     poster: "/concepts/03-social.jpg",
-    spot: [-2.8, 0, 29.6],
-    camera: frame([-2.8, 0, 29.6], { yaw: 68, distance: 6.8, height: 1.3, look: 1.8, side: 0.28 }),
+    spot: at(-2.8, 0, 29.6),
+    camera: frame(at(-2.8, 0, 29.6), { yaw: 68, distance: 6.8, height: 1.3, look: 1.8, side: 0.28 }),
     dark: false,
   },
   {
@@ -109,8 +116,8 @@ export const chapters: readonly Chapter[] = [
     place: "Union Square",
     bubble: "Out with the old one. This one sells.",
     poster: "/concepts/04-ads.jpg",
-    spot: [5.6, 5, 10.4],
-    camera: frame([5.6, 5, 10.4], { yaw: 12, distance: 9, height: -1.2, look: 1.9, side: -0.05 }),
+    spot: [5.6, UNION_SQUARE_ROOF, 10.4],
+    camera: frame([5.6, UNION_SQUARE_ROOF, 10.4], { yaw: 12, distance: 9, height: -1.2, look: 1.9, side: -0.05 }),
     dark: false,
   },
   {
@@ -123,8 +130,8 @@ export const chapters: readonly Chapter[] = [
     place: "Transamerica Pyramid",
     bubble: "Number one. Nice view up here.",
     poster: "/concepts/05-seo.jpg",
-    spot: [6.5, 28, -11],
-    camera: frame([6.5, 28, -11], { yaw: 285, distance: 9, height: 4.2, look: -0.6, side: 0.25 }),
+    spot: [6.5, PYRAMID_TIP, -11],
+    camera: frame([6.5, PYRAMID_TIP, -11], { yaw: 285, distance: 9, height: 4.2, look: -0.6, side: 0.25 }),
     dark: false,
   },
   {
@@ -137,8 +144,8 @@ export const chapters: readonly Chapter[] = [
     place: "Ferry Building",
     bubble: "Special delivery!",
     poster: "/concepts/06-newsletter.jpg",
-    spot: [20.9, 0.9, 5.2],
-    camera: frame([20.9, 0.9, 5.2], { yaw: 90, distance: 6.5, height: 0.7, look: 1.5 }),
+    spot: at(20.9, 0.9, 5.15),
+    camera: frame(at(20.9, 0.9, 5.15), { yaw: 42, distance: 7, height: 0.8, look: 1.5 }),
     dark: false,
   },
   {
@@ -165,8 +172,8 @@ export const chapters: readonly Chapter[] = [
     place: "Russian Hill",
     bubble: "Same time tomorrow?",
     poster: "/concepts/09-finale.jpg",
-    spot: [-14, 8, -12.9],
-    camera: frame([-14, 8, -12.9], { yaw: 322, distance: 30, height: 13, look: 2, side: 0.2 }),
+    spot: [-14, RUSSIAN_HILL_ROOF, -12.9],
+    camera: frame([-14, RUSSIAN_HILL_ROOF, -12.9], { yaw: 322, distance: 30, height: 13, look: 2, side: 0.2 }),
     dark: false,
   },
 ];

@@ -1,36 +1,46 @@
 "use client";
 
-// Cuso: the real mascot.glb. It has no skeleton (clips move the whole body),
-// so travel between places is a hop arc. A rigged walk is a follow-up
-// (docs/features/cuso-character.md).
+// Cuso: the real mascot.glb, rigged at load (rig.ts). He walks the day at
+// his own pace (routes.ts): scroll sets where he should be, he walks there,
+// dashes the long street stretches and jumps onto roofs; if you jump far
+// ahead he blinks there like a cursor. All motion is in the bones (gait.ts),
+// so standing still never moves him as a block.
 
-import { Html, useAnimations, useGLTF } from "@react-three/drei";
+import { Html, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useRef, useState } from "react";
-import { LoopOnce, LoopRepeat, Vector3, type AnimationAction, type Group, type Mesh } from "three";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { chapters } from "@/content/day";
 import { useCity } from "@/lib/store";
-import { damp, dayNow, rig, setLerp } from "./shared";
+import { travel } from "@/lib/time";
+import type { Group, Mesh, Object3D } from "three";
+import { SPEED, STRIDE, pose } from "./gait";
+import { rigCuso } from "./rig";
+import { DAY_LENGTH, PATHS, dayDistance, sampleDay } from "./routes";
+import { damp, rig } from "./shared";
 
 export const CUSO_URL = "/models/cuso.glb";
 const SCALE = 6.2; // model is 0.3 m tall; Cuso is ~1.9 units, about door height
 const FEET = 0.1524 * SCALE;
-
-const pos = new Vector3();
-const dir = new Vector3();
+/** Further than this behind the scroll, he blinks there instead of walking. */
+const TELEPORT = 70;
 
 function angleDamp(from: number, to: number, k: number) {
   const d = Math.atan2(Math.sin(to - from), Math.cos(to - from));
   return from + d * k;
 }
+const easeOutBack = (x: number) => 1 + 2.7 * (x - 1) ** 3 + 1.7 * (x - 1) ** 2;
 
 export function Cuso() {
   const outer = useRef<Group>(null);
   const body = useRef<Group>(null);
-  const { scene, animations } = useGLTF(CUSO_URL, "/draco/");
-  const { actions, mixer } = useAnimations(animations, body);
-  const current = useRef<AnimationAction | null>(null);
-  const oneShot = useRef(false);
-  const cheer = useRef(useCity.getState().cheer);
+  const { scene } = useGLTF(CUSO_URL, "/draco/");
+  const skeleton = useMemo(() => rigCuso(scene), [scene]);
+  const eyes = useMemo(() => ["EyeL", "EyeR"].map((n) => scene.getObjectByName(n)).filter(Boolean) as Object3D[], [scene]);
+  const me = useRef({
+    d: -1, phase: 0, walk: 0, dash: 0, air: 0,
+    wave: 1, waveUntil: 2.2, cheerAt: -10, cheer: useCity.getState().cheer,
+    popAt: -10, wasMoving: false, nextBlink: 2,
+  });
 
   useEffect(() => {
     scene.traverse((o) => {
@@ -38,59 +48,86 @@ export function Cuso() {
     });
   }, [scene]);
 
-  const play = (name: string, once = false) => {
-    const next = actions[name];
-    if (!next || (current.current === next && !once)) return;
-    next.reset();
-    next.setLoop(once ? LoopOnce : LoopRepeat, once ? 1 : Infinity);
-    next.clampWhenFinished = false;
-    next.fadeIn(0.25).play();
-    current.current?.fadeOut(0.25);
-    current.current = next;
-    oneShot.current = once;
-  };
-
-  useEffect(() => {
-    const done = () => {
-      oneShot.current = false;
-    };
-    mixer.addEventListener("finished", done);
-    play("Hello", true);
-    return () => mixer.removeEventListener("finished", done);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- play once on mount
-  }, [mixer]);
-
-  useFrame(({ camera }, dt) => {
+  useFrame(({ camera, clock }, delta) => {
     const g = outer.current;
     const b = body.current;
     if (!g || !b) return;
-    const day = dayNow();
-    const { a, t } = day;
-    const to = day.b;
+    const dt = Math.min(delta, 0.1);
+    const time = clock.elapsedTime;
+    const m = me.current;
+    const state = useCity.getState();
 
-    setLerp(pos, a.spot, to.spot, t);
-    const dist = Math.hypot(to.spot[0] - a.spot[0], to.spot[2] - a.spot[2]) + Math.abs(to.spot[1] - a.spot[1]);
-    pos.y += Math.sin(Math.PI * t) * Math.min(3 + dist * 0.22, 16);
-    g.position.copy(pos);
-    rig.cuso.copy(pos);
+    // Where the scroll says he should be, and where he is.
+    const tr = travel(state.progress, chapters.length);
+    const target = dayDistance(tr.from, tr.from === tr.to ? 0 : tr.t);
+    if (m.d < 0) m.d = target;
+    let gap = target - m.d;
+    if (Math.abs(gap) > TELEPORT) {
+      m.d = target;
+      m.popAt = time;
+      gap = 0;
+    }
+    const here = sampleDay(m.d);
+    const speed = Math.min(SPEED[here.mode], Math.abs(gap) * 3 + 0.6);
+    const step = Math.sign(gap) * Math.min(Math.abs(gap), speed * dt);
+    m.d = Math.min(DAY_LENGTH, Math.max(0, m.d + step));
+    const now = sampleDay(m.d);
+    const moving = Math.abs(gap) > 0.02;
 
-    const moving = t > 0.01 && t < 0.99;
+    // Feet follow the distance walked, so they never slide.
+    if (now.mode === "walk") m.phase += (Math.abs(step) / STRIDE) * Math.PI * 2;
+    const k = damp(9, dt);
+    m.walk += ((moving && now.mode === "walk" ? 1 : 0) - m.walk) * k;
+    m.dash += ((moving && now.mode === "dash" ? 1 : 0) - m.dash) * k;
+    m.air += ((moving && now.mode === "jump" ? 1 : 0) - m.air) * damp(14, dt);
+
+    // Arriving: a little wave. Approving and such: a cheer with a hop.
+    if (m.wasMoving && !moving) m.waveUntil = time + 1.8;
+    m.wasMoving = moving;
+    m.wave += ((time < m.waveUntil && !moving ? 1 : 0) - m.wave) * damp(6, dt);
+    if (state.cheer !== m.cheer) {
+      m.cheer = state.cheer;
+      m.cheerAt = time;
+    }
+    const cheerU = (time - m.cheerAt) / 0.9;
+    const cheer = cheerU >= 0 && cheerU < 1 ? Math.sin(Math.PI * cheerU) : 0;
+
+    pose(skeleton, {
+      walk: m.walk, dash: m.dash, air: Math.max(m.air, cheer * 0.4), wave: m.wave, cheer,
+      phase: m.phase, time, lookX: rig.pointer.x, lookY: rig.pointer.y,
+    });
+
+    // Blink every few seconds.
+    if (time > m.nextBlink + 0.13) m.nextBlink = time + 2.5 + Math.random() * 3;
+    const blink = time > m.nextBlink ? 0.12 : 1;
+    for (const e of eyes) e.scale.y = blink;
+
+    // Place him: a small hover while dashing, a hop when cheering, a pop after a blink-teleport.
+    const hop = cheer * 0.55 + m.dash * 0.25;
+    g.position.set(now.pos[0], now.pos[1] + hop, now.pos[2]);
+    const popU = Math.min(1, (time - m.popAt) / 0.35);
+    g.scale.setScalar(popU < 1 ? Math.max(0.01, easeOutBack(popU)) : 1);
+    rig.cuso.set(now.pos[0], now.pos[1], now.pos[2]);
+
+    // Face where he is going (looking a bit ahead so corners are smooth), or the camera at rest.
     let yaw: number;
     if (moving) {
-      dir.set(to.spot[0] - a.spot[0], 0, to.spot[2] - a.spot[2]);
-      yaw = Math.atan2(dir.x, dir.z);
+      const ahead = sampleDay(m.d + Math.sign(gap) * 1.6).pos;
+      const dx = ahead[0] - now.pos[0];
+      const dz = ahead[2] - now.pos[2];
+      yaw = Math.hypot(dx, dz) > 0.05 ? Math.atan2(dx, dz) : b.rotation.y;
     } else {
-      yaw = Math.atan2(camera.position.x - pos.x, camera.position.z - pos.z) + rig.pointer.x * 0.45;
+      yaw = Math.atan2(camera.position.x - now.pos[0], camera.position.z - now.pos[2]);
     }
-    b.rotation.y = angleDamp(b.rotation.y, yaw, damp(6, dt));
+    b.rotation.y = angleDamp(b.rotation.y, yaw, damp(moving ? 7 : 3, dt));
+    rig.heading = b.rotation.y;
 
-    const state = useCity.getState();
-    if (state.cheer !== cheer.current) {
-      cheer.current = state.cheer;
-      play("Spin", true);
-    } else if (!oneShot.current) {
-      play(moving ? "Hop" : "Idle");
-    }
+    const tv = rig.travel;
+    tv.leg = now.leg;
+    tv.t = now.t;
+    tv.s = now.s;
+    tv.length = PATHS[now.leg].length;
+    tv.moving = moving;
   });
 
   return (
@@ -117,9 +154,10 @@ function Bubble() {
   }, [reply, say]);
 
   useFrame(() => {
-    const day = dayNow();
-    const atRest = day.t === 0 && day.mode === "story";
-    const next = atRest ? useCity.getState().reply || day.a.bubble : "";
+    const { mode, reply } = useCity.getState();
+    const tv = rig.travel;
+    const at = tv.t < 0.001 ? tv.leg : tv.t > 0.999 ? tv.leg + 1 : -1;
+    const next = mode === "story" && !tv.moving && at >= 0 ? reply || chapters[at].bubble : "";
     if (next !== shown.current) {
       shown.current = next;
       setText(next);

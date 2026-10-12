@@ -1,8 +1,8 @@
 // Textures drawn with the 2D canvas: signs that show the visitor's brand,
-// the street map on the ground, little screens.
+// the street mask for the ground, little screens.
 
 import { useEffect, useMemo } from "react";
-import { CanvasTexture, SRGBColorSpace } from "three";
+import { CanvasTexture, NoColorSpace, SRGBColorSpace } from "three";
 import { LAND_BOUNDS, PARKS, SIDEWALK, STREET, X_STREETS, Z_STREETS } from "./layout";
 
 function canvasTexture(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) {
@@ -55,10 +55,11 @@ export function useSign(text: string, style: SignStyle) {
 }
 
 /**
- * The ground: blocks, sidewalks, streets with lane marks, parks.
- * Mapped onto the land's top face in world units (see Land in city.tsx).
+ * The ground as a mask for groundMaterial (materials.ts): red = asphalt,
+ * green = sidewalk, blue = grass, white = lane marks, black = block ground.
+ * Mapped onto the terrain in world units (see Land in city.tsx).
  */
-export function groundTexture() {
+export function groundMask() {
   const { minX, maxX, minZ, maxZ } = LAND_BOUNDS;
   const PX = 16; // pixels per world unit
   const W = (maxX - minX) * PX;
@@ -66,18 +67,16 @@ export function groundTexture() {
   const X = (x: number) => (x - minX) * PX;
   const Z = (z: number) => (z - minZ) * PX;
   const texture = canvasTexture(W, H, (ctx) => {
-    ctx.fillStyle = "#d6c9b1";
+    ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, W, H);
-    // sidewalks, then asphalt on top
-    for (const [width, color] of [[STREET + SIDEWALK * 2, "#e3dac8"], [STREET, "#8f8a83"]] as const) {
+    for (const [width, color] of [[STREET + SIDEWALK * 2, "#00ff00"], [STREET, "#ff0000"]] as const) {
       ctx.fillStyle = color;
       for (const x of X_STREETS) ctx.fillRect(X(x - width / 2), 0, width * PX, H);
       for (const z of Z_STREETS) ctx.fillRect(0, Z(z - width / 2), W, width * PX);
     }
-    // centre lines
-    ctx.strokeStyle = "#c9c1b0";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([PX * 1.2, PX * 1.2]);
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([PX * 1.4, PX * 1.4]);
     for (const x of X_STREETS) {
       ctx.beginPath();
       ctx.moveTo(X(x), 0);
@@ -90,13 +89,19 @@ export function groundTexture() {
       ctx.lineTo(W, Z(z));
       ctx.stroke();
     }
-    // parks
-    ctx.fillStyle = "#9db07c";
+    ctx.fillStyle = "#0000ff";
     const edge = STREET / 2 + SIDEWALK;
     for (const [x0, x1, z0, z1] of PARKS) ctx.fillRect(X(x0 + edge), Z(z0 + edge), (x1 - x0 - edge * 2) * PX, (z1 - z0 - edge * 2) * PX);
+    // Grassy hilltops: Telegraph Hill and Twin Peaks.
+    for (const [x, z, r] of [[2, -26, 6], [-34, 30, 9]]) {
+      ctx.beginPath();
+      ctx.arc(X(x), Z(z), r * PX, 0, Math.PI * 2);
+      ctx.fill();
+    }
   });
+  texture.colorSpace = NoColorSpace;
   texture.anisotropy = 16;
-  // ExtrudeGeometry gives the top face UVs of (x, -z) in world units.
+  // The terrain's UVs are (x, -z) in world units.
   texture.repeat.set(1 / (maxX - minX), 1 / (maxZ - minZ));
   texture.offset.set(-minX / (maxX - minX), 1 + minZ / (maxZ - minZ));
   return texture;

@@ -74,7 +74,7 @@ export function facadeMaterial({ floor, window, glassy = false, lit = 0.45, roug
       .replace("#include <metalnessmap_fragment>", "#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.45, fWin * uGlassy);")
       .replace(
         "#include <emissivemap_fragment>",
-        "#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.76, 0.42) * fLit * uNight * 2.4;",
+        "#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.76, 0.42) * fLit * uNight * 1.5;",
       );
   };
   return material;

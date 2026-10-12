@@ -1,0 +1,1 @@
+Old city street asphalt seen from directly above: fine dark grey aggregate, subtle patches and very faint cracks, no lane markings. Seamless tileable PBR albedo texture, viewed perfectly flat and straight on, evenly lit with no shadows or highlights, no vignette, uniform across the whole square image so it tiles without visible seams. No text. Square 1:1 image.

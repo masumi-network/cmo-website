@@ -14,6 +14,10 @@ export const rig = {
   cuso: new Vector3(),
   /** Pointer in -1..1, from window events (the canvas sits under the page). */
   pointer: new Vector2(),
+  /** Which way Cuso faces (radians around Y). */
+  heading: 0,
+  /** Where Cuso really is on the day (he walks at his own pace behind the scroll). */
+  travel: { leg: 0, t: 0, s: 0, length: 1, moving: false },
   /** 0 = day, 1 = night. */
   night: 0,
 };

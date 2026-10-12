@@ -2,18 +2,10 @@
 // the same on every visit. Rendering lives in city.tsx.
 
 import { chapters } from "@/content/day";
+import { heightAt } from "@/lib/terrain";
 
-// Shoreline (x east, z south). Downtown is the north-east corner.
-export const LAND: [number, number][] = [
-  [-66, -28], [-84, -46], [-76, -53], [-52, -38], [-30, -35], [-10, -33], [5, -36], [20, -34], [31, -28],
-  [31, 10], [31, 30], [26, 46], [0, 48], [-30, 47], [-63, 46], [-65, 10],
-];
-
-export const STREET = 3;
-export const SIDEWALK = 0.9;
-/** Street centre lines. The grid is SF-like: long blocks east to west. */
-export const X_STREETS = [-67, -51, -35, -19, -3, 13, 29];
-export const Z_STREETS = [-46, -36, -26, -16, -6, 4, 14, 24, 34, 44];
+export { LAND, STREET, SIDEWALK, X_STREETS, Z_STREETS, insideLand } from "./grid";
+import { STREET, SIDEWALK, X_STREETS, Z_STREETS, WALK_Z, insideLand } from "./grid";
 
 /** Places the generator keeps clear: [x, z, radius]. */
 export const CLEAR: [number, number, number][] = [
@@ -31,16 +23,6 @@ export const PARKS: [number, number, number, number][] = [
   [-67, -35, 14, 24], // Golden Gate Park
   [-35, -19, 34, 44], // Dolores Park
 ];
-
-export function insideLand(x: number, z: number) {
-  let inside = false;
-  for (let i = 0, j = LAND.length - 1; i < LAND.length; j = i++) {
-    const [xi, zi] = LAND[i];
-    const [xj, zj] = LAND[j];
-    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
-  }
-  return inside;
-}
 
 /** True if something at x,z (radius r, height h) gets between a camera and its subject. */
 export function blocksView(x: number, z: number, h: number, r: number) {
@@ -60,8 +42,9 @@ function rng(seed: number) {
   return () => ((s = (s * 16807) % 2147483647) / 2147483647);
 }
 
+// `y` is the ground under the centre; `h` is height above it.
 export type House = {
-  x: number; z: number; w: number; d: number; h: number;
+  x: number; y: number; z: number; w: number; d: number; h: number;
   /** +1 faces south (+z), -1 faces north. */
   facing: 1 | -1;
   color: string; trim: string;
@@ -69,9 +52,9 @@ export type House = {
   bay: boolean;
 };
 export type Tier = { w: number; d: number; y: number; h: number };
-export type Tower = { x: number; z: number; w: number; d: number; h: number; glass: boolean; color: string; tiers: Tier[] };
-export type Tree = { x: number; z: number; s: number };
-export type Lamp = { x: number; z: number };
+export type Tower = { x: number; y: number; z: number; w: number; d: number; h: number; glass: boolean; color: string; tiers: Tier[] };
+export type Tree = { x: number; y: number; z: number; s: number };
+export type Lamp = { x: number; y: number; z: number };
 
 const PAINTED = ["#f0d9c4", "#e9c7b0", "#d8e0d0", "#cfdbe3", "#f2e6c9", "#e6cfd6", "#d9cbb8", "#f4ede1", "#c9d7cf", "#e8d3a8"];
 const TRIMS = ["#fbf7ef", "#f3ece0", "#e8e1d4"];
@@ -81,7 +64,7 @@ const GLASS = ["#9fb0bf", "#8fa3b4", "#a9b6c0"];
 const fits = (x: number, z: number, w: number, d: number, h: number) =>
   [[x - w / 2, z - d / 2], [x + w / 2, z - d / 2], [x - w / 2, z + d / 2], [x + w / 2, z + d / 2]].every(([a, b]) => insideLand(a, b)) &&
   CLEAR.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) >= r) &&
-  !blocksView(x, z, h, Math.max(w, d) / 2);
+  !blocksView(x, z, heightAt(x, z) + h, Math.max(w, d) / 2);
 
 const isPark = (x: number, z: number) => PARKS.some(([x0, x1, z0, z1]) => x > x0 && x < x1 && z > z0 && z < z1);
 /** Financial District down through SoMa. */
@@ -109,7 +92,7 @@ export function generateCity() {
         for (let k = 0; k < 14; k++) {
           const x = x0 + rand() * (x1 - x0);
           const z = z0 + rand() * (z1 - z0);
-          if (insideLand(x, z) && !blocksView(x, z, 2.6, 1)) trees.push({ x, z, s: 0.8 + rand() * 0.6 });
+          if (insideLand(x, z) && !blocksView(x, z, heightAt(x, z) + 2.6, 1)) trees.push({ x, y: heightAt(x, z), z, s: 0.8 + rand() * 0.6 });
         }
         continue;
       }
@@ -129,7 +112,7 @@ export function generateCity() {
           if (h > 14) tiers.push({ w: tw * 0.78, d: td * 0.78, y: h * 0.6, h: h > 22 ? h * 0.25 : h * 0.4 });
           if (h > 22) tiers.push({ w: tw * 0.56, d: td * 0.56, y: h * 0.85, h: h * 0.15 });
           const glass = rand() < 0.5;
-          towers.push({ x, z: cz, w: tw, d: td, h, glass, color: glass ? pick(GLASS) : pick(STONE), tiers });
+          towers.push({ x, y: heightAt(x, cz), z: cz, w: tw, d: td, h, glass, color: glass ? pick(GLASS) : pick(STONE), tiers });
         }
         continue;
       }
@@ -146,7 +129,7 @@ export function generateCity() {
           const hx = x + w / 2;
           if (fits(hx, z, w, depth, h)) {
             houses.push({
-              x: hx, z, w, d: depth, h, facing,
+              x: hx, y: heightAt(hx, z), z, w, d: depth, h, facing,
               color: pick(PAINTED), trim: pick(TRIMS),
               roof: rand() < 0.4 ? "gable" : "flat",
               bay: rand() < 0.7,
@@ -159,15 +142,17 @@ export function generateCity() {
   }
 
   // Street trees and lamps along the east-west streets.
-  for (const sz of Z_STREETS) {
+  // Cuso walks the WALK_Z streets: keep their sidewalks clear.
+  for (const sz of Z_STREETS.filter((z) => !WALK_Z.includes(z))) {
     for (let x = -64; x < 29; x += 4) {
       for (const side of [-1, 1]) {
         const z = sz + side * (STREET / 2 + SIDEWALK / 2);
         if (!insideLand(x, z) || isDowntown(x, z) || CLEAR.some(([cx, cz, r]) => Math.hypot(x - cx, z - cz) < r)) continue;
         if (X_STREETS.some((sx) => Math.abs(x - sx) < STREET)) continue;
         const roll = rand();
-        if (roll < 0.35 && !blocksView(x, z, 2.6, 0.9)) trees.push({ x, z, s: 0.55 + rand() * 0.25 });
-        else if (roll > 0.82 && !blocksView(x, z, 3, 0.2)) lamps.push({ x, z });
+        const y = heightAt(x, z);
+        if (roll < 0.35 && !blocksView(x, z, y + 2.6, 0.9)) trees.push({ x, y, z, s: 0.55 + rand() * 0.25 });
+        else if (roll > 0.82 && !blocksView(x, z, y + 3, 0.2)) lamps.push({ x, y, z });
       }
     }
   }
@@ -177,3 +162,21 @@ export function generateCity() {
 
 /** Land bounds, for the ground texture. */
 export const LAND_BOUNDS = { minX: -90, maxX: 45, minZ: -60, maxZ: 52 };
+
+/** The generated city, computed once. */
+export const CITY = generateCity();
+
+type Box = { minX: number; maxX: number; minZ: number; maxZ: number; top: number };
+
+/** Solid boxes the camera must not enter: every building plus landmark buildings. */
+export const OBSTACLES: Box[] = [
+  ...[...CITY.houses, ...CITY.towers].map((b) => ({ minX: b.x - b.w / 2, maxX: b.x + b.w / 2, minZ: b.z - b.d / 2, maxZ: b.z + b.d / 2, top: b.y + b.h + 0.6 })),
+  { minX: -17.5, maxX: -10.5, minZ: -13.4, maxZ: -7.4, top: heightAt(-14, -10.4) + 8.5 }, // Russian Hill rooftop
+  { minX: -15, maxX: -7, minZ: 7, maxZ: 11.6, top: heightAt(-11, 9.3) + 6.8 }, // Hayes Valley shop
+  { minX: 3.5, maxX: 10.5, minZ: 6.4, maxZ: 11.6, top: heightAt(7, 9) + 9.6 }, // Union Square + billboard
+  { minX: -6, maxX: -5.4, minZ: 26.4, maxZ: 31.6, top: 5.4 }, // Mission wall
+];
+
+/** True if a point is inside a building. */
+export const insideBuilding = (x: number, y: number, z: number) =>
+  OBSTACLES.some((b) => x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ && y < b.top);
