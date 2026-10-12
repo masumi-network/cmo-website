@@ -3,7 +3,7 @@
 // Coordinates are Mesh0's local space (model units): mesh centre at y 0, feet
 // at y -0.152, facing +z. "L" is the model's -x side (the raised thumbs-up arm).
 
-import { Bone, Float32BufferAttribute, Skeleton, SkinnedMesh, Uint16BufferAttribute, type Mesh, type Object3D } from "three";
+import { Bone, Float32BufferAttribute, Skeleton, SkinnedMesh, Uint16BufferAttribute, type Material, type Mesh, type MeshStandardMaterial, type Object3D } from "three";
 
 export const BONE = { root: 0, hips: 1, body: 2, armL: 3, armR: 4, thighL: 5, shinL: 6, footL: 7, thighR: 8, shinR: 9, footR: 10 } as const;
 export type BoneName = keyof typeof BONE;
@@ -114,6 +114,7 @@ export function rigCuso(scene: Object3D): CusoRig {
   bones.thighR.add(bones.shinR);
   bones.shinR.add(bones.footR);
 
+  paintBack(mesh.material as Material);
   const skinned = new SkinnedMesh(geometry, mesh.material);
   skinned.name = mesh.name;
   skinned.position.copy(mesh.position);
@@ -137,4 +138,22 @@ export function rigCuso(scene: Object3D): CusoRig {
   const rig = { bones, rest };
   scene.userData.rig = rig;
   return rig;
+}
+
+/**
+ * Cuso is flat: from behind, his white face would read as a mirrored cursor.
+ * Paint the back of the arrow body (faces pointing -z, above the legs) dark,
+ * like his rubber outline. Shoes and legs keep their colours.
+ */
+function paintBack(material: Material) {
+  const m = material as MeshStandardMaterial;
+  m.customProgramCacheKey = () => "cuso-back";
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying float vBack;")
+      .replace("#include <beginnormal_vertex>", "#include <beginnormal_vertex>\nvBack = smoothstep(-0.35, -0.75, objectNormal.z) * step(-0.062, position.y);");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying float vBack;")
+      .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.035, 0.035, 0.04), vBack);");
+  };
 }

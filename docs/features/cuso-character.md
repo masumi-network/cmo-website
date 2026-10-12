@@ -5,7 +5,7 @@ Last updated: 2026-10-12 · Status: done
 ## What it does
 - The real mascot (`public/models/cuso.glb`) is rigged in the browser and travels the city's streets between chapters: down from the rooftop, along the walking streets, up onto Union Square's roof, a big jump to the pyramid tip, onto the cable car and the pier.
 - He moves at his own natural pace behind the scroll: he walks near places (feet locked to the distance walked, so they never slide), dashes the long street stretches like a cursor, and jumps onto roofs. If you jump far ahead (the rail, Ask Cuso) he blinks there like a cursor (a quick pop).
-- A chase camera follows where he really is, then settles into the next chapter's shot once he arrives. It pulls in and rises so a building never blocks the view.
+- A lead camera walks ahead of him at a 3/4 angle (we see his face as he comes towards us), following where he really is, then settles into the next chapter's shot once he arrives. It pulls in and rises so a building never blocks the view.
 - Standing, nothing moves him as a block: he breathes, shifts his weight, blinks, turns his torso toward your pointer, waves when he arrives, and cheers with a little hop when you approve something. The baked clips in the GLB are no longer used.
 - Cars wait when he is in their lane.
 
@@ -21,5 +21,5 @@ Last updated: 2026-10-12 · Status: done
 - Layout tests: chapter cameras never start inside a building.
 
 ## Known limits
-- The baked texture shows his face on the back too (the model is flat), so from behind the arrow looks mirrored.
+- He is flat: from behind, the arrow outline is mirrored. The back of the body is painted dark (`paintBack` in `rig.ts`) so it reads as his back, not a flipped cursor, and the lead camera mostly shows his front.
 - Walking streets have no traffic and clear sidewalks; other streets have cars.

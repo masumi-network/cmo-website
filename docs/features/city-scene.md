@@ -19,7 +19,7 @@ Last updated: 2026-10-12 · Status: v0 (art passes 1 to 3 done) · Launch blocke
 - `city.tsx`: renders the layout with instanced meshes (a few draw calls for the whole city). The ground is a displaced plane with one canvas texture (`groundTexture` in `textures.ts`); the shore cliffs are an extrusion. Buildings have a footing below ground so slopes never show gaps. Cars are instanced and moved every frame. Fog is unlit and tinted by time of day.
 - `landmarks.tsx`: named places sit on the grid. Signs show the visitor's brand. Landmark buildings use the same facade shader.
 - `atmosphere.tsx`: `lightingAt(hour)` every frame; also drives `facadeNight`.
-- Post effects (full mode): AO, bloom, tilt shift, a little saturation and contrast, vignette, ACES. Phones and weak machines get "lite": no AO, reflections or tilt shift.
+- Post effects (full mode): bloom, tilt shift, a little saturation, vignette, ACES. Phones and weak machines get "lite": no reflections or tilt shift.
 
 ## Acceptance
 - Layout tests: seeded, on land, streets free, landmarks and views clear (with real heights), pyramid is the tallest nearby, never on Cuso's spot.
@@ -31,10 +31,13 @@ Last updated: 2026-10-12 · Status: v0 (art passes 1 to 3 done) · Launch blocke
 - **Pass 2 (2026-10-12):** hills with streets climbing them; buildings on slopes; cars, sailboats, Alcatraz; hero turned north-east over the bay (Alcatraz, Coit Tower) with sky behind the headline; 18:00 shot shows the branded cable car; fog no longer turns to dark smoke; softer night windows.
 - **Pass 3 (2026-10-12):** real textures everywhere: Painted Lady facades, siding, shingles, glass and limestone towers, asphalt, sidewalks, grass; textured landmarks (Edwardian apartment under the hero, Hayes Valley shopfront with the brand on its sign band, a wall of real coffee posts, precast pyramid, limestone Union Square and Ferry Building); detailed Golden Gate (stepped towers, cables, suspenders, truss); 06:00 shot now has the Golden Gate behind Cuso.
 - **Pass 3b (2026-10-12):** Marin Headlands as rolling ridged terrain with a golden grass and scrub texture (darker on steep slopes), a cove where the Golden Gate lands; the bridge in riveted International Orange steel with a road deck.
+- **Pass 3c (2026-10-12):** both bridges tied to the land: the Golden Gate approach down into the city grid, a graded road from its north end into the headlands (cut and fill: the hills are carved around it), and an elevated Bay Bridge ramp into SoMa (`roads.ts`). The Bay Bridge rebuilt like the Golden Gate in grey riveted steel (X-braced towers, cables, suspenders, truss) with its light sculpture. Railings on both decks; suspender ends hidden inside the deck. Shore cliffs as a concrete sea wall; Treasure Island grassed. AO post effect removed (dark halos on thin distant edges, and it hid the fog).
 - **Next:** real phone performance check (iOS Safari, Android Chrome); people on sidewalks (scale vs Cuso to decide); car headlights at night; a modelled diorama kit if we want to go past procedural.
 
 ## Gotchas
 - Sun azimuth: 0 = south, 90 = east, 180 = north.
+- Screenshots in headless Chrome: it pauses requestAnimationFrame without input, so scripted scrolls do not update the scene. Move the mouse while waiting (see `docs/VERIFY.md`).
 - Facade hash: only hash exact per-cell values. Interpolated normals or wall-plane coordinates make windows flicker per pixel (the hash amplifies tiny errors).
 - `react-hooks/immutability` lint rule is off in `src/scene/**`: R3F mutates three.js objects in `useFrame` by design.
 - three r186 removed soft PCF shadows; we use `shadows="percentage"`.
+- Do not add `BrightnessContrast` to the post chain: on a real GPU it turned the near half of the Golden Gate black (found by toggling effects one by one; likely negative colour values before tone mapping). Headless Chrome does not show it.

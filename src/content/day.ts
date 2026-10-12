@@ -178,7 +178,14 @@ export const chapters: readonly Chapter[] = [
   },
 ];
 
-/** Bird's-eye camera for Explore mode. */
-export const overviewCamera = { position: [52, 86, 92] as Vec3, target: [0, 0, 4] as Vec3 };
+/**
+ * Explore mode's bird's-eye view: the direction it looks from, and the places
+ * that must be in frame (every pin plus the Golden Gate). The camera rig
+ * fits the distance to the screen, so nothing gets cut off on any size.
+ */
+export const overview = {
+  direction: [0.42, 0.8, 0.44] as Vec3,
+  include: [] as Vec3[],
+};
 
 export const chapterIndex = (id: ChapterId): number => chapters.findIndex((c) => c.id === id);

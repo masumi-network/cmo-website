@@ -90,8 +90,8 @@ export function Atmosphere() {
     }
 
     fog.color.set(L.fog);
-    fog.near = explore ? 140 : 70;
-    fog.far = explore ? 480 : 340;
+    fog.near = explore ? 260 : 70;
+    fog.far = explore ? 900 : 340;
 
     sky.uniforms.top.value.set(L.skyTop);
     sky.uniforms.horizon.value.set(L.skyHorizon);

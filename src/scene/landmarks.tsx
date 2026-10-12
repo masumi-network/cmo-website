@@ -3,7 +3,7 @@
 // Named places in the city. Each chapter happens at one of these.
 // Signs, the billboard and cable cars show the visitor's brand.
 
-import { Line, useTexture } from "@react-three/drei";
+import { useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, BufferGeometry, CatmullRomCurve3, Color, DoubleSide, Float32BufferAttribute, TubeGeometry, Vector3, MeshStandardMaterial, Object3D, RepeatWrapping, SRGBColorSpace, type Group, type InstancedMesh, type Mesh, type PointLight, type Texture } from "three";
@@ -12,6 +12,7 @@ import { heightAt } from "@/lib/terrain";
 import { useCity } from "@/lib/store";
 import { dayNow, rig, useNightGlow } from "./shared";
 import { towerMaterial, worldMaterial } from "./materials";
+import { ROADS, piers, roadGeometry } from "./roads";
 import { chartTexture, useSign } from "./textures";
 
 const useBrand = () => (brandFromUrl(useCity((s) => s.website)) ?? "your brand").toUpperCase();
@@ -31,6 +32,9 @@ const LANDMARK_TEXTURES = {
   precast: "/textures/precast.jpg",
   stone: "/textures/stone.jpg",
   ggsteel: "/textures/ggsteel.jpg",
+  baysteel: "/textures/baysteel.jpg",
+  asphalt: "/textures/asphalt.jpg",
+  concrete: "/textures/concrete.jpg",
 };
 type LandmarkTextures = Record<keyof typeof LANDMARK_TEXTURES, Texture>;
 
@@ -198,8 +202,9 @@ export function UnionSquare() {
       </mesh>
       {/* the scissor lift Cuso works from */}
       <Box p={[5.6, 5.08, 10.4]} s={[2, 0.16, 1.6]} color="#f2b632" />
-      <Rails x0={-2} x1={24} z={14} />
-      <CableCar p={[11, 0, 14]} drive={{ from: 0, to: 20, speed: 0.05 }} />
+      {/* shuttles west of the Bay Bridge ramp */}
+      <Rails x0={-2} x1={8} z={14} />
+      <CableCar p={[3, 0, 14]} drive={{ from: 0, to: 4, speed: 0.05 }} />
     </group>
   );
 }
@@ -377,13 +382,14 @@ const BAY_CABLES: [number, number, number, number, number][] = [
   [BAY_TOWERS[BAY_TOWERS.length - 1], 26, 124, BAY_DECK + 1, 6],
 ];
 
-/** Bay Bridge with its light sculpture, lit at night. */
+/** Bay Bridge (west span): steel towers with X-bracing, cables, suspenders and the light sculpture. */
 export function BayBridge() {
   const lights = useRef<InstancedMesh>(null);
   const glow = useGlow("#eef3ff", 5, 0);
-  const towers = BAY_TOWERS;
-  const deckY = BAY_DECK;
-  const cables = BAY_CABLES;
+  const { baysteel } = useLandmarkTextures();
+  const steel = useMemo(() => worldMaterial(baysteel, 2.2), [baysteel]);
+  const deck = useMemo(() => worldMaterial(baysteel, 2.2, "#b4b0aa"), [baysteel]);
+  const cableMat = useMemo(() => new MeshStandardMaterial({ color: "#8d959e", roughness: 0.45, metalness: 0.4 }), []);
   const lightPoints = useMemo(() => {
     const pts: V3[] = [];
     for (const z of [13, 15]) {
@@ -394,6 +400,24 @@ export function BayBridge() {
       }
     }
     return pts;
+  }, []);
+  const cables = useMemo(
+    () =>
+      [13, 15].flatMap((z) =>
+        BAY_CABLES.map(([x0, y0, x1, y1, sag]) => new TubeGeometry(new CatmullRomCurve3(catenary(x0, y0, x1, y1, sag, z, "x", 40).map((p) => new Vector3(...p))), 80, 0.18, 6)),
+      ),
+    [],
+  );
+  const suspenders = useMemo(() => {
+    const pts: number[] = [];
+    for (const z of [13, 15]) {
+      for (const [x0, y0, x1, y1, sag] of BAY_CABLES) {
+        for (const [x, y] of catenary(x0, y0, x1, y1, sag, z, "x", Math.round(Math.abs(x1 - x0) / 1.6))) {
+          if (y > BAY_DECK + 0.8) pts.push(x, y, z, x, BAY_DECK - 0.1, z); // ends hidden inside the deck
+        }
+      }
+    }
+    return new BufferGeometry().setAttribute("position", new Float32BufferAttribute(pts, 3));
   }, []);
 
   useLayoutEffect(() => {
@@ -409,25 +433,82 @@ export function BayBridge() {
     mesh.computeBoundingSphere();
   }, [lightPoints]);
 
+  const length = 140 - 31;
   return (
     <group>
-      <Box p={[85, deckY, 14]} s={[108, 0.5, 2.6]} color="#8e979f" />
-      {towers.map((x) => (
-        <group key={x}>
-          <Box p={[x, 13, 12.9]} s={[0.6, 26, 0.6]} color="#8e979f" />
-          <Box p={[x, 13, 15.1]} s={[0.6, 26, 0.6]} color="#8e979f" />
-          <Box p={[x, 24, 14]} s={[0.5, 0.5, 2.8]} color="#8e979f" />
-          <Box p={[x, deckY - 3.7, 14]} s={[2, 7, 3]} color="#80888f" />
+      <mesh position={[31 + length / 2, BAY_DECK, 14]} material={deck} castShadow receiveShadow>
+        <boxGeometry args={[length, 0.5, 3]} />
+      </mesh>
+      <mesh position={[31 + length / 2, BAY_DECK - 0.8, 14]} material={steel} castShadow>
+        <boxGeometry args={[length, 1.1, 2.6]} />
+      </mesh>
+      {[-1.42, 1.42].map((dz) => (
+        <mesh key={dz} position={[31 + length / 2, BAY_DECK + 0.55, 14 + dz]} material={steel}>
+          <boxGeometry args={[length, 0.6, 0.16]} />
+        </mesh>
+      ))}
+      {BAY_TOWERS.map((x) => (
+        <group key={x} position={[x, 0, 14]}>
+          {[-1.15, 1.15].map((dz) => (
+            <mesh key={dz} position={[0, 13, dz]} material={steel} castShadow>
+              <boxGeometry args={[0.9, 26, 0.7]} />
+            </mesh>
+          ))}
+          {/* X-bracing between the legs, above and below the deck */}
+          {[11.5, 18.5].map((y) =>
+            [-1, 1].map((k) => (
+              <mesh key={`${y}${k}`} position={[0, y, 0]} rotation-x={k * 0.72} material={steel} castShadow>
+                <boxGeometry args={[0.35, 0.35, 3.3]} />
+              </mesh>
+            )),
+          )}
+          {[BAY_DECK - 1.5, 15, 22, 25.7].map((y) => (
+            <mesh key={y} position={[0, y, 0]} material={steel} castShadow>
+              <boxGeometry args={[0.6, 0.5, 3]} />
+            </mesh>
+          ))}
+          <mesh position={[0, BAY_DECK - 4, 0]} castShadow receiveShadow>
+            <boxGeometry args={[2.4, 7, 3.6]} />
+            <meshStandardMaterial color="#9a9488" roughness={0.9} />
+          </mesh>
         </group>
       ))}
-      {[13, 15].flatMap((z) =>
-        cables.map(([x0, y0, x1, y1, sag]) => (
-          <Line key={`${z}${x0}`} points={catenary(x0, y0, x1, y1, sag, z, "x")} color="#7d8690" lineWidth={1.4} />
-        )),
-      )}
+      {cables.map((g, i) => (
+        <mesh key={i} geometry={g} material={cableMat} castShadow />
+      ))}
+      <lineSegments geometry={suspenders}>
+        <lineBasicMaterial color="#7d8690" transparent opacity={0.7} />
+      </lineSegments>
       <instancedMesh ref={lights} args={[undefined, glow, lightPoints.length]}>
         <sphereGeometry args={[0.07, 6, 4]} />
       </instancedMesh>
+    </group>
+  );
+}
+
+/** Roads tying the bridges to the land, on piers where they are elevated. */
+export function Roads() {
+  const { asphalt, concrete } = useLandmarkTextures();
+  const materials = useMemo(() => {
+    const road = asphalt.clone();
+    road.repeat.set(1 / 3, 1 / 3);
+    const wall = concrete.clone();
+    wall.repeat.set(1 / 3, 1 / 3);
+    return [new MeshStandardMaterial({ map: road, roughness: 0.9 }), new MeshStandardMaterial({ map: wall, roughness: 0.85, side: DoubleSide })];
+  }, [asphalt, concrete]);
+  const geometries = useMemo(() => ROADS.map(roadGeometry), []);
+  const pierList = useMemo(() => ROADS.flatMap((r) => piers(r)), []);
+  return (
+    <group>
+      {geometries.map((g, i) => (
+        <mesh key={i} geometry={g} material={materials} castShadow receiveShadow />
+      ))}
+      {pierList.map(([x, z, g, top]) => (
+        <mesh key={`${x}${z}`} position={[x, (g + top) / 2, z]} castShadow receiveShadow>
+          <boxGeometry args={[1.2, top - g, 1.6]} />
+          <meshStandardMaterial map={materials[1].map} roughness={0.9} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -444,7 +525,7 @@ export function GoldenGate() {
   const { ggsteel } = useLandmarkTextures();
   // Riveted International Orange steel on towers and deck; the deck top is road.
   const paint = useMemo(() => worldMaterial(ggsteel, 2.2), [ggsteel]);
-  const deck = useMemo(() => worldMaterial(ggsteel, 2.2, "#3b3a3a"), [ggsteel]);
+  const deck = useMemo(() => worldMaterial(ggsteel, 2.2, "#b4b0aa"), [ggsteel]);
   const cable = useMemo(() => new MeshStandardMaterial({ color: GG.red, roughness: 0.5, metalness: 0.3 }), []);
   const truss = useMemo(() => new MeshStandardMaterial({ color: "#7e2c1e", roughness: 0.7, metalness: 0.2 }), []);
   // Main cables as tubes; suspenders as thin vertical strokes down to the deck.
@@ -460,7 +541,7 @@ export function GoldenGate() {
     for (const dx of [-1.25, 1.25]) {
       for (const [z0, y0, z1, y1, sag] of GG_SPANS) {
         for (const [x, y, z] of catenary(z0, y0, z1, y1, sag, GG.x + dx, "z", Math.round(Math.abs(z1 - z0) / 1.6))) {
-          if (y > GG.deck + 0.8) pts.push(x, y, z, x, GG.deck + 0.3, z);
+          if (y > GG.deck + 0.8) pts.push(x, y, z, x, GG.deck - 0.1, z); // ends hidden inside the deck
         }
       }
     }
@@ -476,6 +557,12 @@ export function GoldenGate() {
       <mesh position={[GG.x, GG.deck - 0.75, (GG.south + GG.north) / 2]} material={truss} castShadow>
         <boxGeometry args={[2.6, 1, GG.south - GG.north]} />
       </mesh>
+      {/* railings along both edges */}
+      {[-1.42, 1.42].map((dx) => (
+        <mesh key={dx} position={[GG.x + dx, GG.deck + 0.55, (GG.south + GG.north) / 2]} material={paint}>
+          <boxGeometry args={[0.16, 0.6, GG.south - GG.north]} />
+        </mesh>
+      ))}
       {/* anchorages */}
       {[GG.south, GG.north].map((z) => (
         <mesh key={z} position={[GG.x, GG.deck / 2, z]} castShadow receiveShadow>

@@ -33,12 +33,12 @@ import {
 import { facadeMaterial } from "./facade";
 import { chapters } from "@/content/day";
 import { useCity } from "@/lib/store";
-import { heightAt } from "@/lib/terrain";
+import { heightAt, headlandHeight } from "@/lib/terrain";
 import { activeIndex } from "@/lib/time";
 import { WALK_X, WALK_Z } from "./grid";
 import { CITY, LAND, LAND_BOUNDS, X_STREETS, Z_STREETS, insideLand, type House, type Tower } from "./layout";
 import { rig, useNightGlow } from "./shared";
-import { FOOTING, groundMaterial, houseMaterial, roofMaterial, towerMaterial } from "./materials";
+import { FOOTING, groundMaterial, houseMaterial, roofMaterial, towerMaterial, worldMaterial } from "./materials";
 import { groundMask } from "./textures";
 
 const o = new Object3D();
@@ -122,7 +122,7 @@ export function City({ lite }: { lite: boolean }) {
     <>
       <Land tex={tex} />
       <Water lite={lite} />
-      <Hills />
+      <Hills map={tex.hills} />
       <Headlands map={tex.hills} />
       <Houses houses={city.houses} tex={tex} />
       <Towers towers={city.towers} tex={tex} />
@@ -144,7 +144,8 @@ function Land({ tex }: { tex: Textures }) {
     return g;
   }, []);
   // Group 0 is the flat top (hidden: the terrain replaces it), group 1 the sides.
-  const cliffMaterials = useMemo(() => [new MeshBasicMaterial({ visible: false }), new MeshStandardMaterial({ color: "#a89a82", roughness: 1 })], []);
+  // Shore: a concrete sea wall.
+  const cliffMaterials = useMemo(() => [new MeshBasicMaterial({ visible: false }), worldMaterial(tex.concrete, 3)], [tex]);
 
   const terrain = useMemo(() => {
     const { minX, maxX, minZ, maxZ } = LAND_BOUNDS;
@@ -190,13 +191,19 @@ const HILLS: [number, number, number, number, string][] = [
   [142, 14, 9, 4.5, "#8f8a68"],
 ];
 
-function Hills() {
+/** Islands in the bay (Treasure Island / Yerba Buena), grassed like the headlands. */
+function Hills({ map }: { map: Texture }) {
+  const grass = useMemo(() => {
+    const t = map.clone();
+    t.repeat.set(3, 3);
+    return t;
+  }, [map]);
   return (
     <>
-      {HILLS.map(([x, z, r, h, color]) => (
+      {HILLS.map(([x, z, r, h]) => (
         <mesh key={`${x}${z}`} position={[x, -0.6, z]} scale={[r, h, r]} castShadow receiveShadow>
           <sphereGeometry args={[1, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial color={color} roughness={1} />
+          <meshStandardMaterial map={grass} roughness={1} />
         </mesh>
       ))}
     </>
@@ -205,46 +212,6 @@ function Hills() {
 
 // Marin Headlands across the Golden Gate: ridged hills of golden grass and
 // scrub, a cove where the bridge lands, steeper slopes darker.
-function hash2(x: number, z: number) {
-  const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
-  return s - Math.floor(s);
-}
-function valueNoise(x: number, z: number) {
-  const xi = Math.floor(x);
-  const zi = Math.floor(z);
-  const fx = x - xi;
-  const fz = z - zi;
-  const u = fx * fx * (3 - 2 * fx);
-  const v = fz * fz * (3 - 2 * fz);
-  const a = hash2(xi, zi);
-  const b = hash2(xi + 1, zi);
-  const c = hash2(xi, zi + 1);
-  const d = hash2(xi + 1, zi + 1);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
-function ridges(x: number, z: number) {
-  let h = 0;
-  let amp = 1;
-  let f = 1 / 55;
-  for (let o = 0; o < 4; o++) {
-    const n = valueNoise(x * f, z * f);
-    h += amp * (o === 0 ? n : 1 - Math.abs(n * 2 - 1)); // rolling base, soft ridges on top
-    amp *= 0.45;
-    f *= 2.1;
-  }
-  return h / 1.7;
-}
-/** North shore of the strait; it bends north where the bridge lands (x -80). */
-const marinShore = (x: number) => -128 - 25 * Math.exp(-(((x + 80) / 24) ** 2));
-
-export function headlandHeight(x: number, z: number) {
-  const shore = marinShore(x);
-  if (z > shore) return -1.5;
-  const t = Math.min(1, (shore - z) / 34);
-  const rise = t * t * (3 - 2 * t);
-  return -1.5 + rise * (5 + 20 * ridges(x, z));
-}
-
 function Headlands({ map }: { map: Texture }) {
   const geometry = useMemo(() => {
     const x0 = -210, x1 = 70, z0 = -290, z1 = -118;
@@ -399,6 +366,9 @@ const fogTint = (hour: number) => (hour >= 20 && hour < 29 ? "#3c4260" : hour >=
 /** Karl the fog rolling in from the ocean, and a few high clouds. */
 function Fog() {
   const tint = useCity((s) => fogTint(chapters[activeIndex(s.progress, chapters.length)].hour));
+  // From the bird's-eye map, fog banks read as puffs: leave them to the close shots.
+  const explore = useCity((s) => s.mode === "explore");
+  if (explore) return null;
   return (
     <Clouds texture="/textures/cloud.png" material={MeshBasicMaterial} limit={260}>
       <Cloud seed={1} segments={40} bounds={[22, 3, 30]} volume={18} position={[-92, 3, -30]} opacity={0.7} speed={0.05} growth={6} color={tint} />

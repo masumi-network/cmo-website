@@ -20,6 +20,8 @@ First time on a machine: `pnpm exec playwright install chromium`.
 
 E2E saves a screenshot of every chapter to `screenshots/` (gitignored).
 
+Scripted screenshots of the 3D: headless Chrome pauses `requestAnimationFrame` without user input, so after a programmatic scroll the scene may not update. Move the mouse while waiting (the e2e assertions on the DOM are not affected).
+
 ## 2. Visual check (every UI change)
 
 Open `screenshots/` and check, desktop and mobile:
