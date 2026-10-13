@@ -130,6 +130,15 @@ test("without 3D the page still works (posters)", async ({ page }) => {
   await shot(page, "10-static");
 });
 
+test("posters load only near the current chapter, and leave once the 3D is in", async ({ page }) => {
+  const posters = page.locator("[data-scene] img");
+  await open(page, "?static");
+  await expect(posters).toHaveCount(2); // this chapter and the next
+  await open(page);
+  await waitForCity(page);
+  await expect(posters).toHaveCount(0);
+});
+
 test("on a phone, Cuso stands clear of the cards in every chapter, and the cards fit", async ({ page, isMobile }) => {
   test.skip(!isMobile, "phone layout");
   test.setTimeout(400_000); // one page load per chapter in software WebGL

@@ -32,21 +32,27 @@ function detect(): Support {
 }
 const noop = () => () => {};
 
-/** Concept renders behind everything: loading state and no-WebGL fallback. */
+/**
+ * Concept renders behind everything: loading state and no-WebGL fallback.
+ * Only this chapter's poster and its neighbours load (they all stack in view,
+ * so `loading="lazy"` would fetch every one).
+ */
 function Posters({ visible }: { visible: boolean }) {
   const active = useCity((s) => activeIndex(s.progress, chapters.length));
   return (
     <div aria-hidden className={cn("fixed inset-0 transition-opacity duration-700", visible ? "opacity-100" : "opacity-0")}>
-      {chapters.map((c, i) => (
-        // eslint-disable-next-line @next/next/no-img-element -- full-bleed art, swapped by CSS
-        <img
-          key={c.id}
-          src={c.poster}
-          alt=""
-          loading={i === 0 ? "eager" : "lazy"}
-          className={cn("absolute inset-0 size-full object-cover transition-opacity duration-700", i === active ? "opacity-100" : "opacity-0")}
-        />
-      ))}
+      {chapters.map(
+        (c, i) =>
+          Math.abs(i - active) <= 1 && (
+            // eslint-disable-next-line @next/next/no-img-element -- full-bleed art, swapped by CSS
+            <img
+              key={c.id}
+              src={c.poster}
+              alt=""
+              className={cn("absolute inset-0 size-full object-cover transition-opacity duration-700", i === active ? "opacity-100" : "opacity-0")}
+            />
+          ),
+      )}
     </div>
   );
 }
@@ -80,6 +86,8 @@ function FlatExtras({ onGo }: { onGo: (index: number) => void }) {
 export function Experience() {
   const env = useSyncExternalStore(noop, detect, () => null);
   const [ready, setReady] = useState(false);
+  // The posters go once the 3D has faded in over them.
+  const [covered, setCovered] = useState(false);
   const mode = useCity((s) => s.mode);
   const active = useCity((s) => activeIndex(s.progress, chapters.length));
   const onReady = useCallback(() => setReady(true), []);
@@ -112,9 +120,12 @@ export function Experience() {
     <>
       {/* lvh: phone browser bars sliding in and out never resize the 3D. */}
       <div className="fixed inset-x-0 top-0 h-lvh bg-[#e9dfd0]" data-scene={!env ? "pending" : !env.webgl ? "static" : ready ? "ready" : "loading"}>
-        <Posters visible={!env?.webgl || !ready} />
+        {!covered && <Posters visible={!env?.webgl || !ready} />}
         {env?.webgl && (
-          <div className={cn("fixed inset-x-0 top-0 h-lvh transition-opacity duration-1000", ready ? "opacity-100" : "opacity-0")}>
+          <div
+            className={cn("fixed inset-x-0 top-0 h-lvh transition-opacity duration-1000", ready ? "opacity-100" : "opacity-0")}
+            onTransitionEnd={(e) => ready && e.target === e.currentTarget && setCovered(true)}
+          >
             <Scene onReady={onReady} onGo={onGo} lite={env.lite} />
           </div>
         )}

@@ -44,10 +44,12 @@ const DEBUG = args.includes("--debug");
 const ONLY = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
 
 /**
- * How far (metres) a simplified part may stray from the source. The glossy
- * paint and glass show every dent, the dark matte trim hides them.
+ * How far (metres) a simplified part may stray from the source. In the city a
+ * car is under 4 units long, and in the closest shot one pixel is about 4 cm
+ * of car, so 4 mm is a tenth of a pixel. The glossy paint and glass show
+ * every dent, the dark matte trim and tyres hide them.
  */
-const ERROR = { paint: 0.0015, glass: 0.0015, light_front: 0.0015, light_rear: 0.0015, trim: 0.003, tyre: 0.0025, rim: 0.002 };
+const ERROR = { paint: 0.004, glass: 0.004, light_front: 0.004, light_rear: 0.004, trim: 0.008, tyre: 0.005, rim: 0.006 };
 /** How much a turned normal counts against that error: keeps curved panels from going flat. */
 const NORMAL_WEIGHT = 0.05;
 

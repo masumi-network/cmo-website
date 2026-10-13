@@ -1,6 +1,6 @@
 # Feature map
 
-Last updated: 2026-10-12
+Last updated: 2026-10-13
 
 Every feature of the site, where it lives, and what proves it works.
 `tests/unit/feature-map.test.ts` checks this table: every doc, code path and
