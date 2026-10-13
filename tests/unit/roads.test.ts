@@ -4,7 +4,7 @@
 // road on land (a city street, the Marin road, the Yerba Buena tunnel).
 
 import { describe, expect, it } from "vitest";
-import { MARIN_ROAD, headlandHeight, heightAt } from "@/lib/terrain";
+import { MARIN_ROAD, headlandHeight, surfaceAt } from "@/lib/terrain";
 import { HILLS, WATER_Y } from "@/scene/bay";
 import { LAND, STREET, X_STREETS, Z_STREETS, groundAt, insideLand } from "@/scene/grid";
 import { BAY_TOWER, BAY_TOWERS, GG, GG_TOWER } from "@/scene/landmarks";
@@ -29,10 +29,10 @@ function dome(x: number, z: number) {
   return d < 1 ? ISLAND.y + ISLAND.h * Math.sqrt(1 - d * d) : -Infinity;
 }
 
-/** What is really under x, z: city ground and sea wall, the Marin hills, the island, or water. */
+/** What is really under x, z: city ground (streets a kerb below their sidewalks) and sea wall, the Marin hills, the island, or water. */
 function surface(x: number, z: number) {
   if (z < -112) return headlandHeight(x, z);
-  const city = insideLand(x, z) || shoreDistance(x, z) < 0.7 ? heightAt(x, z) : WATER_Y;
+  const city = insideLand(x, z) || shoreDistance(x, z) < 0.7 ? surfaceAt(x, z) : WATER_Y;
   return Math.max(city, dome(x, z));
 }
 
@@ -122,7 +122,7 @@ describe("roads at the bridge ends", () => {
     const r = road(name);
     const n = r.points.length - 1;
     const [x, y, z] = r.points[n];
-    expect(Math.abs(y - heightAt(x, z))).toBeLessThanOrEqual(0.05);
+    expect(Math.abs(y - surfaceAt(x, z))).toBeLessThanOrEqual(0.05);
     // in line with the street it joins, which goes on past the end
     const [dx, dz] = heading(r, n);
     const alongX = Math.abs(dx) > 0.999 && Z_STREETS.some((s) => Math.abs(s - z) < 1e-6);
@@ -131,7 +131,7 @@ describe("roads at the bridge ends", () => {
     for (let s = 0; s <= 3; s += 0.5) expect(groundAt(x + dx * s, z + dz * s)).toBe("street");
     // wherever it is at grade, the whole width is asphalt: no sidewalk, grass or block under it
     for (let i = 0; i <= n; i++) {
-      if (r.points[i][1] - heightAt(r.points[i][0], r.points[i][2]) > 0.3) continue;
+      if (r.points[i][1] - surfaceAt(r.points[i][0], r.points[i][2]) > 0.3) continue;
       for (const [ex, , ez] of across(r, i)) expect(groundAt(ex, ez), `${name} at ${ex.toFixed(1)},${ez.toFixed(1)}`).toBe("street");
     }
     // and it eases onto the street

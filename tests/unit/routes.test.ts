@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chapters } from "@/content/day";
-import { heightAt } from "@/lib/terrain";
+import { surfaceAt } from "@/lib/terrain";
 import { insideLand } from "@/scene/grid";
 import { generateCity } from "@/scene/layout";
 import { DAY_LENGTH, LEG_START, PATHS, dayDistance, sampleDay, samplePath } from "@/scene/routes";
@@ -28,7 +28,7 @@ describe("Cuso's walking routes", () => {
         const [x, y, z] = pos;
         const onPier = x > 30.5 && x < 41 && z > 21.8 && z < 26.2;
         expect(insideLand(x, z) || onPier, `${x},${z}`).toBe(true);
-        expect(y).toBeGreaterThanOrEqual(heightAt(x, z) - 1e-6);
+        expect(y).toBeGreaterThanOrEqual(surfaceAt(x, z) - 1e-6);
         for (const b of buildings) {
           const inside = Math.abs(x - b.x) < b.w / 2 + 0.3 && Math.abs(z - b.z) < b.d / 2 + 0.3 && y < b.y + b.h;
           expect(inside, `walks into building at ${b.x},${b.z}`).toBe(false);

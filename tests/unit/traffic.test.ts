@@ -2,7 +2,7 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { Euler, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { heightAt } from "@/lib/terrain";
+import { surfaceAt } from "@/lib/terrain";
 import { WALK_X, WALK_Z, X_STREETS, Z_STREETS, insideLand } from "@/scene/grid";
 import { MAX_GRADE, ROADS, ROAD_WIDTH, onRoad } from "@/scene/roads";
 import { type Car, type Pose, MODELS, carPose, driveCars, makeTraffic, outOfSight, pointAt, spacing, wheelAngle } from "@/scene/traffic";
@@ -23,11 +23,11 @@ const PORTAL = ROADS.find((r) => r.tunnel)!.points.at(-1)!;
 /** Where the Marin road goes into the fog (it ends at z -288). */
 const FOG_Z = -280;
 
-/** What a tyre stands on: a bridge deck or road, the tunnel floor, or the ground. */
+/** What a tyre stands on: a bridge deck or road, the tunnel floor, or the ground (streets a kerb below their sidewalks). */
 function surface(x: number, z: number) {
   if (x > PORTAL[0] && Math.abs(z - PORTAL[2]) < ROAD_WIDTH / 2) return PORTAL[1];
   const r = onRoad(x, z);
-  return r ? Math.max(r.y, heightAt(x, z)) : heightAt(x, z);
+  return r ? Math.max(r.y, surfaceAt(x, z)) : surfaceAt(x, z);
 }
 
 /** Two cars overlap if no axis of either footprint separates them. */
@@ -175,8 +175,8 @@ describe("traffic", () => {
       for (let s = 0; s < car.path.length; s += 1) {
         const p = carPose(car, s, newPose());
         const [fx, fz] = [Math.sin(p.yaw) * 0.2, Math.cos(p.yaw) * 0.2];
-        const slope = (heightAt(p.x + fx, p.z + fz) - heightAt(p.x - fx, p.z - fz)) / 0.4;
-        expect(Math.abs(p.y - heightAt(p.x, p.z))).toBeLessThan(0.12);
+        const slope = (surfaceAt(p.x + fx, p.z + fz) - surfaceAt(p.x - fx, p.z - fz)) / 0.4;
+        expect(Math.abs(p.y - surfaceAt(p.x, p.z))).toBeLessThan(0.12);
         expect(Math.abs(p.pitch + Math.atan(slope))).toBeLessThan(0.06); // pitch > 0 is nose down
         steepest = Math.max(steepest, Math.abs(p.pitch));
       }
@@ -393,7 +393,7 @@ describe("bridge traffic", () => {
     // Heading south on x 13 towards the z 4 walking line, where Cuso crosses.
     const s0 = find((p) => Math.abs(p.x - 12.25) < 0.1 && Math.abs(p.z - 0) < 0.2 && Math.cos(p.yaw) > 0.9);
     const driven = Float32Array.from([s0]);
-    const cuso = { x: 12.4, y: heightAt(12.4, 5.6), z: 5.6 };
+    const cuso = { x: 12.4, y: surfaceAt(12.4, 5.6), z: 5.6 };
     for (let k = 0; k < 100; k++) driveCars([car], driven, 0.1, cuso);
     const p = carPose(car, driven[0], newPose());
     expect(p.z).toBeGreaterThan(1);
@@ -402,7 +402,7 @@ describe("bridge traffic", () => {
     const s1 = find((p) => p.y > 2 && p.x < 30 && p.z > 14 && Math.sin(p.yaw) > 0.9);
     const high = carPose(car, s1, newPose());
     driven[0] = s1;
-    driveCars([car], driven, 0.1, { x: high.x + 2, y: heightAt(high.x + 2, 15.6), z: 15.6 });
+    driveCars([car], driven, 0.1, { x: high.x + 2, y: surfaceAt(high.x + 2, 15.6), z: 15.6 });
     expect(driven[0]).toBeGreaterThan(s1);
   });
 });

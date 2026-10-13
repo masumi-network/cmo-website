@@ -27,7 +27,7 @@ import {
   type Mesh,
 } from "three";
 import type { Vec3 } from "@/content/day";
-import { MARIN_ROAD, heightAt } from "@/lib/terrain";
+import { MARIN_ROAD, heightAt, surfaceAt } from "@/lib/terrain";
 import { DECKS, ROADS, ROAD_WIDTH } from "./roads";
 import { rig, useNightGlow } from "./shared";
 
@@ -63,7 +63,7 @@ const STEP = 0.25;
 /**
  * A closed route sampled every ~STEP units: x, z in `pts`. Bridge routes also
  * keep the road surface height (`ys`; NaN on city streets, where the ground is
- * heightAt). `zones` has, per point, the junctions it is in (bit k: ZONES[k]).
+ * surfaceAt, a kerb below the sidewalks). `zones` has, per point, the junctions it is in (bit k: ZONES[k]).
  */
 export type Path = { pts: Float32Array; length: number; ys?: Float32Array; zones: Uint8Array };
 export type Car = { path: Path; offset: number; speed: number; color: string; type: CarType };
@@ -136,7 +136,7 @@ function resample(raw: P3[]): Path {
     const x = (pts[i * 2] = px + (qx - px) * u);
     const z = (pts[i * 2 + 1] = pz + (qz - pz) * u);
     // A road ends tucked just under its street: never below the ground. NaN (a street) stays NaN.
-    ys[i] = Math.max(py + (qy - py) * u, heightAt(x, z));
+    ys[i] = Math.max(py + (qy - py) * u, surfaceAt(x, z));
     zones[i] = ZONES.reduce((bits, [zx, zz, r], k) => (Math.hypot(x - zx, z - zz) < r ? bits | (1 << k) : bits), 0);
   }
   return ys.some((y) => !Number.isNaN(y)) ? { pts, length, ys, zones } : { pts, length, zones };
@@ -290,7 +290,7 @@ export function pointAt<T extends { x: number; z: number; y?: number }>({ pts, l
   out.x = pts[i * 2] + (pts[j * 2] - pts[i * 2]) * u;
   out.z = pts[i * 2 + 1] + (pts[j * 2 + 1] - pts[i * 2 + 1]) * u;
   const y = ys ? ys[i] + (ys[j] - ys[i]) * u : NaN;
-  out.y = Number.isNaN(y) ? heightAt(out.x, out.z) : y;
+  out.y = Number.isNaN(y) ? surfaceAt(out.x, out.z) : y;
   return out as T & { y: number };
 }
 
@@ -316,6 +316,7 @@ export function carPose(car: Car, s: number, out: Pose): Pose {
   const lx = (dz / span) * w;
   const lz = (-dx / span) * w;
   const onRoad = car.path.ys && !Number.isNaN(car.path.ys[indexAt(car.path, s)]);
+  // The hill tilts it, not the kerb (the probes reach over the sidewalks).
   out.roll = onRoad ? 0 : Math.atan2(heightAt(out.x + lx, out.z + lz) - heightAt(out.x - lx, out.z - lz), width);
   return out;
 }

@@ -5,8 +5,10 @@ import { chapters } from "@/content/day";
 import { heightAt } from "@/lib/terrain";
 
 export { LAND, PARKS, STREET, SIDEWALK, X_STREETS, Z_STREETS, insideLand } from "./grid";
-import { EDGE, STREET, SIDEWALK, X_STREETS, Z_STREETS, WALK_Z, groundAt, inPark, insideLand } from "./grid";
+import { EDGE, STREET, SIDEWALK, X_STREETS, Z_STREETS, WALK_X, WALK_Z, groundAt, inPark, insideLand, streetDrop } from "./grid";
 import { FOOTING } from "./materials";
+import { onRoad } from "./roads";
+import { PATHS } from "./routes";
 
 /** Places the generator keeps clear: [x, z, radius]. */
 export const CLEAR: [number, number, number][] = [
@@ -39,7 +41,7 @@ function rng(seed: number) {
 
 /** Row house bodies are this much narrower than their plot (a seam between houses). */
 export const HOUSE_GAP = 0.06;
-/** Height over width of a facade photo (houses-atlas.jpg tiles are 682.7 x 1024 texels). */
+/** Height over width of a house front (taken from the Painted Lady photos the models were measured from). */
 export const FACADE_ASPECT = 1.5;
 
 // `y` is the ground under the centre; `h` is height above it.
@@ -58,7 +60,10 @@ export type House = {
 export type Tier = { w: number; d: number; y: number; h: number };
 export type Tower = { x: number; y: number; z: number; w: number; d: number; h: number; glass: boolean; color: string; tiers: Tier[] };
 export type Tree = { x: number; y: number; z: number; s: number };
-export type Lamp = { x: number; y: number; z: number };
+/** Street furniture (street.tsx): lamps, hydrants, signs. `turn`: rotation around y. */
+export type Fixture = { x: number; y: number; z: number; turn: number };
+/** Lamps, hydrants and signs stand this far in from the kerb line, like SF's: clear of the stoops and bays at the back of the sidewalk. */
+export const KERB_SET = 0.3;
 
 const PAINTED = ["#f0d9c4", "#e9c7b0", "#d8e0d0", "#cfdbe3", "#f2e6c9", "#e6cfd6", "#d9cbb8", "#f4ede1", "#c9d7cf", "#e8d3a8"];
 const TRIMS = ["#fbf7ef", "#f3ece0", "#e8e1d4"];
@@ -94,7 +99,6 @@ export function generateCity() {
   const houses: House[] = [];
   const towers: Tower[] = [];
   const trees: Tree[] = [];
-  const lamps: Lamp[] = [];
   const edge = EDGE;
 
   for (let i = 0; i < X_STREETS.length - 1; i++) {
@@ -162,7 +166,7 @@ export function generateCity() {
     }
   }
 
-  // Street trees and lamps along the east-west streets.
+  // Street trees along the east-west streets.
   // Cuso walks the WALK_Z streets: keep their sidewalks clear.
   for (const sz of Z_STREETS.filter((z) => !WALK_Z.includes(z))) {
     for (let x = -64; x < 29; x += 4) {
@@ -174,12 +178,72 @@ export function generateCity() {
         const roll = rand();
         const y = heightAt(x, z);
         if (roll < 0.35 && !blocksView(x, z, y + 2.6, 0.9)) trees.push({ x, y, z, s: 0.55 + rand() * 0.25 });
-        else if (roll > 0.82 && !blocksView(x, z, y + 3, 0.2)) lamps.push({ x, y, z });
       }
     }
   }
 
-  return { houses, towers, trees, lamps };
+  return { houses, towers, trees, ...streetFurniture(trees) };
+}
+
+/** Cuso's whole day in x and z, every 0.25 (jumps too: furniture stays out from under them). */
+const ROUTE: [number, number][] = PATHS.flatMap(({ points }) =>
+  points.slice(1).flatMap((b, i) => {
+    const a = points[i];
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[2] - a[2]) / 0.25));
+    return Array.from({ length: n + 1 }, (_, k): [number, number] => [a[0] + ((b[0] - a[0]) * k) / n, a[2] + ((b[2] - a[2]) * k) / n]);
+  }),
+);
+
+/**
+ * Street lamps, fire hydrants and green street-name signs, by the junctions,
+ * all KERB_SET in from the kerb. Lamps stand on two opposite corners of a
+ * junction (in front of no house). Hydrants and signs stand just past a corner on the
+ * north-south streets, where the sidewalk runs past the houses' side walls
+ * (no doors, stoops or garages); signs only where a junction is on one of
+ * Cuso's walking streets. Nothing on a curb ramp; everything 1.3 off his
+ * routes, clear of trees, landmarks, bridge roads and camera views.
+ */
+function streetFurniture(trees: Tree[]) {
+  const rand = rng(7);
+  const lamps: Fixture[] = [];
+  const hydrants: Fixture[] = [];
+  const signs: Fixture[] = [];
+  const taken: { x: number; z: number }[] = [...trees];
+  const free = ({ x, z }: { x: number; z: number }, height: number, reach: number) =>
+    insideLand(x, z) &&
+    clearOf(x, z) &&
+    [0, 1, 2, 3, 4, 5, 6, 7].every((a) => {
+      const [px, pz] = [x + Math.cos((a * Math.PI) / 4) * 0.2, z + Math.sin((a * Math.PI) / 4) * 0.2];
+      return groundAt(px, pz) === "sidewalk" && streetDrop(px, pz) === 0;
+    }) &&
+    !onRoad(x, z) &&
+    taken.every((o) => Math.hypot(o.x - x, o.z - z) > 1.2) &&
+    ROUTE.every(([px, pz]) => Math.hypot(px - x, pz - z) > 1.3) &&
+    !blocksView(x, z, heightAt(x, z) + height, reach);
+  const place = (list: Fixture[], options: { x: number; z: number; dx: number }[], height: number, reach: number) => {
+    const o = options.find((p) => free(p, height, reach));
+    if (!o) return;
+    // hydrant nozzles and sign blades square to the street they stand by
+    const f = { x: o.x, y: heightAt(o.x, o.z), z: o.z, turn: o.dx > 0 ? Math.PI : 0 };
+    list.push(f);
+    taken.push(f);
+  };
+  const kerb = STREET / 2 + KERB_SET;
+  for (const s of X_STREETS) {
+    for (const t of Z_STREETS) {
+      if (!insideLand(s, t) || groundAt(s, t) !== "street") continue;
+      // the four corners, in a seeded order
+      const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map((c) => ({ c, k: rand() })).sort((a, b) => a.k - b.k).map(({ c }) => c);
+      const past = (along: number) => corners.map(([dx, dz]) => ({ x: s + dx * kerb, z: t + dz * (EDGE + along), dx }));
+      // lamps on two opposite corners (the walking streets' corners are curb ramps: they get none)
+      for (const [dx, dz] of [corners[0], corners[0].map((v) => -v)]) place(lamps, [{ x: s + dx * kerb, z: t + dz * kerb, dx }], 3.2, 0.15);
+      const walk = WALK_X.includes(s) || WALK_Z.includes(t);
+      const both = WALK_X.includes(s) && WALK_Z.includes(t);
+      if (walk && (both || rand() < 0.15)) place(signs, past(0.5), 2.3, 0.35);
+      if (rand() < 0.4) place(hydrants, past(0.9 + rand() * 0.6), 0.4, 0.15);
+    }
+  }
+  return { lamps, hydrants, signs };
 }
 
 /** The generated city, computed once. */

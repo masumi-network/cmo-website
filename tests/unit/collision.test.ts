@@ -7,13 +7,14 @@
 
 import { describe, expect, it } from "vitest";
 import { chapters } from "@/content/day";
-import { heightAt } from "@/lib/terrain";
+import { heightAt, surfaceAt } from "@/lib/terrain";
 import { CAR } from "@/scene/cable-car";
 import { FERRY, FERRY_CAR, FLAG, PYRAMID, ROOFTOP, SPIRE, UNION, UNION_CAR, WINGS, pyramidHalf } from "@/scene/landmarks";
 import { reliefDepth } from "@/scene/houses";
 import { CITY } from "@/scene/layout";
 import { DECK, RAIL } from "@/scene/pier";
 import { HULL } from "@/scene/rig";
+import { HYDRANT, LAMP, SIGN } from "@/scene/street";
 import { DAY_LENGTH, FACE, dayDistance, sampleDay } from "@/scene/routes";
 
 /** An axis-aligned box. `slope`: each side moves in by this much per unit up (the pyramid). */
@@ -49,7 +50,7 @@ function cableCar(name: string, x: number, y: number, z: number): Solid[] {
   ];
 }
 /** Where a car's floor sits: like cable-car.tsx, the street under its two trucks. */
-const y0 = (y: number, x: number, z: number) => y + (heightAt(x - 1.3, z) + heightAt(x + 1.3, z)) / 2;
+const y0 = (y: number, x: number, z: number) => y + (surfaceAt(x - 1.3, z) + surfaceAt(x + 1.3, z)) / 2;
 
 function landmarkSolids(): Solid[] {
   const out: Solid[] = [];
@@ -114,8 +115,11 @@ function landmarkSolids(): Solid[] {
   return out;
 }
 
-/** Row houses (with their facade relief and gable, houses.tsx) and towers, as built in city.tsx. */
+/** Row houses (with their facade relief and gable, houses.tsx), towers and street furniture, as built in city.tsx. */
 const citySolids: Solid[] = [
+  ...CITY.lamps.map((l) => around("street lamp", l.x, l.z, LAMP.reach, LAMP.reach, l.y, l.y + LAMP.height)),
+  ...CITY.hydrants.map((h) => around("hydrant", h.x, h.z, HYDRANT.reach, HYDRANT.reach, h.y, h.y + HYDRANT.height)),
+  ...CITY.signs.map((s) => around("street sign", s.x, s.z, SIGN.reach, SIGN.reach, s.y, s.y + SIGN.height)),
   ...CITY.houses.map((h) => around("house", h.x, h.z, h.w / 2 + 0.01, h.d / 2 + reliefDepth(h), h.y - 1, h.y + h.h + (h.roof === "gable" ? h.w * 0.42 : 0))),
   ...CITY.towers.map((t) => around("tower", t.x, t.z, t.w / 2, t.d / 2, t.y - 1, t.y + t.h)),
 ];
@@ -176,7 +180,7 @@ describe("Cuso's body never goes through anything", () => {
       const d = dir > 0 ? k * STEP : DAY_LENGTH - k * STEP;
       heading = facing(d, dir, heading);
       const { pos, leg, mode } = sampleDay(d);
-      const thing = hit(pos, heading) ?? (pos[1] < heightAt(pos[0], pos[2]) - 1e-6 ? "the ground" : null);
+      const thing = hit(pos, heading) ?? (pos[1] < surfaceAt(pos[0], pos[2]) - 1e-6 ? "the ground" : null);
       const key = `leg ${leg} (${mode}): inside ${thing}`;
       if (thing && !misses.has(key)) misses.set(key, `${key}, first at ${at(d)}`);
     }

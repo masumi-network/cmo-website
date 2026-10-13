@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chapters } from "@/content/day";
-import { MAX_STREET_GRADE, at, heightAt } from "@/lib/terrain";
+import { MAX_STREET_GRADE, at, heightAt, surfaceAt } from "@/lib/terrain";
 import { groundAt, insideLand } from "@/scene/grid";
 
 const spot = (id: string) => chapters.find((c) => c.id === id)!.spot;
@@ -48,7 +48,7 @@ describe("terrain", () => {
 
   it("places spots on the ground", () => {
     expect(at(-14, 8, -10.4)[1]).toBeCloseTo(8 + heightAt(-14, -10.4));
-    for (const c of chapters) expect(c.spot[1]).toBeGreaterThanOrEqual(heightAt(c.spot[0], c.spot[2]) - 1e-9);
+    for (const c of chapters) expect(c.spot[1]).toBeGreaterThanOrEqual(surfaceAt(c.spot[0], c.spot[2]) - 1e-9);
   });
 
   it("Cuso stands on top of the rooftop at 06:00", () => {

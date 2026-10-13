@@ -13,7 +13,7 @@ import { useEffect, useMemo } from "react";
 import { BoxGeometry, BufferGeometry, CircleGeometry, CylinderGeometry, ExtrudeGeometry, LatheGeometry, MeshStandardMaterial, PlaneGeometry, Shape, Vector2 } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { heightAt } from "@/lib/terrain";
+import { surfaceAt } from "@/lib/terrain";
 import { useBrand, useGlow, type V3 } from "./parts";
 import { useNightGlow } from "./shared";
 import { useSign } from "./textures";
@@ -276,7 +276,7 @@ function strip(x0: number, x1: number, z: number, width: number, top: number) {
   const len = x1 - x0;
   const g = box(len, top + 0.03, width, (x0 + x1) / 2, (top - 0.03) / 2, z, Math.max(1, Math.ceil(len)));
   const p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + heightAt(p.getX(i), p.getZ(i)));
+  for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + surfaceAt(p.getX(i), p.getZ(i)));
   return g;
 }
 
@@ -298,10 +298,10 @@ export function Rails({ x0, x1, z }: { x0: number; x1: number; z: number }) {
   );
 }
 
-/** Height and tilt of a car standing on the ground at x, z. */
+/** Height and tilt of a car standing on the street at x, z. */
 function ground(x: number, z: number) {
-  const a = heightAt(x - 1.3, z);
-  const b = heightAt(x + 1.3, z);
+  const a = surfaceAt(x - 1.3, z);
+  const b = surfaceAt(x + 1.3, z);
   return { y: (a + b) / 2, tilt: Math.atan2(b - a, 2.6) };
 }
 

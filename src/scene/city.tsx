@@ -24,25 +24,25 @@ import { chapters } from "@/content/day";
 import { useCity } from "@/lib/store";
 import { heightAt, headlandHeight } from "@/lib/terrain";
 import { activeIndex } from "@/lib/time";
-import { LAND, LAND_BOUNDS, insideLand } from "./grid";
+import { LAND, streetDrop } from "./grid";
+import { kerbGeometry, terrainGeometry } from "./ground";
 import { CITY } from "./layout";
 import { groundMaterial, worldMaterial } from "./materials";
+import { Grass } from "./grass";
 import { Houses } from "./houses";
-import { groundMask } from "./textures";
-import { Lamps } from "./street";
+import { groundMask, lampLight } from "./textures";
+import { StreetFurniture } from "./street";
 import { Towers } from "./towers";
 import { Trees } from "./trees";
 import { Cars } from "./traffic";
 
 
 const TEXTURES = {
-  atlas: "/textures/houses-atlas.jpg",
   siding: "/textures/siding.jpg",
   shingles: "/textures/shingles.jpg",
   asphalt: "/textures/asphalt.jpg",
   concrete: "/textures/concrete.jpg",
   grass: "/textures/grass.jpg",
-  glass: "/textures/glass.jpg",
   stone: "/textures/stone.jpg",
   hills: "/textures/hills.jpg",
 };
@@ -55,7 +55,7 @@ export function City({ lite }: { lite: boolean }) {
       t.colorSpace = SRGBColorSpace;
       t.anisotropy = 8;
       // Organic textures mirror (no visible seams); facades repeat exactly.
-      t.wrapS = t.wrapT = ["glass", "stone", "atlas"].includes(name) ? RepeatWrapping : MirroredRepeatWrapping;
+      t.wrapS = t.wrapT = ["glass", "stone"].includes(name) ? RepeatWrapping : MirroredRepeatWrapping;
     }
   }) as Textures;
   return (
@@ -67,7 +67,8 @@ export function City({ lite }: { lite: boolean }) {
       <Houses houses={city.houses} tex={tex} />
       <Towers towers={city.towers} tex={tex} />
       <Trees trees={city.trees} />
-      <Lamps lamps={city.lamps} />
+      <Grass lite={lite} grass={tex.grass} dry={tex.hills} />
+      <StreetFurniture lamps={city.lamps} hydrants={city.hydrants} signs={city.signs} />
       <Cars />
       <Bay />
       <Fog />
@@ -86,9 +87,11 @@ function Land({ tex }: { tex: Textures }) {
     });
     const g = new ExtrudeGeometry(new Shape(shore), { depth: 4, bevelEnabled: true, bevelSize: 0.6, bevelThickness: 0.6, bevelSegments: 2 });
     g.rotateX(-Math.PI / 2);
-    // Raise the top of the wall to the ground behind it (Telegraph Hill meets the bay as a cliff).
+    // Raise the top of the wall to the ground behind it (Telegraph Hill meets the bay as a cliff),
+    // never above a street that runs to it (streets lie a kerb below the sidewalks).
     const pos = g.attributes.position;
-    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 2) pos.setY(i, pos.getY(i) + heightAt(pos.getX(i), pos.getZ(i)));
+    const top = (x: number, z: number) => heightAt(x, z) - Math.max(...[-0.6, 0, 0.6].flatMap((dx) => [-0.6, 0, 0.6].map((dz) => streetDrop(x + dx, z + dz))));
+    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 2) pos.setY(i, pos.getY(i) + top(pos.getX(i), pos.getZ(i)));
     g.computeVertexNormals();
     return g;
   }, []);
@@ -96,28 +99,17 @@ function Land({ tex }: { tex: Textures }) {
   // Shore: a concrete sea wall.
   const cliffMaterials = useMemo(() => [new MeshBasicMaterial({ visible: false }), worldMaterial(tex.concrete, 3)], [tex]);
 
-  const terrain = useMemo(() => {
-    const { minX, maxX, minZ, maxZ } = LAND_BOUNDS;
-    const g = new PlaneGeometry(maxX - minX, maxZ - minZ, (maxX - minX) * 2, (maxZ - minZ) * 2);
-    g.rotateX(-Math.PI / 2);
-    g.translate((minX + maxX) / 2, 0, (minZ + maxZ) / 2);
-    const pos = g.attributes.position;
-    const uv = g.attributes.uv;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      pos.setY(i, insideLand(x, z) ? heightAt(x, z) : -1.2);
-      uv.setXY(i, x, -z); // same mapping as groundMask() expects
-    }
-    g.computeVertexNormals();
-    return g;
-  }, []);
-  const ground = useMemo(() => groundMaterial(groundMask(), tex.asphalt, tex.concrete, tex.grass, tex.hills), [tex]);
+  const terrain = useMemo(() => terrainGeometry(), []);
+  const kerbs = useMemo(() => kerbGeometry(), []);
+  // Concrete kerbs: the shade (top edge, face, gutter) is in the vertex colours.
+  const kerbMaterial = useMemo(() => new MeshStandardMaterial({ map: tex.concrete, vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), [tex]);
+  const ground = useMemo(() => groundMaterial(groundMask(), lampLight(CITY.lamps), tex.asphalt, tex.concrete, tex.grass, tex.hills), [tex]);
 
   return (
     <>
       <mesh geometry={cliffs} material={cliffMaterials} position={[0, -4.6, 0]} receiveShadow />
       <mesh geometry={terrain} material={ground} receiveShadow castShadow />
+      <mesh geometry={kerbs} material={kerbMaterial} receiveShadow />
     </>
   );
 }

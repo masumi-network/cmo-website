@@ -1,10 +1,13 @@
 // The hills of the miniature San Francisco, flat in between. Everything that
-// stands on the ground asks heightAt().
+// stands on the ground asks heightAt() (sidewalks, blocks, lawns), or
+// surfaceAt() where it may stand on a street (a kerb lower: cars, Cuso).
 //
 // Each hill is a smooth dome on an ellipse that is exactly flat outside it, so
 // the flat places (the shop, the wall, the cable car) stay flat. Sizes keep
 // every street at or under MAX_STREET_GRADE (tested): SF streets climb straight
 // up, but never a wall. The steep tops (Telegraph Hill, Twin Peaks) are parks.
+
+import { streetDrop } from "@/scene/grid";
 
 /** [x, z, height, radius x, radius z]. */
 type Hill = [x: number, z: number, height: number, rx: number, rz: number];
@@ -33,8 +36,15 @@ export function heightAt(x: number, z: number) {
   return h;
 }
 
-/** A point `y` above the ground at x, z. */
-export const at = (x: number, y: number, z: number): readonly [number, number, number] => [x, y + heightAt(x, z), z];
+/**
+ * The ground surface people and cars stand on: the hills, with the streets
+ * set down KERB below their sidewalks (and curb ramps at the crosswalks).
+ * Buildings, trees and lamps stand on sidewalks and blocks, where it is heightAt.
+ */
+export const surfaceAt = (x: number, z: number) => heightAt(x, z) - streetDrop(x, z);
+
+/** A point `y` above the ground surface at x, z. */
+export const at = (x: number, y: number, z: number): readonly [number, number, number] => [x, y + surfaceAt(x, z), z];
 
 // Marin Headlands across the Golden Gate (outside the city land).
 function hash2(x: number, z: number) {

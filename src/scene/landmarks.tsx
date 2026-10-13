@@ -16,7 +16,6 @@ import { BAY_ANCHORS, CABLE, DECKS, DECK_Y, ROADS, SLAB, bayDeckY, deckGeometry,
 import { CableCar, Rails } from "./cable-car";
 import { Box, useBrand, useGlow, type V3 } from "./parts";
 import { useSign } from "./textures";
-import { FLAT, reliefBuilder } from "./houses";
 
 const LANDMARK_TEXTURES = {
   apartment: "/textures/apartment.jpg",
@@ -146,13 +145,95 @@ export const APARTMENT = {
   depth: { bay: 0.2, ledge: 0.07, post: 0.1, entry: 0.16 },
 };
 
+/**
+ * Relief faces that would only stretch one row or column of the photo (sides,
+ * tops and undersides of parts) are painted one flat colour instead: their
+ * `aUv` is the spot to take it from, plus FLAT on u. The shader samples that
+ * spot blurred (a small average), so it reads as plain trim.
+ */
+export const FLAT = 2;
+/** Keeps photo samples off the very edge of the photo. */
+const INSET = 0.004;
+type P = [u: number, z: number];
+const unit = (u: number) => Math.min(1, Math.max(0, u));
+
+/**
+ * Builds the apartment's relief as flat-shaded faces in the relief frame:
+ * x = u - 0.5, y = v, z = out from the wall in world units. Faces that look
+ * out take the photo by front projection (their own u, v); the others are
+ * flat colour (see FLAT). `width` (world units) turns sideways offsets into
+ * shares of the width.
+ */
+function reliefBuilder(width: number) {
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const uvs: number[] = [];
+  const idx: number[] = [];
+  const a = new Vector3();
+  const b = new Vector3();
+  const n = new Vector3();
+  const clamp = (x: number) => Math.min(1 - INSET, Math.max(INSET, x));
+  /** A convex polygon; `out` is roughly its outward direction. `paint` makes it one flat colour. */
+  function face(pts: V3[], out: V3, paint?: [number, number]) {
+    const p = pts.map(([u, v, z]) => new Vector3(u - 0.5, v, z));
+    a.subVectors(p[1], p[0]);
+    b.subVectors(p[2], p[0]);
+    n.crossVectors(a, b).normalize();
+    const flip = n.x * out[0] + n.y * out[1] + n.z * out[2] < 0;
+    if (flip) n.negate();
+    const base = pos.length / 3;
+    pts.forEach(([u, v], i) => {
+      pos.push(p[i].x, p[i].y, p[i].z);
+      nrm.push(n.x, n.y, n.z);
+      if (paint) uvs.push(clamp(paint[0]) + FLAT, clamp(paint[1]));
+      else uvs.push(clamp(u), clamp(v));
+    });
+    for (let i = 1; i < p.length - 1; i++) idx.push(...(flip ? [base, base + i + 1, base + i] : [base, base + i, base + i + 1]));
+  }
+  /** A part standing out from the wall between heights v0 and v1; its plan runs from the wall out and back (u, z). */
+  function prism(plan: P[], v0: number, v1: number, paint: [number, number]) {
+    const cu = plan.reduce((s, [u]) => s + u, 0) / plan.length;
+    const cz = plan.reduce((s, [, z]) => s + z, 0) / plan.length;
+    for (let i = 0; i < plan.length - 1; i++) {
+      const [p, q] = [plan[i], plan[i + 1]];
+      const du = q[0] - p[0];
+      const dz = q[1] - p[1];
+      const mu = (p[0] + q[0]) / 2 - cu;
+      const mz = (p[1] + q[1]) / 2 - cz;
+      const out: V3 = dz * mu - du * mz >= 0 ? [dz, 0, -du] : [-dz, 0, du];
+      // a face that looks sideways would stretch one column of the photo
+      const side = Math.abs(du) < 1e-9;
+      face([[p[0], v0, p[1]], [q[0], v0, q[1]], [q[0], v1, q[1]], [p[0], v1, p[1]]], out, side ? paint : undefined);
+    }
+    face(plan.map(([u, z]) => [u, v1, z]), [0, 1, 0], paint);
+    face(plan.map(([u, z]) => [u, v0, z]), [0, -1, 0], paint);
+  }
+  /** A block from u0 to u1 and v0 to v1, d out from the wall. */
+  const box = (u0: number, u1: number, v0: number, v1: number, d: number) =>
+    prism([[u0, 0], [u0, d], [u1, d], [u1, 0]], v0, v1, [(u0 + u1) / 2, (Math.max(0, v0) + v1) / 2]);
+  /** A three-sided bay: its sides meet the wall at `wall`, its front spans `front`; `grow` widens it (a cornice band around it). */
+  function bay(wall: Span, front: Span, v0: number, v1: number, depth: number, grow = 0) {
+    const e = grow / width;
+    prism([[unit(wall[0] - e), 0], [unit(front[0] - e * 0.5), depth + grow], [unit(front[1] + e * 0.5), depth + grow], [unit(wall[1] + e), 0]], v0, v1, [(front[0] + front[1]) / 2, (v0 + v1) / 2]);
+  }
+  function geometry() {
+    const g = new BufferGeometry();
+    g.setAttribute("position", new Float32BufferAttribute(pos, 3));
+    g.setAttribute("normal", new Float32BufferAttribute(nrm, 3));
+    g.setAttribute("aUv", new Float32BufferAttribute(uvs, 2));
+    g.setIndex(idx);
+    return g;
+  }
+  return { box, bay, geometry };
+}
+
 /** How wide the photo is on a wall: the wall's height over the photo's aspect. */
 export const apartmentPhotoWidth = () => (ROOFTOP.roof - ROOFTOP.base) / APARTMENT.aspect;
 
-/** The apartment's relief (one wall), in the relief frame of houses.tsx: scale it by (apartmentPhotoWidth, roof - base, 1). */
+/** The apartment's relief (one wall), in the relief frame: scale it by (apartmentPhotoWidth, roof - base, 1). */
 export function apartmentRelief() {
   const a = APARTMENT;
-  const { box, bay, geometry } = reliefBuilder(apartmentPhotoWidth(), 0);
+  const { box, bay, geometry } = reliefBuilder(apartmentPhotoWidth());
   const band = ROOFTOP.cornice.out - a.depth.bay;
   for (const [wall, front] of a.bays) {
     bay(wall, front, a.bayV[0], a.bayV[1], a.depth.bay);
@@ -462,7 +543,8 @@ export function MuralWall() {
         <mesh geometry={parts.freshPhoto} material={photo} />
       </group>
       <mesh geometry={parts.wood} material={wood} position={[-4.75, 0, 28.5]} rotation-z={0.18} castShadow receiveShadow />
-      <group position={[-3.9, 0, 27.9]}>
+      {/* on the sidewalk (x -5.4 to -4.5), clear of the ladder */}
+      <group position={[-4.9, 0, 27.6]}>
         <mesh geometry={parts.bucket} material={blue} castShadow receiveShadow />
         <mesh geometry={parts.handle} material={tin} castShadow />
       </group>

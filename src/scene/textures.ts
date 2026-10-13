@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo } from "react";
 import { CanvasTexture, NoColorSpace, SRGBColorSpace } from "three";
-import { EDGE, LAND_BOUNDS, PARKS, STREET, X_STREETS, Z_STREETS, inPark } from "./grid";
+import { CROSSWALKS, EDGE, LANE_MARKS, LAND_BOUNDS, PARKS, STREET, X_STREETS, Z_STREETS } from "./grid";
 
 function canvasTexture(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) {
   const canvas = document.createElement("canvas");
@@ -61,47 +61,75 @@ export function useSign(text: string, style: SignStyle) {
 
 /**
  * The ground as a mask for groundMaterial (materials.ts): red = asphalt,
- * green = sidewalk, blue = grass, white = lane marks, black = block ground.
- * It paints exactly groundAt() in grid.ts: streets first, then park lawns
- * inside their kerbs (closing the streets inside a park). Grass is never
- * painted anywhere else. Mapped onto the terrain in world units (see Land in city.tsx).
+ * green = sidewalk, blue = grass, white = paint (lane marks, crosswalks),
+ * black = block ground. It paints exactly groundAt() in grid.ts: streets
+ * first, then each park's sidewalk across the streets it closes and its lawn
+ * inside the kerbs. Grass is never painted anywhere else. Mapped onto the
+ * terrain in world units (see terrainGeometry in ground.ts).
  */
 export function groundMask() {
-  const { minX, maxX, minZ, maxZ } = LAND_BOUNDS;
   const PX = 16; // pixels per world unit
-  const W = (maxX - minX) * PX;
-  const H = (maxZ - minZ) * PX;
-  const X = (x: number) => (x - minX) * PX;
-  const Z = (z: number) => (z - minZ) * PX;
-  const texture = canvasTexture(W, H, (ctx) => {
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, W, H);
+  return landTexture(PX, (ctx, X, Z) => {
+    const { minX, maxX, minZ, maxZ } = LAND_BOUNDS;
+    const [W, H] = [(maxX - minX) * PX, (maxZ - minZ) * PX];
+    const rect = (x0: number, x1: number, z0: number, z1: number) => ctx.fillRect(X(x0), Z(z0), (x1 - x0) * PX, (z1 - z0) * PX);
     for (const [width, color] of [[EDGE * 2, "#00ff00"], [STREET, "#ff0000"]] as const) {
       ctx.fillStyle = color;
       for (const x of X_STREETS) ctx.fillRect(X(x - width / 2), 0, width * PX, H);
       for (const z of Z_STREETS) ctx.fillRect(0, Z(z - width / 2), W, width * PX);
     }
-    ctx.strokeStyle = "#fff";
+    for (const [inset, color] of [[STREET / 2, "#00ff00"], [EDGE, "#0000ff"]] as const) {
+      ctx.fillStyle = color;
+      for (const [x0, x1, z0, z1] of PARKS) rect(x0 + inset, x1 - inset, z0 + inset, z1 - inset);
+    }
+    // Paint: dashed centre lines (stopping short of the junctions) and zebra crosswalks.
+    ctx.strokeStyle = ctx.fillStyle = "#fff";
     ctx.lineWidth = 3;
     ctx.setLineDash([PX * 1.4, PX * 1.4]);
-    // Centre lines block by block; none on a street a park closes (a T junction stays a T).
-    const stops = (cross: number[], lo: number, hi: number) => [lo, ...cross, hi];
-    const dash = (x0: number, z0: number, x1: number, z1: number) => {
-      if (inPark((x0 + x1) / 2, (z0 + z1) / 2)) return;
+    for (const [x0, z0, x1, z1] of LANE_MARKS) {
       ctx.lineDashOffset = X(x0) + Z(z0); // keeps the dashes in step along the street
       ctx.beginPath();
       ctx.moveTo(X(x0), Z(z0));
       ctx.lineTo(X(x1), Z(z1));
       ctx.stroke();
-    };
-    for (const x of X_STREETS) stops(Z_STREETS, minZ, maxZ).forEach((z, i, zs) => i && dash(x, zs[i - 1], x, z));
-    for (const z of Z_STREETS) stops(X_STREETS, minX, maxX).forEach((x, i, xs) => i && dash(xs[i - 1], z, x, z));
-    ctx.fillStyle = "#0000ff";
-    for (const [x0, x1, z0, z1] of PARKS) ctx.fillRect(X(x0 + EDGE), Z(z0 + EDGE), (x1 - x0 - EDGE * 2) * PX, (z1 - z0 - EDGE * 2) * PX);
+    }
+    for (const c of CROSSWALKS) {
+      // five bars along the street, as wide as the gaps, clear of the gutters; 0.1 in from the crosswalk's ends
+      const [a0, b0, b1] = c.along === "z" ? [c.x0, c.z0, c.z1] : [c.z0, c.x0, c.x1];
+      for (let k = 0; k < 5; k++) {
+        const a = a0 + 0.42 + k * 0.48;
+        if (c.along === "z") rect(a, a + 0.24, b0 + 0.1, b1 - 0.1);
+        else rect(b0 + 0.1, b1 - 0.1, a, a + 0.24);
+      }
+    }
+  });
+}
+
+/** The street lamps' light pools on the ground (night), for groundMaterial: brightness in red. */
+export function lampLight(lamps: { x: number; z: number }[]) {
+  const PX = 4;
+  const R = 1.8; // world units
+  return landTexture(PX, (ctx, X, Z) => {
+    ctx.globalCompositeOperation = "lighter";
+    for (const { x, z } of lamps) {
+      const g = ctx.createRadialGradient(X(x), Z(z), 0, X(x), Z(z), R * PX);
+      for (const [t, a] of [[0, 1], [0.3, 0.7], [0.65, 0.22], [1, 0]]) g.addColorStop(t, `rgba(255,255,255,${a})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(X(x - R), Z(z - R), 2 * R * PX, 2 * R * PX);
+    }
+  });
+}
+
+/** A data texture over the land, PX pixels per world unit, on black; mapped like the terrain's UVs, (x, -z) in world units. */
+function landTexture(PX: number, draw: (ctx: CanvasRenderingContext2D, X: (x: number) => number, Z: (z: number) => number) => void) {
+  const { minX, maxX, minZ, maxZ } = LAND_BOUNDS;
+  const texture = canvasTexture((maxX - minX) * PX, (maxZ - minZ) * PX, (ctx) => {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    draw(ctx, (x) => (x - minX) * PX, (z) => (z - minZ) * PX);
   });
   texture.colorSpace = NoColorSpace;
   texture.anisotropy = 16;
-  // The terrain's UVs are (x, -z) in world units.
   texture.repeat.set(1 / (maxX - minX), 1 / (maxZ - minZ));
   texture.offset.set(-minX / (maxX - minX), 1 + minZ / (maxZ - minZ));
   return texture;

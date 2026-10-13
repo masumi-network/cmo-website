@@ -13,8 +13,8 @@
 import { BufferGeometry, Float32BufferAttribute } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Vec3 } from "@/content/day";
-import { MARIN_ROAD, headlandHeight, heightAt } from "@/lib/terrain";
-import { EDGE, LAND, STREET, X_STREETS, Z_STREETS, insideLand } from "./grid";
+import { MARIN_ROAD, headlandHeight, surfaceAt } from "@/lib/terrain";
+import { EDGE, KERB, LAND, STREET, X_STREETS, Z_STREETS, insideLand } from "./grid";
 
 /** Road surface on both main decks. */
 export const DECK_Y = 7;
@@ -55,8 +55,8 @@ function segmentDistance(px: number, pz: number, [ax, az]: number[], [bx, bz]: n
   return Math.hypot(px - ax - vx * t, pz - az - vz * t);
 }
 const nearShore = (x: number, z: number) => LAND.some((p, i) => segmentDistance(x, z, LAND[(i + LAND.length - 1) % LAND.length], p) < 0.7);
-/** City ground, the sea wall's top, or the sea floor. */
-const cityGround = (x: number, z: number) => (insideLand(x, z) || nearShore(x, z) ? heightAt(x, z) : SEA_FLOOR);
+/** City ground (streets a kerb below their sidewalks), the sea wall's top, or the sea floor. */
+const cityGround = (x: number, z: number) => (insideLand(x, z) || nearShore(x, z) ? surfaceAt(x, z) : SEA_FLOOR);
 const islandGround = (x: number, z: number) => Math.max(SEA_FLOOR, islandHeight(x, z));
 
 type Op = ["line", number] | ["arc", number, number];
@@ -121,12 +121,12 @@ const spanEnd = (xz: [number, number][], x: number) => xz.findIndex(([px]) => Ma
 export const BAY_ANCHORS = [32.7, 124];
 
 export const ROADS: Road[] = [
-  // Tucked just under the street at its end, so the ground's asphalt takes over.
-  { name: "golden-gate-south", points: descend(ggSouth, -0.04, () => MAX_GRADE), span: 0, ground: cityGround },
+  // Tucked just under the street at its end (a kerb below the sidewalks), so the ground's asphalt takes over.
+  { name: "golden-gate-south", points: descend(ggSouth, -KERB - 0.04, () => MAX_GRADE), span: 0, ground: cityGround },
   { name: "golden-gate-north", points: MARIN_ROAD.map(([x, y, z]): Vec3 => [x, y, z]), span: 0, ground: headlandHeight },
   {
     name: "bay-bridge-west",
-    points: descend(bayWest, -0.04, (s) => (52 - s > BAY_ANCHORS[0] ? 0.12 : MAX_GRADE)),
+    points: descend(bayWest, -KERB - 0.04, (s) => (52 - s > BAY_ANCHORS[0] ? 0.12 : MAX_GRADE)),
     span: spanEnd(bayWest, BAY_ANCHORS[0]),
     ground: cityGround,
   },

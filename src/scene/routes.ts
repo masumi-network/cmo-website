@@ -4,11 +4,12 @@
 // cursor "dash"; roofs, the cable car, the pier and the pyramid tip are jumps.
 // Jumps go over things, never through them (tests/unit/collision.test.ts):
 // onto a tall building he leaps straight up beside the wall, to a point above
-// the cornice and parapet, then hops over onto the roof.
+// the cornice and parapet, then hops over onto the roof. At a junction he
+// crosses on a crosswalk, down and up its curb ramps; mid-block he hops the kerb.
 
 import { chapters, type ChapterId, type Vec3 } from "@/content/day";
-import { heightAt } from "@/lib/terrain";
-import { WALK_OFFSET, WALK_X, WALK_Z } from "./grid";
+import { surfaceAt } from "@/lib/terrain";
+import { STREET, WALK_OFFSET, WALK_X, WALK_Z, X_STREETS, Z_STREETS, streetDrop } from "./grid";
 
 export type Mode = "walk" | "dash" | "jump";
 
@@ -18,7 +19,7 @@ type Step = { p: Vec3; how?: "walk" | "jump" | "street"; face?: number };
 /** Walk this far at each end of a street stretch before/after dashing. */
 const WALK_ENDS = 4;
 
-const ground = (x: number, z: number): Step => ({ p: [x, heightAt(x, z), z] });
+const ground = (x: number, z: number): Step => ({ p: [x, surfaceAt(x, z), z] });
 const lineZ = (z: number) => z + WALK_OFFSET; // walking line on an east-west street
 // walking line on a north-south street; on the waterfront (x 29) it keeps
 // clear of the pier deck and the Ferry Building's plinth, which reach x 30.9
@@ -118,13 +119,13 @@ function makePath(steps: Step[]): Path {
     const a = steps[i - 1].p;
     const b = steps[i].p;
     const h = steps[i].how ?? "walk";
-    const onGround = h !== "jump" && Math.abs(a[1] - heightAt(a[0], a[2])) < 1e-6 && Math.abs(b[1] - heightAt(b[0], b[2])) < 1e-6;
+    const onGround = h !== "jump" && Math.abs(a[1] - surfaceAt(a[0], a[2])) < 1e-6 && Math.abs(b[1] - surfaceAt(b[0], b[2])) < 1e-6;
     const n = onGround ? Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[2] - a[2]) / 0.5)) : 1;
     for (let k = 1; k <= n; k++) {
       const t = k / n;
       const x = a[0] + (b[0] - a[0]) * t;
       const z = a[2] + (b[2] - a[2]) * t;
-      points.push(onGround ? [x, heightAt(x, z), z] : [x, a[1] + (b[1] - a[1]) * t, z]);
+      points.push(onGround ? [x, surfaceAt(x, z), z] : [x, a[1] + (b[1] - a[1]) * t, z]);
       how.push(h);
       ground.push(onGround);
       face.push(steps[i].face ?? null);
@@ -177,6 +178,32 @@ export type Sample = {
   face: number | null;
 };
 
+/** He hops a kerb: up this far before it, down this far after it. */
+export const HOP = 0.25;
+const KERB_LINES = [X_STREETS, Z_STREETS].map((streets) => streets.flatMap((s) => [s - STREET / 2, s + STREET / 2]));
+
+/**
+ * How far above the ground his feet are at x, z, heading dx, dz, for a kerb
+ * he is crossing: on the low side, within HOP of it, still part way up (all
+ * the way at the kerb), so he steps down late and up early, never through the
+ * kerb. Nothing where a curb ramp makes the kerb flush.
+ */
+function kerbHop(x: number, z: number, dx: number, dz: number) {
+  let lift = 0;
+  KERB_LINES.forEach((lines, axis) => {
+    const [p, d] = axis ? [z, dz] : [x, dx];
+    if (Math.abs(d) < 1e-6) return;
+    for (const k of lines) {
+      const e = (k - p) / d; // along the way to the kerb line
+      if (Math.abs(e) > HOP) continue;
+      const beyond = e + Math.sign(e || 1) * 1e-3;
+      const step = streetDrop(x, z) - streetDrop(x + dx * beyond, z + dz * beyond);
+      if (step > 0) lift = Math.max(lift, step * (1 - Math.abs(e) / HOP) ** 2);
+    }
+  });
+  return lift;
+}
+
 export function samplePath(path: Path, t: number): Sample {
   const s = Math.min(1, Math.max(0, t)) * path.length;
   let i = 1;
@@ -187,8 +214,8 @@ export function samplePath(path: Path, t: number): Sample {
   const u = Math.min(1, Math.max(0, (s - path.cum[i - 1]) / seg));
   const pos: [number, number, number] = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
   const mode = path.modes[i];
-  if (path.ground[i]) pos[1] = heightAt(pos[0], pos[2]);
   const across = Math.hypot(b[0] - a[0], b[2] - a[2]);
+  if (path.ground[i]) pos[1] = surfaceAt(pos[0], pos[2]) + (across > 1e-6 ? kerbHop(pos[0], pos[2], (b[0] - a[0]) / across, (b[2] - a[2]) / across) : 0);
   if (mode === "jump" && across > 1e-6) pos[1] += Math.sin(Math.PI * u) * (1.2 + across * 0.3);
   // straight up beside a wall: fast off the ground, slowing at the top; straight down: falling faster
   else if (mode === "jump") pos[1] = a[1] + (b[1] - a[1]) * (b[1] > a[1] ? 1 - (1 - u) ** 2 : u * u);
