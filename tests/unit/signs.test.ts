@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ROUTE_BOARD } from "@/scene/cable-car";
-import { AD_PANEL } from "@/scene/landmarks";
+import { AD_PANEL } from "@/scene/union-square";
 import { SHOP_SIGN } from "@/scene/shop";
 import { signSize } from "@/scene/textures";
 
