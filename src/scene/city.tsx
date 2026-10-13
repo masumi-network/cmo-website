@@ -7,18 +7,14 @@
 import { Cloud, Clouds, useTexture } from "@react-three/drei";
 import { useMemo } from "react";
 import {
-  BoxGeometry,
-  Color,
   ExtrudeGeometry,
   MirroredRepeatWrapping,
   RepeatWrapping,
   SRGBColorSpace,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  Object3D,
   PlaneGeometry,
   Shape,
-  SphereGeometry,
   Float32BufferAttribute,
   Vector2,
   type Texture,
@@ -29,16 +25,15 @@ import { useCity } from "@/lib/store";
 import { heightAt, headlandHeight } from "@/lib/terrain";
 import { activeIndex } from "@/lib/time";
 import { LAND, LAND_BOUNDS, insideLand } from "./grid";
-import { CITY, type Tower } from "./layout";
-import { useNightGlow } from "./shared";
-import { FOOTING, groundMaterial, towerMaterial, worldMaterial } from "./materials";
+import { CITY } from "./layout";
+import { groundMaterial, worldMaterial } from "./materials";
 import { Houses } from "./houses";
-import { Instances } from "./parts";
 import { groundMask } from "./textures";
+import { Lamps } from "./street";
+import { Towers } from "./towers";
 import { Trees } from "./trees";
 import { Cars } from "./traffic";
 
-const box = new BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
 
 const TEXTURES = {
   atlas: "/textures/houses-atlas.jpg",
@@ -51,7 +46,7 @@ const TEXTURES = {
   stone: "/textures/stone.jpg",
   hills: "/textures/hills.jpg",
 };
-type Textures = Record<keyof typeof TEXTURES, Texture>;
+export type Textures = Record<keyof typeof TEXTURES, Texture>;
 
 export function City({ lite }: { lite: boolean }) {
   const city = CITY;
@@ -157,57 +152,6 @@ function Headlands({ map }: { map: Texture }) {
   }, []);
   const material = useMemo(() => new MeshStandardMaterial({ map, vertexColors: true, roughness: 1 }), [map]);
   return <mesh geometry={geometry} material={material} receiveShadow castShadow />;
-}
-
-type TierItem = { tower: Tower; i: number };
-
-const towerTier = ({ tower, i }: TierItem, o: Object3D) => {
-  const t = tower.tiers[i];
-  const footing = i === 0 ? FOOTING : 0;
-  o.position.set(tower.x, tower.y + t.y - footing, tower.z);
-  o.scale.set(t.w, t.h + footing, t.d);
-  return tower.color;
-};
-const towerCap = (tower: Tower, o: Object3D) => {
-  const top = tower.tiers[tower.tiers.length - 1];
-  o.position.set(tower.x, tower.y + top.y + top.h, tower.z);
-  o.scale.set(top.w * 0.45, 1.1, top.d * 0.45);
-};
-const tiersOf = (towers: Tower[], glass: boolean): TierItem[] =>
-  towers.filter((t) => t.glass === glass).flatMap((tower) => tower.tiers.map((_, i) => ({ tower, i })));
-
-/** Downtown: tiered towers in glass or limestone, with a roof box on top. */
-function Towers({ towers, tex }: { towers: Tower[]; tex: Textures }) {
-  const glass = useMemo(() => towerMaterial(tex.glass, { w: 4, h: 5.8 }, true), [tex]);
-  const stone = useMemo(() => towerMaterial(tex.stone, { w: 4.8, h: 7.2 }, false), [tex]);
-  const plain = useMemo(() => new MeshStandardMaterial({ color: "#a6a4a0", roughness: 0.8 }), []);
-  const glassTiers = useMemo(() => tiersOf(towers, true), [towers]);
-  const stoneTiers = useMemo(() => tiersOf(towers, false), [towers]);
-  return (
-    <>
-      <Instances items={glassTiers} geometry={box} material={glass} place={towerTier} />
-      <Instances items={stoneTiers} geometry={box} material={stone} place={towerTier} />
-      <Instances items={towers} geometry={box} material={plain} place={towerCap} />
-    </>
-  );
-}
-
-type Lamp = { x: number; y: number; z: number };
-const lampPole = (l: Lamp, o: Object3D) => void o.position.set(l.x, l.y, l.z);
-const lampBulb = (l: Lamp, o: Object3D) => void o.position.set(l.x, l.y + 3.05, l.z);
-
-function Lamps({ lamps }: { lamps: Lamp[] }) {
-  const poleGeo = useMemo(() => new BoxGeometry(0.08, 3, 0.08).translate(0, 1.5, 0), []);
-  const bulbGeo = useMemo(() => new SphereGeometry(0.15, 10, 8), []);
-  const metal = useMemo(() => new MeshStandardMaterial({ color: "#2e2e33", roughness: 0.6 }), []);
-  const bulb = useMemo(() => new MeshStandardMaterial({ color: "#3a3630", emissive: new Color("#ffd58f"), emissiveIntensity: 0 }), []);
-  useNightGlow(bulb, 3.5);
-  return (
-    <>
-      <Instances items={lamps} geometry={poleGeo} material={metal} place={lampPole} />
-      <Instances items={lamps} geometry={bulbGeo} material={bulb} place={lampBulb} shadows={false} />
-    </>
-  );
 }
 
 /** Fog color by time of day. Unlit, so backlit fog never turns to dark smoke. */
