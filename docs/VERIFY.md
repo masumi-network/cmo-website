@@ -1,6 +1,6 @@
 # Verification
 
-Last updated: 2026-10-12
+Last updated: 2026-10-13
 
 A change is done when `pnpm verify` passes and the screens look right.
 
@@ -17,6 +17,10 @@ Runs, in order, and stops at the first failure:
 | E2E | `pnpm e2e` | Playwright on the production build, desktop (1440×900) + mobile (Pixel 7) |
 
 First time on a machine: `pnpm exec playwright install chromium`.
+
+CI (`.github/workflows/verify.yml`) runs the quick part on every push: lint, types and unit in one job; build and e2e in another, skipping the tests tagged `@heavy` (`--grep-invert @heavy`). Those walk the 3D city for minutes, and CI has no GPU. `pnpm verify` on a laptop still runs them all, so run it before you merge.
+
+Only e2e tests about the 3D load it; the rest open the page with `?static`.
 
 E2E saves a screenshot of every chapter to `screenshots/` (gitignored).
 

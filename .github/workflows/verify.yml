@@ -1,14 +1,33 @@
 name: verify
 
+# The quick part of `pnpm verify`, in two parallel jobs. End to end skips the
+# @heavy tests: they walk the 3D city for minutes, and here it renders on the
+# CPU. `pnpm verify` on a laptop still runs everything.
+
 on:
   push:
     branches: [redesign/cuso-city]
   pull_request:
 
 jobs:
-  verify:
+  checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -18,7 +37,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm verify
+      - run: pnpm build
+      - run: pnpm exec playwright test --grep-invert @heavy
         env:
           CI: true
       - uses: actions/upload-artifact@v4

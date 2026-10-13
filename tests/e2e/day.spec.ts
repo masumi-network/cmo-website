@@ -3,6 +3,10 @@ import { chapterIndex, chapters } from "@/content/day";
 
 // One day in Cuso's City, end to end. Screens land in screenshots/
 // so every run leaves a visual record (desktop + mobile).
+// Only tests about the 3D load it. The rest use `?static`: in CI the city
+// renders on the CPU, and a test that loads it for nothing is minutes slower.
+// @heavy tests walk the 3D for minutes: `pnpm verify` runs them, CI skips them.
+const heavy = { tag: "@heavy" };
 
 const shot = (page: Page, name: string) =>
   page.screenshot({ path: `screenshots/${test.info().project.name}-${name}.png` });
@@ -49,7 +53,7 @@ test("the day loads with the 3D city and Cuso", async ({ page }) => {
   await shot(page, "01-arrive");
 });
 
-test("every chapter has its card, and the HUD follows the scroll", async ({ page, isMobile }) => {
+test("every chapter has its card, and the HUD follows the scroll", heavy, async ({ page, isMobile }) => {
   test.slow(); // walks the whole day with the 3D city on (software WebGL in CI)
   await open(page);
   await waitForCity(page);
@@ -61,17 +65,21 @@ test("every chapter has its card, and the HUD follows the scroll", async ({ page
     await page.waitForTimeout(1200);
     await shot(page, `0${i + 2}-${title.split(" ").at(-1)!.toLowerCase()}`);
   }
+  await goToChapter(page, chapterIndex("join"));
+  await expect(page.getByRole("heading", { name: "Your city. Your CMO." })).toBeInViewport();
+  await page.waitForTimeout(1200);
+  await shot(page, "09-join");
 });
 
 test("approving a draft schedules it", async ({ page }) => {
-  await open(page);
+  await open(page, "?static");
   await goToChapter(page, 2);
   await page.getByRole("button", { name: "Approve" }).click();
   await expect(page.getByText("Scheduled for Tue 09:00")).toBeVisible();
 });
 
 test("your website shows up in the city", async ({ page, isMobile }) => {
-  await open(page);
+  await open(page, "?static");
   await goToChapter(page, 1);
   const site = page.getByLabel("Your website");
   await site.fill("acme.io");
@@ -83,21 +91,21 @@ test("your website shows up in the city", async ({ page, isMobile }) => {
 
 test("the rail jumps to a chapter", async ({ page, isMobile }) => {
   test.skip(isMobile, "the rail is desktop only");
-  await open(page);
+  await open(page, "?static");
   await page.getByRole("navigation", { name: "Time of day" }).getByRole("button", { name: /12:00/ }).click();
   await expect(page.getByRole("heading", { name: "Runs your ads" })).toBeInViewport();
 });
 
 test("Ask Cuso sends him to the right place", async ({ page, isMobile }) => {
   test.skip(isMobile, "the ask bar is desktop only");
-  await open(page);
+  await open(page, "?static");
   await goToChapter(page, 1);
   await page.getByLabel("Ask Cuso").fill("can you write our newsletter?");
   await page.getByLabel("Ask Cuso").press("Enter");
   await expect(page.getByRole("heading", { name: "Sends your newsletter" })).toBeInViewport();
 });
 
-test("explore mode shows the map and a pin takes you there", async ({ page }) => {
+test("explore mode shows the map and a pin takes you there", heavy, async ({ page }) => {
   await open(page);
   await waitForCity(page);
   await page.getByRole("button", { name: "Explore" }).click();
@@ -110,13 +118,11 @@ test("explore mode shows the map and a pin takes you there", async ({ page }) =>
 });
 
 test("joining the waitlist works (dummy API)", async ({ page }) => {
-  await open(page);
+  await open(page, "?static");
   await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" }));
   const finale = page.locator("#chapter-join");
   await finale.getByLabel("Email").fill("founder@example.com");
   await finale.getByLabel("Website (optional)").fill("example.com");
-  await page.waitForTimeout(1200);
-  await shot(page, "09-join");
   await finale.getByRole("button", { name: "Join the waitlist" }).click();
   await expect(finale.getByRole("status")).toContainText("You're on the list");
 });
@@ -139,7 +145,7 @@ test("posters load only near the current chapter, and leave once the 3D is in", 
   await expect(posters).toHaveCount(0);
 });
 
-test("on a phone, Cuso stands clear of the cards in every chapter, and the cards fit", async ({ page, isMobile }) => {
+test("on a phone, Cuso stands clear of the cards in every chapter, and the cards fit", heavy, async ({ page, isMobile }) => {
   test.skip(!isMobile, "phone layout");
   test.setTimeout(400_000); // one page load per chapter in software WebGL
   for (const [i, chapter] of chapters.entries()) {
@@ -172,7 +178,7 @@ test("on a phone, Cuso stands clear of the cards in every chapter, and the cards
 
 test("on a phone, the weekly note folds open", async ({ page, isMobile }) => {
   test.skip(!isMobile, "phone layout");
-  await open(page);
+  await open(page, "?static");
   await goToChapter(page, chapterIndex("night"));
   const toggle = page.getByRole("button", { name: "Here's what I learned this week." });
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -183,7 +189,7 @@ test("on a phone, the weekly note folds open", async ({ page, isMobile }) => {
 
 test("on touch, a scroll always comes to rest on a chapter, never between two", async ({ page, isMobile }) => {
   test.skip(!isMobile, "snapping is for touch screens");
-  await open(page);
+  await open(page, "?static");
   await goToChapter(page, 1);
   await page.mouse.move(200, 400);
   await page.mouse.wheel(0, 500); // stops part way: snaps back into the chapter or on to the next
@@ -192,7 +198,7 @@ test("on touch, a scroll always comes to rest on a chapter, never between two", 
   expect(into).toBeLessThan(0.45); // the first 45% of a chapter is where the camera rests
 });
 
-test("explore: drag the map, then Recenter brings it back; pins still work", async ({ page }) => {
+test("explore: drag the map, then Recenter brings it back; pins still work", heavy, async ({ page }) => {
   test.slow(); // every pointer event waits for a frame in software WebGL
   await open(page);
   await waitForCity(page);
