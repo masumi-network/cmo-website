@@ -25,11 +25,15 @@ export const BODY_DEPTH = 2.6;
 /** The furthest anything stands out of the front wall: the cornice crown. */
 export const RELIEF_DEPTH = 0.36;
 
-/** Paints. The first seven come from the house's palette, the rest are the same on every house. */
-export const SLOTS = ["body", "trim", "frieze", "panel", "sash", "door", "scales", "glass", "roof", "tar", "stone", "brick"] as const;
+/**
+ * Paints. The first seven come from the house's palette, the next five are the same on every house.
+ * The last two are for the 06:00 apartment (rooftop.tsx): `stucco` (the body colour without siding)
+ * and `gravel` (a tar-and-gravel roof).
+ */
+export const SLOTS = ["body", "trim", "frieze", "panel", "sash", "door", "scales", "glass", "roof", "tar", "stone", "brick", "stucco", "gravel"] as const;
 export type Slot = (typeof SLOTS)[number];
 export const SLOT = Object.fromEntries(SLOTS.map((s, i) => [s, i])) as Record<Slot, number>;
-const FIXED = { glass: "#0c1014", roof: "#8f8a84", tar: "#5b5853", stone: "#c4beb2", brick: "#94695a" };
+const FIXED = { glass: "#0c1014", roof: "#8f8a84", tar: "#5b5853", stone: "#c4beb2", brick: "#94695a", gravel: "#8e877c" };
 
 /**
  * Painted Lady colour schemes: a muted pastel body, white or cream trim, a
@@ -50,9 +54,9 @@ export const PALETTES: { name: string; body: string; trim: string; panel: string
   { name: "apricot", body: "#e0c3aa", trim: "#f6f0e3", panel: "#ecd6c3", dark: "#6b4230" },
 ];
 
-type Span = [number, number];
+export type Span = [number, number];
 /** A rectangle on the facade as shares of it: [u0, u1, v0, v1], u from the left, v from the ground. */
-type Rect = [number, number, number, number];
+export type Rect = [number, number, number, number];
 
 export type Variant = {
   name: string;
@@ -141,7 +145,7 @@ export function palette() {
   const out = new Float32Array(PALETTES.length * SLOTS.length * 3);
   const c = new Color();
   PALETTES.forEach((p, i) => {
-    const paint: Record<Slot, string> = { body: p.body, trim: p.trim, frieze: p.panel, panel: p.panel, sash: p.dark, door: p.dark, scales: p.panel, ...FIXED };
+    const paint: Record<Slot, string> = { body: p.body, trim: p.trim, frieze: p.panel, panel: p.panel, sash: p.dark, door: p.dark, scales: p.panel, stucco: p.body, ...FIXED };
     SLOTS.forEach((s, k) => c.set(paint[s]).toArray(out, (i * SLOTS.length + k) * 3));
   });
   return out;
@@ -161,15 +165,16 @@ const CASE_D = 0.035;
 const SASH = 0.028;
 
 /** Local coordinates in a frame: a along the wall, b up, c out of it. */
-type L3 = [number, number, number];
-type P2 = [number, number];
+export type L3 = [number, number, number];
+export type P2 = [number, number];
 /** A wall: origin and unit direction along it (horizontal); out is along x up. */
-type Frame = { o: L3; u: L3 };
+export type Frame = { o: L3; u: L3 };
 const FRONT: Frame = { o: [0, 0, 0], u: [1, 0, 0] };
 const X = (u: number) => (u - 0.5) * W;
 const Y = (v: number) => v * H;
 
-function builder() {
+/** The modelling kit (also used by the 06:00 apartment in rooftop.tsx and the 07:00 shop in shop.tsx). */
+export function builder() {
   const pos: number[] = [];
   const nrm: number[] = [];
   const slots: number[] = [];
@@ -368,7 +373,7 @@ export function frontGeometry(v: number) {
   return k.geometry();
 }
 
-type Builder = ReturnType<typeof builder>;
+export type Builder = ReturnType<typeof builder>;
 
 /** The bay window: three faces with a window per storey, corner posts, floor cornices, its base. */
 function bay(k: Builder, s: Variant, id: number) {

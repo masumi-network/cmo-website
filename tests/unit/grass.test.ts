@@ -74,7 +74,7 @@ describe("park trails and the lawn field", () => {
 describe("grass blades", () => {
   it("grows only on park grass: never on a street, sidewalk, trail, plaza, trunk or Cuso's way", () => {
     for (const t of full) expectClear(t.x, t.z, t.spread, "tuft");
-  });
+  }, 20_000); // checks every tuft against every solid: slow when the whole suite runs in parallel
 
   it("stands on the ground and holds only finite numbers", () => {
     for (const t of full) {

@@ -9,11 +9,14 @@ import { describe, expect, it } from "vitest";
 import { chapters } from "@/content/day";
 import { heightAt, surfaceAt } from "@/lib/terrain";
 import { CAR } from "@/scene/cable-car";
-import { FERRY, FERRY_CAR, FLAG, PYRAMID, ROOFTOP, SPIRE, UNION, UNION_CAR, WINGS, pyramidHalf } from "@/scene/landmarks";
+import { FERRY, FERRY_CAR, UNION, UNION_CAR } from "@/scene/landmarks";
+import { FLAG, PYRAMID, SPIRE, WINGS, pyramidHalf } from "@/scene/pyramid";
+import { ROOFTOP } from "@/scene/rooftop";
 import { reliefDepth } from "@/scene/houses";
 import { CITY } from "@/scene/layout";
 import { DECK, RAIL } from "@/scene/pier";
 import { HULL } from "@/scene/rig";
+import { SHOP } from "@/scene/shop";
 import { HYDRANT, LAMP, SIGN } from "@/scene/street";
 import { DAY_LENGTH, FACE, dayDistance, sampleDay } from "@/scene/routes";
 
@@ -65,6 +68,15 @@ function landmarkSolids(): Solid[] {
     out.push(...ring("rooftop cornice", r, g + c.bottom, g + c.top, c.out, 0.02));
     out.push(...ring("rooftop parapet", r, g + r.roof, g + r.roof + r.parapet, 0.05, r.wall + 0.01));
     out.push(around("rooftop bulkhead", b.x, b.z, b.w / 2, b.d / 2, g + r.roof, g + b.top));
+  }
+
+  // 07:00 Hayes Valley shop: the building with its shopfront, the cornice over the sidewalk, sidewalk furniture, the corner lamp.
+  {
+    const s = SHOP;
+    out.push(solid("shop", s.x0 - s.relief, s.x1 + s.relief, s.ground - 1, s.ground + s.storeTop, s.z0, s.z1 + s.relief));
+    out.push(solid("shop cornice", s.x0 - s.overhang, s.x1 + s.overhang, s.ground + s.storeTop, s.ground + s.top, s.z0, s.z1 + s.overhang));
+    for (const f of s.furniture) out.push(solid(`shop ${f.name}`, f.x0, f.x1, f.y0, f.y1, f.z0, f.z1));
+    out.push(around("shop lamp", s.lamp.x, s.lamp.z, LAMP.reach, LAMP.reach, s.lamp.y, s.lamp.y + LAMP.height));
   }
 
   // 12:00 Union Square: building, cornices, parapet (not on the south edge), billboard, cable car.

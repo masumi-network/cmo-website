@@ -76,12 +76,23 @@ const set = (f: Fixture, o: Object3D) => {
 };
 
 export function StreetFurniture({ lamps, hydrants, signs }: { lamps: Fixture[]; hydrants: Fixture[]; signs: Fixture[] }) {
+  const painted = useMemo(() => new MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }), []);
+  return (
+    <>
+      <Lamps lamps={lamps} />
+      <Instances items={hydrants} geometry={STREET_PARTS.hydrant} material={painted} place={set} />
+      <Instances items={signs} geometry={STREET_PARTS.sign} material={painted} place={set} />
+    </>
+  );
+}
+
+/** SF post-top acorn lamps (the street's, and the one by the Hayes Valley shop): 2 draw calls. */
+export function Lamps({ lamps }: { lamps: Fixture[] }) {
   const m = useMemo(
     () => ({
       iron: new MeshStandardMaterial({ color: "#26302c", roughness: 0.55, metalness: 0.35 }),
       // milky glass by day, warm at night
       glass: new MeshStandardMaterial({ color: "#efe9dc", roughness: 0.35, emissive: new Color("#ffd28a"), emissiveIntensity: 0 }),
-      painted: new MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }),
     }),
     [],
   );
@@ -90,8 +101,6 @@ export function StreetFurniture({ lamps, hydrants, signs }: { lamps: Fixture[]; 
     <>
       <Instances items={lamps} geometry={STREET_PARTS.lampIron} material={m.iron} place={set} />
       <Instances items={lamps} geometry={STREET_PARTS.lampGlass} material={m.glass} place={set} shadows={false} />
-      <Instances items={hydrants} geometry={STREET_PARTS.hydrant} material={m.painted} place={set} />
-      <Instances items={signs} geometry={STREET_PARTS.sign} material={m.painted} place={set} />
     </>
   );
 }

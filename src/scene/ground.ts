@@ -9,7 +9,7 @@
 // a darker gutter on the street, both a hair above the ground.
 
 import { BufferGeometry, Float32BufferAttribute } from "three";
-import { surfaceAt } from "@/lib/terrain";
+import { PLAZA, surfaceAt } from "@/lib/terrain";
 import { LAND_BOUNDS, STREET, X_STREETS, Z_STREETS, groundAt, insideLand } from "./grid";
 
 /** Ground outside the land (under the water, behind the sea wall). */
@@ -25,11 +25,13 @@ const SHADE = { top: 1.12, face: 0.95, gutter: 0.62 };
 /** A grid line: where it is, and which side of a kerb it takes (-1, +1; 0 off the kerbs). */
 type Line = { v: number; side: number };
 
-function lines(lo: number, hi: number, streets: number[]): Line[] {
+/** Grid lines every STEP, doubled on the kerbs and on `steps` (other crisp edges, like the Pyramid's plaza cut). */
+function lines(lo: number, hi: number, streets: number[], steps: number[] = []): Line[] {
   const kerbs = streets.flatMap((s) => [s - STREET / 2, s + STREET / 2]);
   const out: Line[] = [];
   for (let i = 0; i <= Math.round((hi - lo) / STEP); i++) {
     const v = lo + i * STEP;
+    for (const step of steps) if (step > v - STEP && step < v) out.push({ v: step, side: -1 }, { v: step, side: 1 });
     if (kerbs.some((k) => Math.abs(k - v) < 1e-9)) out.push({ v, side: -1 }, { v, side: 1 });
     else out.push({ v, side: 0 });
   }
@@ -43,8 +45,8 @@ let cache: { xs: Line[]; zs: Line[]; h: Float32Array } | null = null;
 function heights() {
   if (cache) return cache;
   const { minX, maxX, minZ, maxZ } = LAND_BOUNDS;
-  const xs = lines(minX, maxX, X_STREETS);
-  const zs = lines(minZ, maxZ, Z_STREETS);
+  const xs = lines(minX, maxX, X_STREETS, [PLAZA.x0, PLAZA.x1]);
+  const zs = lines(minZ, maxZ, Z_STREETS, [PLAZA.z0]);
   const h = new Float32Array(xs.length * zs.length);
   zs.forEach((z, j) => xs.forEach((x, i) => (h[j * xs.length + i] = ground(x.v + x.side * 1e-4, z.v + z.side * 1e-4))));
   return (cache = { xs, zs, h });

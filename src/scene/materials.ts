@@ -47,12 +47,22 @@ function patch(material: MeshStandardMaterial, key: string, opts: { uniforms: Re
   return material;
 }
 
+/** Smooth value noise, 0..1. */
+const VALUE_NOISE = /* glsl */ `
+  float fVNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(fHash(i), fHash(i + vec2(1.0, 0.0)), f.x), mix(fHash(i + vec2(0.0, 1.0)), fHash(i + 1.0), f.x), f.y);
+  }`;
+
 /**
  * Row houses (house-models.ts): painted wood in each house's colours. Vertex
  * attributes `aSlot` (which paint, SLOTS order), `aWin` (window id, 0 = not
  * glass) and `aPane` (where on its pane, for glass); instance attribute
  * `aPalette`. `palette` is linear RGB per palette and slot. Body walls get
- * lap siding, `scales` fish-scale shingles, roofs shingles.
+ * lap siding, `scales` fish-scale shingles, roofs shingles; the 06:00
+ * apartment's `stucco` a soft mottle and its `gravel` roof stones.
  * Glass: a dark room behind it (some with a blind part way down, some with
  * curtains drawn to the sides) under a glossy pane that reflects the sky by
  * fresnel: near black looking straight in, brighter and bluer at a glancing
@@ -75,7 +85,7 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
       #else
         vSeed = 0.0;
       #endif`,
-    fragHead: `uniform sampler2D uSiding;\nuniform sampler2D uShingles;\nuniform vec3 uPalette[${palette.length / 3}];\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;\nfloat fLit = 0.0;\nfloat fGlassy = 0.0;\nfloat fCloth = 0.0;`,
+    fragHead: `uniform sampler2D uSiding;\nuniform sampler2D uShingles;\nuniform vec3 uPalette[${palette.length / 3}];\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;\nfloat fLit = 0.0;\nfloat fGlassy = 0.0;\nfloat fCloth = 0.0;\n${VALUE_NOISE}`,
     color: /* glsl */ `
       int fSlot = int(vSlot + 0.5);
       vec3 fC = uPalette[int(vPalette + 0.5) * ${n} + fSlot];
@@ -94,6 +104,16 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
         float fAa = fwidth(fR) + 0.02;
         float fRim = fQ.y < 0.5 ? smoothstep(0.5 - fAa * 2.0, 0.5, fR) : 0.0;
         fC *= 1.0 - 0.22 * fRim - 0.06 * fQ.y;
+      } else if (fSlot == ${SLOT.stucco}) {
+        // troweled stucco: a soft mottle, never a pattern
+        vec2 fS = fUpright ? vec2(fAlong, vFPos.y) : vFPos.xz;
+        fC *= 0.95 + 0.07 * fVNoise(fS * 3.0) + 0.04 * fVNoise(fS * 11.0);
+      } else if (fSlot == ${SLOT.gravel}) {
+        // tar and gravel: stones up close (gone once a pixel covers them), weathered patches
+        vec2 fS = vFPos.xz;
+        float fFine = 1.0 - smoothstep(0.012, 0.04, length(fwidth(fS)));
+        float fStones = 0.6 * fVNoise(fS * 40.0) + 0.4 * fVNoise(fS * 97.0);
+        fC *= (0.86 + 0.26 * fVNoise(fS * 1.3)) * mix(1.0, 0.62 + 0.76 * fStones, fFine);
       } else if (fSlot == ${SLOT.roof}) {
         // rows run along the slope, stacked up it
         vec2 fUv = vec2(fAlong, vFPos.y / max(0.3, length(vFNormal.xz))) / 1.3;
@@ -167,7 +187,7 @@ export function towerMaterial(facade: Texture, tile: { w: number; h: number }, g
  * is (part, per-tower seed, floodlight height or 0). Parts: 0 curtain wall
  * (mullions, a spandrel at each floor, panes that differ a little), 1 punched
  * windows from the stone texture on a tinted wall (limestone, terracotta,
- * brick), 2 shop fronts (middle bay is the entrance), 3 plain, 4 metal. Flat tops of facades are
+ * brick), 2 shop fronts (middle bay is the entrance), 3 plain, 4 metal, 5 aluminium cladding. Flat tops of facades are
  * tar-and-gravel roofs. At night some windows light up (offices cooler, shops
  * warmer) and floodlit crowns get a warm wash that fades upward.
  */
@@ -233,6 +253,10 @@ export function downtownMaterial(stone: Texture) {
         fRough = mix(0.75, 0.06, fGlz - fFrame);
         fMetal = 0.45 * (fGlz - fFrame);
         fLit = (fGlz - fFrame) * step(0.45, fRnd) * (0.2 + 0.2 * smoothstep(0.1, 0.6, fY));
+      } else if (fPart > 4.5) {
+        // Brushed aluminium cladding (the Pyramid's crown): light, only a little metallic, so it never goes dark.
+        fRough = 0.5;
+        fMetal = 0.15;
       } else if (fPart > 3.5) {
         fRough = 0.4;
         fMetal = 0.6;
@@ -241,6 +265,7 @@ export function downtownMaterial(stone: Texture) {
       roughnessFactor = fRough;
       metalnessFactor = fMetal;
       float fFl = vInfo.z > 0.5 ? smoothstep(vInfo.z, vInfo.z + 0.6, vFPos.y) * (1.0 - 0.45 * smoothstep(vInfo.z, vInfo.z + 5.0, vFPos.y)) : 0.0;
+      fFl *= fPart > 4.5 ? 0.4 : 1.0; // aluminium is pale: a softer wash keeps it calm
       totalEmissiveRadiance += (fLitC * fLit * 1.4 + diffuseColor.rgb * vec3(1.0, 0.8, 0.58) * fFl * 0.85) * uNight;`,
   });
 }

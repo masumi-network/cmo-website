@@ -82,7 +82,7 @@ const body = (it: Item, o: Object3D) => placeBody(it.h, o);
 
 /** Victorian row houses: one modelled front per variant, lap-sided bodies, flat or gabled roofs. */
 export function Houses({ houses, tex }: { houses: House[]; tex: { siding: Texture; shingles: Texture } }) {
-  const material = useMemo(() => houseMaterial(tex.siding, tex.shingles, palette()), [tex]);
+  const material = useMemo(() => houseMaterial(tex.siding, tex.shingles, palette()), [tex.siding, tex.shingles]);
   const meshes = useMemo(() => {
     const palettes = paletteOf(houses);
     const items = houses.map((h, i) => ({ h, v: variantOf(h, i), p: palettes[i] }));

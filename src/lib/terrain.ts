@@ -27,13 +27,28 @@ const HILLS: Hill[] = [
   [-30, 34.5, 1.5, 6, 5.5],
 ];
 
-export function heightAt(x: number, z: number) {
+function hills(x: number, z: number) {
   let h = 0;
   for (const [hx, hz, a, rx, rz] of HILLS) {
     const q = ((x - hx) / rx) ** 2 + ((z - hz) / rz) ** 2;
     if (q < 1) h += a * (1 - q) ** 2;
   }
   return h;
+}
+
+/**
+ * The Transamerica Pyramid's plaza (centre 6.5, -11): the foot of Telegraph
+ * Hill cut level at the hill's height under the centre, over the footprint
+ * (half 3.4) and a small apron. The north edge runs just inside the sidewalk's
+ * kerb line, the south edge is the footprint's (the ground there is flat
+ * already). The cut's edges are crisp steps: ground.ts doubles their grid lines
+ * and pyramid.tsx builds the retaining walls.
+ */
+export const PLAZA = { x0: 2.9, x1: 10.1, z0: -14.45, z1: -7.6, y: hills(6.5, -11) };
+const inPlaza = (x: number, z: number) => x > PLAZA.x0 && x < PLAZA.x1 && z > PLAZA.z0 && z <= PLAZA.z1;
+
+export function heightAt(x: number, z: number) {
+  return inPlaza(x, z) ? PLAZA.y : hills(x, z);
 }
 
 /**

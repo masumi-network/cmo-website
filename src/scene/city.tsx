@@ -66,7 +66,7 @@ export function City({ lite }: { lite: boolean }) {
       <Headlands map={tex.hills} />
       <Houses houses={city.houses} tex={tex} />
       <Towers towers={city.towers} tex={tex} />
-      <Trees trees={city.trees} />
+      <Trees trees={city.trees} lite={lite} />
       <Grass lite={lite} grass={tex.grass} dry={tex.hills} />
       <StreetFurniture lamps={city.lamps} hydrants={city.hydrants} signs={city.signs} />
       <Cars />
@@ -97,13 +97,13 @@ function Land({ tex }: { tex: Textures }) {
   }, []);
   // Group 0 is the flat top (hidden: the terrain replaces it), group 1 the sides.
   // Shore: a concrete sea wall.
-  const cliffMaterials = useMemo(() => [new MeshBasicMaterial({ visible: false }), worldMaterial(tex.concrete, 3)], [tex]);
+  const cliffMaterials = useMemo(() => [new MeshBasicMaterial({ visible: false }), worldMaterial(tex.concrete, 3)], [tex.concrete]);
 
   const terrain = useMemo(() => terrainGeometry(), []);
   const kerbs = useMemo(() => kerbGeometry(), []);
   // Concrete kerbs: the shade (top edge, face, gutter) is in the vertex colours.
-  const kerbMaterial = useMemo(() => new MeshStandardMaterial({ map: tex.concrete, vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), [tex]);
-  const ground = useMemo(() => groundMaterial(groundMask(), lampLight(CITY.lamps), tex.asphalt, tex.concrete, tex.grass, tex.hills), [tex]);
+  const kerbMaterial = useMemo(() => new MeshStandardMaterial({ map: tex.concrete, vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), [tex.concrete]);
+  const ground = useMemo(() => groundMaterial(groundMask(), lampLight(CITY.lamps), tex.asphalt, tex.concrete, tex.grass, tex.hills), [tex.asphalt, tex.concrete, tex.grass, tex.hills]);
 
   return (
     <>

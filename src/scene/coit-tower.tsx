@@ -9,7 +9,7 @@
 import { useMemo } from "react";
 import { BufferGeometry, CanvasTexture, Color, ExtrudeGeometry, Float32BufferAttribute, LatheGeometry, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, Shape, Vector2 } from "three";
 import { heightAt } from "@/lib/terrain";
-import { box, cyl, merged } from "./landmarks";
+import { box, cyl, merged } from "./landmark-kit";
 import { useNightGlow } from "./shared";
 
 /**

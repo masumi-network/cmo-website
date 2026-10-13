@@ -342,7 +342,7 @@ export function towerGeometry(towers: Tower[]) {
 
 /** Downtown: the whole skyline in one draw call. */
 export function Towers({ towers, tex }: { towers: Tower[]; tex: Textures }) {
-  const material = useMemo(() => downtownMaterial(tex.stone), [tex]);
+  const material = useMemo(() => downtownMaterial(tex.stone), [tex.stone]);
   const geometry = useMemo(() => towerGeometry(towers), [towers]);
   return <mesh geometry={geometry} material={material} castShadow receiveShadow />;
 }
