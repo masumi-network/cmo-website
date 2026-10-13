@@ -38,7 +38,7 @@ export function Cuso() {
   const me = useRef({
     d: -1, phase: 0, walk: 0, dash: 0, air: 0,
     wave: 1, waveUntil: 2.2, cheerAt: -10, cheer: useCity.getState().cheer,
-    popAt: -10, wasMoving: false, nextBlink: 2, says: "", talkAt: -10, fist: 0,
+    popAt: -10, wasMoving: false, nextBlink: 2,
   });
 
   useEffect(() => {
@@ -91,22 +91,9 @@ export function Cuso() {
     const cheerU = (time - m.cheerAt) / 0.9;
     const cheer = cheerU >= 0 && cheerU < 1 ? Math.sin(Math.PI * cheerU) : 0;
 
-    // A new speech bubble (the same rule the Bubble uses): a small hand gesture.
-    const at = now.t < 0.001 ? now.leg : now.t > 0.999 ? now.leg + 1 : -1;
-    const says = state.mode === "story" && !moving && at >= 0 ? state.reply || chapters[at].bubble : "";
-    if (says !== m.says) {
-      m.says = says;
-      if (says) m.talkAt = time;
-    }
-    const talkU = (time - m.talkAt) / 1.6;
-    // On the move his raised hand closes into a loose fist; it opens again as he stops (0.25 s).
-    m.fist = Math.min(1, Math.max(0, m.fist + (moving ? dt : -dt) / 0.25));
-
     pose(skeleton, {
       walk: m.walk, dash: m.dash, air: Math.max(m.air, cheer * 0.4), wave: m.wave, cheer,
       phase: m.phase, time, lookX: rig.pointer.x, lookY: rig.pointer.y,
-      talk: talkU >= 0 && talkU < 1 ? Math.sin(Math.PI * talkU) : 0,
-      fist: m.fist,
     });
 
     // Blink every few seconds.

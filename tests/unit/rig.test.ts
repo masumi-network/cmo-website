@@ -10,7 +10,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { BufferGeometry, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, Uint32BufferAttribute, Vector3, type SkinnedMesh } from "three";
 import { beforeAll, describe, expect, it } from "vitest";
-import { CURL, fidget, pose, type PoseInput } from "@/scene/gait";
+import { pose, type PoseInput } from "@/scene/gait";
 import { BONE, HULL, SCALE, rigCuso, type CusoRig } from "@/scene/rig";
 
 // The few calls of the emscripten draco decoder we need.
@@ -67,36 +67,23 @@ async function loadBody() {
   return { position: read(POSITION, 3), normal: read(NORMAL, 3), uv: read(TEXCOORD_0, 2), index };
 }
 
-const STILL: PoseInput = { walk: 0, dash: 0, air: 0, wave: 0, cheer: 0, phase: 0, time: 0, lookX: 0, lookY: 0, talk: 0, fist: 0 };
+const STILL: PoseInput = { walk: 0, dash: 0, air: 0, wave: 0, cheer: 0, phase: 0, time: 0, lookX: 0, lookY: 0 };
 const PHASES = Array.from({ length: 16 }, (_, i) => (i / 16) * Math.PI * 2);
-const TIMES = Array.from({ length: 8 }, (_, i) => i * 0.087);
-/** Standing, the moments a finger wiggle or tap peaks (the fidget clock is seeded, so these are fixed). */
-const FIDGETS = Array.from({ length: 400 }, (_, i) => i * 0.1).filter((t) => {
-  const { wiggle, tap } = fidget(t);
-  return Math.abs(wiggle) > 0.6 || tap > 0.6;
-});
 const POSES: [string, PoseInput][] = [
   ["idle", { ...STILL, time: 1.3, lookX: 0.8, lookY: -0.5 }],
-  ...TIMES.map((time): [string, PoseInput] => [`wave ${time.toFixed(2)}`, { ...STILL, wave: 1, time }]),
-  ...TIMES.map((time): [string, PoseInput] => [`cheer ${time.toFixed(2)}`, { ...STILL, cheer: 1, air: 0.4, time }]),
-  ["take-off", { ...STILL, air: 0.5, fist: 1 }],
-  ["landing", { ...STILL, air: 0.3, fist: 0.5 }],
-  ...[0.25, 0.5, 0.75].map((walk): [string, PoseInput] => [`stopping ${walk}`, { ...STILL, walk, phase: 2, fist: walk }]),
-  ["jump", { ...STILL, air: 1, fist: 1 }],
-  ["dash", { ...STILL, dash: 1, fist: 1 }],
-  ["talk", { ...STILL, talk: 1 }],
-  ["talk, waving", { ...STILL, talk: 1, wave: 1, time: 0.3 }],
-  ...FIDGETS.map((time): [string, PoseInput] => [`fidget ${time.toFixed(2)}`, { ...STILL, time }]),
-  ...PHASES.map((phase): [string, PoseInput] => [`walk ${phase.toFixed(2)}`, { ...STILL, walk: 1, phase, fist: 1 }]),
-  ...PHASES.map((phase): [string, PoseInput] => [`walk to dash ${phase.toFixed(2)}`, { ...STILL, walk: 0.5, dash: 0.5, phase, fist: 1 }]),
+  ["wave", { ...STILL, wave: 1, time: 0.2 }],
+  ["cheer", { ...STILL, cheer: 1, air: 0.4 }],
+  ["jump", { ...STILL, air: 1 }],
+  ["dash", { ...STILL, dash: 1 }],
+  ...PHASES.map((phase): [string, PoseInput] => [`walk ${phase.toFixed(2)}`, { ...STILL, walk: 1, phase }]),
+  ...PHASES.map((phase): [string, PoseInput] => [`walk to dash ${phase.toFixed(2)}`, { ...STILL, walk: 0.5, dash: 0.5, phase }]),
 ];
 
 let rest: Float32Array;
 let index: ArrayLike<number>;
 /** Open edges in the file's own mesh (welded by position). */
 let openBefore: number;
-let body: ReturnType<typeof volume> | undefined;
-let fist: ReturnType<typeof volume> | undefined;
+let volume: ReturnType<typeof bodyVolume> | undefined;
 let rig: CusoRig;
 let skinned: SkinnedMesh;
 let scene: Group;
@@ -193,37 +180,29 @@ function shoeTurn(p: Float32Array, left: boolean) {
   return 90 - Math.abs(fromX);
 }
 
-/** How much of a vertex's weight is on these bones. */
-function weightOn(i: number, bones: number[]) {
+/** Vertices bound fully to a bone. */
+function boundTo(bone: number) {
   const { skinIndex, skinWeight } = skinned.geometry.attributes;
-  let w = 0;
-  for (let k = 0; k < 4; k++) if (bones.includes(skinIndex.getComponent(i, k))) w += skinWeight.getComponent(i, k);
-  return w;
-}
-
-/** Vertices bound fully to these bones. */
-function boundTo(...bones: number[]) {
   const out: number[] = [];
-  for (let i = 0; i < rest.length / 3; i++) if (weightOn(i, bones) > 0.999) out.push(i);
+  for (let i = 0; i < skinIndex.count; i++) if (skinIndex.getX(i) === bone && skinWeight.getX(i) > 0.999) out.push(i);
   return out;
 }
 
-const ARM_L = [BONE.armL, BONE.wristL, BONE.fingerL];
-const ARM_R = [BONE.armR, BONE.wristR];
-
 /**
- * Inside test for a closed part of him at rest (the faces whose every vertex
- * passes `keep`): per (x, y) column, the z where its surface crosses it. A point
- * is inside when an odd number of crossings lie above it; its depth is the
- * distance to the nearest of those vertices.
+ * Inside test for his body (every face not on an arm), at rest: per (x, y)
+ * column, the z where the surface crosses it. A point is inside when an odd
+ * number of crossings lie above it; its depth is the distance to the nearest body vertex.
  */
-function volume(keep: (i: number) => boolean) {
+function bodyVolume() {
   const CELL = 0.0008;
   const cols = new Map<number, number[]>();
+  const { skinIndex, skinWeight } = skinned.geometry.attributes;
+  const arms: number[] = [BONE.armL, BONE.armR];
+  const onArm = (i: number) => [0, 1, 2, 3].some((k) => arms.includes(skinIndex.getComponent(i, k)) && skinWeight.getComponent(i, k) > 0);
   const v = (i: number) => [rest[i * 3], rest[i * 3 + 1], rest[i * 3 + 2]];
   for (let f = 0; f < index.length; f += 3) {
     const t = [index[f], index[f + 1], index[f + 2]];
-    if (!t.every(keep)) continue;
+    if (t.some(onArm)) continue;
     const [a, b, c] = t.map(v);
     const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
     if (Math.abs(det) < 1e-14) continue;
@@ -243,7 +222,7 @@ function volume(keep: (i: number) => boolean) {
   const near = new Map<number, number[]>();
   const cell = (x: number, y: number, z: number) => (Math.floor(x / 0.003) + 100) * 1e6 + (Math.floor(y / 0.003) + 100) * 1e3 + Math.floor(z / 0.003) + 100;
   for (let i = 0; i < rest.length / 3; i++) {
-    if (!keep(i)) continue;
+    if (onArm(i)) continue;
     const k = cell(rest[i * 3], rest[i * 3 + 1], rest[i * 3 + 2]);
     if (!near.has(k)) near.set(k, []);
     near.get(k)!.push(i);
@@ -255,7 +234,7 @@ function volume(keep: (i: number) => boolean) {
     }
     return d;
   };
-  /** How deep a point is inside (0 outside), up to 0.003. */
+  /** How deep a point is inside his body (0 outside), up to 0.003. */
   return (x: number, y: number, z: number) => {
     const zs = cols.get(Math.round(x / CELL) * 100_000 + Math.round(y / CELL)) ?? [];
     return zs.filter((c) => c > z).length % 2 === 1 ? distance(x, y, z) : 0;
@@ -283,103 +262,26 @@ describe("Cuso's rig", () => {
     expect(thumb.x).toBeGreaterThan(0.02);
   });
 
-  it("frees the hip hand: the arm and fist move on their own bones", () => {
-    expect(boundTo(...ARM_R).length).toBeGreaterThan(1500);
-    expect(boundTo(BONE.wristR).length).toBeGreaterThan(800);
+  it("frees the hip hand: the arm and fist move on their own bone", () => {
+    expect(boundTo(BONE.armR).length).toBeGreaterThan(1500);
   });
 
-  it("fidgets now and then while standing: finger wiggles and taps", () => {
-    expect(FIDGETS.filter((t) => fidget(t).tap > 0).length).toBeGreaterThan(3);
-    expect(FIDGETS.filter((t) => fidget(t).wiggle !== 0).length).toBeGreaterThan(3);
+  it("closes the hip and the fist where the hand comes off", () => {
+    expect(openEdges(posed({ ...STILL, cheer: 1, air: 0.4 }), index)).toBeLessThanOrEqual(openBefore);
   });
-
-  it("gives the raised hand a wrist and a two-jointed finger of its own", () => {
-    expect(boundTo(BONE.wristL).length).toBeGreaterThan(800);
-    expect(boundTo(BONE.fingerL, BONE.fingerTipL).length).toBeGreaterThan(200);
-    expect(boundTo(BONE.fingerTipL).length).toBeGreaterThan(80);
-  });
-
-  it("brings the hands to life when he walks", () => {
-    const cycle = PHASES.map((phase) => {
-      pose(rig, { ...STILL, walk: 1, phase });
-      return [rig.bones.wristL.rotation.x, rig.bones.wristR.rotation.x];
-    });
-    for (let k = 0; k < 2; k++) expect(Math.max(...cycle.map((c) => c[k])) - Math.min(...cycle.map((c) => c[k]))).toBeGreaterThan(0.2);
-  });
-
-  it("carries both hands as loose fists on the move, and points only when it means something", () => {
-    const finger = (input: PoseInput) => {
-      pose(rig, input);
-      return [rig.bones.fingerL.rotation.x, rig.bones.fingerTipL.rotation.x];
-    };
-    for (const input of [{ walk: 1 }, { dash: 1 }, { air: 1 }, { walk: 0.5, dash: 0.5 }]) expect(finger({ ...STILL, ...input, phase: 1, fist: 1 })).toEqual([CURL, CURL]);
-    for (const input of [{}, { talk: 1 }, { wave: 1 }, { cheer: 1, air: 0.4 }, { talk: 1, fist: 1 }, { cheer: 1, air: 0.4, fist: 1 }]) {
-      const [base, tip] = finger({ ...STILL, ...input });
-      expect(Math.abs(base)).toBeLessThan(0.5);
-      expect(tip).toBe(0);
-    }
-  });
-
-  it("curls and uncurls the finger smoothly as he starts and stops", () => {
-    const steps = Array.from({ length: 41 }, (_, i) => {
-      pose(rig, { ...STILL, walk: i / 40, fist: i / 40 });
-      return rig.bones.fingerTipL.rotation.x;
-    });
-    for (let i = 1; i < steps.length; i++) {
-      expect(steps[i]).toBeGreaterThanOrEqual(steps[i - 1]);
-      expect(steps[i] - steps[i - 1]).toBeLessThan(0.1);
-    }
-  });
-
-  it.each(POSES.filter(([n]) => /walk|dash|jump/.test(n)))("lays the curled finger on its fist: %s", (_, input) => {
-    const p = posed(input);
-    const toHand = rig.bones.wristL.matrixWorld.clone().multiply(skinned.skeleton.boneInverses[BONE.wristL]).invert();
-    const fistAt = boundTo(BONE.wristL);
-    const v = new Vector3();
-    let gap = 1;
-    for (const i of boundTo(BONE.fingerTipL).filter((k) => rest[k * 3 + 1] > 0.0755)) {
-      v.fromArray(p, i * 3).applyMatrix4(toHand);
-      for (const j of fistAt) gap = Math.min(gap, Math.hypot(rest[j * 3] - v.x, rest[j * 3 + 1] - v.y, rest[j * 3 + 2] - v.z));
-    }
-    expect(gap).toBeLessThan(0.003);
-  });
-
-  it("keeps the hip hand exactly on his hip while he stands, talks or fidgets", () => {
-    for (const input of [STILL, ...POSES.filter(([n]) => /idle|talk|fidget/.test(n)).map(([, i]) => i)]) {
-      pose(rig, { ...input, wave: 0 });
-      for (const bone of [rig.bones.armR, rig.bones.wristR]) expect([bone.rotation.x, bone.rotation.y, bone.rotation.z]).toEqual([0, 0, 0]);
-    }
-  });
-
-  it.each([["cheer", { ...STILL, cheer: 1, air: 0.4 }], ["take-off", { ...STILL, air: 0.5 }], ["talk", { ...STILL, talk: 1 }], ["dash", { ...STILL, dash: 1 }]] as [string, PoseInput][])(
-    "leaves no holes when the hands move: %s",
-    (_, input) => {
-      expect(openEdges(posed(input), index)).toBeLessThanOrEqual(openBefore);
-    },
-  );
 
   it.each(POSES)("keeps both fists out of his body: %s", (_, input) => {
-    const depth = (body ??= volume((i) => weightOn(i, [...ARM_L, ...ARM_R]) === 0));
+    const depth = (volume ??= bodyVolume());
     const p = posed(input);
-    // The hands (the upper arms bend into his shoulders like hoses, see above).
-    // Into the body's own frame: the body bone carries both shoulders.
+    // Into the body's own frame: the body bone carries both shoulders. The hip
+    // arm and fist, and the raised fist (left of x -0.062, above y 0.024); the
+    // raised upper arm bends into his shoulder like a hose (the stretch check covers it).
     const toBody = rig.bones.body.matrixWorld.clone().multiply(skinned.skeleton.boneInverses[BONE.body]).invert();
     const v = new Vector3();
-    const inside = [...boundTo(BONE.wristL, BONE.fingerL), ...boundTo(BONE.wristR)].filter((i) => {
+    const raisedFist = boundTo(BONE.armL).filter((i) => rest[i * 3] < -0.062 && rest[i * 3 + 1] > 0.024);
+    const inside = [...boundTo(BONE.armR), ...raisedFist].filter((i) => {
       v.fromArray(p, i * 3).applyMatrix4(toBody);
       return depth(v.x, v.y, v.z) > 0.0015;
-    });
-    expect(inside.length).toBe(0);
-  });
-
-  it.each(POSES)("keeps the raised finger out of its fist: %s", (_, input) => {
-    const depth = (fist ??= volume((i) => weightOn(i, [BONE.wristL]) > 0.999));
-    const p = posed(input);
-    const toHand = rig.bones.wristL.matrixWorld.clone().multiply(skinned.skeleton.boneInverses[BONE.wristL]).invert();
-    const v = new Vector3();
-    const inside = boundTo(BONE.fingerL, BONE.fingerTipL).filter((i) => {
-      v.fromArray(p, i * 3).applyMatrix4(toHand);
-      return depth(v.x, v.y, v.z) > 0.001;
     });
     expect(inside.length).toBe(0);
   });

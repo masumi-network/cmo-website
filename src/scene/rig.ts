@@ -32,7 +32,7 @@ export const HULL: readonly (readonly [number, number, number, number, number, n
  */
 const MIRROR = -1;
 
-export const BONE = { root: 0, hips: 1, body: 2, armL: 3, armR: 4, thighL: 5, shinL: 6, footL: 7, thighR: 8, shinR: 9, footR: 10, wristL: 11, fingerL: 12, wristR: 13, fingerTipL: 14 } as const;
+export const BONE = { root: 0, hips: 1, body: 2, armL: 3, armR: 4, thighL: 5, shinL: 6, footL: 7, thighR: 8, shinR: 9, footR: 10 } as const;
 export type BoneName = keyof typeof BONE;
 
 type P = readonly [number, number, number?];
@@ -42,12 +42,6 @@ export const JOINT = {
   hips: [-0.005, -0.06],
   shoulderL: [-0.058, 0.002],
   shoulderR: [0.074, 0.006, -0.007],
-  // The raised hand: a fist with the index finger up. The hip hand: a fist.
-  wristL: [-0.082, 0.019, -0.005],
-  // The raised finger's knuckles sit on its front (z 0.003), so it folds over the fist.
-  fingerL: [-0.082, 0.06, 0.003],
-  fingerTipL: [-0.082, 0.068, 0.003],
-  wristR: [0.091, -0.031, -0.004],
   hipL: [-0.02, -0.066, -0.008],
   kneeL: [-0.023, -0.088, -0.008],
   ankleL: [-0.021, -0.106, -0.008],
@@ -92,31 +86,21 @@ export function weightsAt(x: number, y: number): [number, number][] {
     return pairs.filter(([, w]) => w > 0).sort((a, b) => b[1] - a[1]).slice(0, 4);
   }
 
-  // The raised arm bends like a rubber hose from the shoulder outwards. Its hand
-  // (clear of the body, left of x -0.062) bends at the wrist (y 0.016 to 0.026),
-  // and the raised finger at its base (y 0.057 to 0.066, the top of the fist) and
-  // its middle (y 0.066 to 0.071), so it can curl into the fist.
+  // The thumbs-up arm bends like a rubber hose from the shoulder outwards.
   if (x < JOINT.shoulderL[0] + 0.004 && y > -0.035) {
-    const hand = x < -0.062 ? smooth(0.016, 0.026, y) : 0;
-    const finger = hand * smooth(0.057, 0.066, y);
-    const tip = finger * smooth(0.064, 0.074, y);
-    const w = Math.max(hand, smooth(JOINT.shoulderL[0] + 0.004, JOINT.shoulderL[0] - 0.012, x));
-    const pairs: [number, number][] = [[BONE.fingerTipL, tip], [BONE.fingerL, finger - tip], [BONE.wristL, hand - finger], [BONE.armL, w - hand], [BONE.body, 1 - w]];
-    return pairs.filter(([, v]) => v > 0);
+    const w = smooth(JOINT.shoulderL[0] + 0.004, JOINT.shoulderL[0] - 0.012, x);
+    return [[BONE.armL, w], [BONE.body, 1 - w]];
   }
   return [[BONE.body, 1]];
 }
 
 /**
  * Weights for the hip arm (vertices `freeHipHand` found): the upper arm bends like
- * a hose from the shoulder out to the elbow, the forearm is rigid, and the fist
- * bends at the wrist (y -0.028 to -0.036).
+ * a hose from the shoulder out to the elbow; the forearm and the fist are rigid.
  */
 export function hipArmWeightsAt(x: number, y: number): [number, number][] {
   const w = Math.max(smooth(0.0725, 0.1, x), smooth(-0.005, -0.02, y));
-  const hand = smooth(-0.028, -0.036, y);
-  const pairs: [number, number][] = [[BONE.wristR, hand], [BONE.armR, w - hand], [BONE.body, 1 - w]];
-  return pairs.filter(([, v]) => v > 0);
+  return [[BONE.armR, w], [BONE.body, 1 - w]];
 }
 
 export type CusoRig = { bones: Record<BoneName, Bone>; rest: Record<BoneName, { x: number; y: number; z: number }> };
@@ -158,10 +142,6 @@ export function rigCuso(scene: Object3D): CusoRig {
     body: make("body", J.hips, J.hips),
     armL: make("armL", J.shoulderL, J.hips),
     armR: make("armR", J.shoulderR, J.hips),
-    wristL: make("wristL", J.wristL, J.shoulderL),
-    fingerL: make("fingerL", J.fingerL, J.wristL),
-    fingerTipL: make("fingerTipL", J.fingerTipL, J.fingerL),
-    wristR: make("wristR", J.wristR, J.shoulderR),
     thighL: make("thighL", J.hipL, J.hips),
     shinL: make("shinL", J.kneeL, J.hipL),
     footL: make("footL", J.ankleL, J.kneeL),
@@ -172,10 +152,6 @@ export function rigCuso(scene: Object3D): CusoRig {
   bones.root.add(bones.hips);
   bones.hips.add(bones.body, bones.thighL, bones.thighR);
   bones.body.add(bones.armL, bones.armR);
-  bones.armL.add(bones.wristL);
-  bones.wristL.add(bones.fingerL);
-  bones.fingerL.add(bones.fingerTipL);
-  bones.armR.add(bones.wristR);
   bones.thighL.add(bones.shinL);
   bones.shinL.add(bones.footL);
   bones.thighR.add(bones.shinR);
