@@ -1,0 +1,9 @@
+Reference for the 07:00 Hayes Valley coffee shop interior (shop.tsx). Landscape 3:2.
+
+A cosy San Francisco specialty coffee shop interior seen from the street through a large painted deep-green timber shop window, eye level, slightly off-centre, morning light at 7 am with the lights on. Stylized miniature diorama, crafted like a high-end 3D illustration: physically based materials, soft global illumination, gentle tilt-shift depth of field.
+
+Inside: a long counter at the back right with a thick glossy oak top, a deep-green beadboard front and a dark kick board; a chrome espresso machine with two group heads, a steam wand and white cups stacked on top; a coffee grinder with a hopper; a small glass pastry case with croissants; stacked white cups. Behind it white bevelled subway tile and open oak shelves with kraft coffee bags, glass jars, a few books and a small trailing plant. Above the shelves a black chalkboard menu with neat hand-lettered lines. Two or three wooden stools at the counter.
+
+On the left: round white marble tables on black cast-iron pedestal bases, bentwood cafe chairs with curved back hoops, a tufted brown leather banquette along the wall, dark wood wainscoting with a dado rail and warm cream plaster above, two small framed prints. A pressed tin ceiling with a couple of exposed beams. Four or five pendant lamps: white enamel shades with a warm glowing inside, black cords and small ceiling roses, warm pools of light on the tables and floor. A tall leafy fiddle-leaf fig in the window and a hanging plant. Warm oak floorboards.
+
+Mood: calm, inviting, premium, uncluttered, warm neutrals with the deep green. No people. No text, no letters, no logos, no watermark; the chalkboard shows only abstract chalk lines.

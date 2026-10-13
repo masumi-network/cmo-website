@@ -10,16 +10,10 @@ import { merged, useLandmarkTextures } from "./landmark-kit";
 import { downtownMaterial } from "./materials";
 import { useGlow } from "./parts";
 import { PART } from "./towers";
+import { PYRAMID, WINGS, pyramidHalf } from "./layout";
 
-/**
- * Transamerica Pyramid: four white precast faces with a constant taper up to
- * Cuso's platform (y 28), the two plumb wings on the east and west faces,
- * and the hollow aluminium spire beside him. `pyramidHalf(y)` is the
- * half-width of the body at height y. The base is as wide as the block allows:
- * its corners stop on the sidewalks of the streets at z -6 and -16.
- */
-export const PYRAMID = { base: 3.4, top: 0.56, height: 28 };
-export const pyramidHalf = (y: number) => PYRAMID.base + ((PYRAMID.top - PYRAMID.base) * y) / PYRAMID.height;
+export { PYRAMID, WINGS, pyramidHalf };
+
 /**
  * The spire rises from the north face just behind the platform's edge: from
  * the 15:00 camera (yaw 285) it stands to Cuso's left, never behind his body,
@@ -28,11 +22,6 @@ export const pyramidHalf = (y: number) => PYRAMID.base + ((PYRAMID.top - PYRAMID
 export const SPIRE = { x: 0, z: -0.93, half: 0.12, base: 23, top: 36.5 };
 /** Cuso's flag on the spire: a 1.2 x 0.8 cloth at height y (over his head, even when he hops), swinging +-swing radians. */
 export const FLAG = { y: 31, w: 1.2, h: 0.8, swing: 0.25 };
-/** Wings: [side (+1 east, -1 west), bottom, top, width]. Their outer walls are plumb. */
-export const WINGS: [number, number, number, number][] = [
-  [1, 13, 21.5, 1.1],
-  [-1, 13, 21, 0.9],
-];
 /** The red aircraft light on the tip of the spire. */
 export const BEACON: [number, number, number] = [SPIRE.x, SPIRE.top + 0.03, SPIRE.z];
 
@@ -279,7 +268,7 @@ export function pyramidGeometry(ground = 0) {
  */
 export function plazaWallGeometry() {
   const { poly, geometry } = builder();
-  const [cx, cz, y] = [6.5, -11, PLAZA.y];
+  const [cx, cz, y] = [PYRAMID.x, PYRAMID.z, PLAZA.y];
   const stone: Surface = { part: PART.plain, color: COLOR.plaza };
   const grid = (a: number, b: number) => [a, ...Array.from({ length: Math.floor(b * 2) - Math.ceil(a * 2) + 1 }, (_, i) => (Math.ceil(a * 2) + i) / 2).filter((v) => v > a && v < b), b];
   /** One wall along a run of points (x, z), each up to the ground outside; facing `inward`. */
@@ -303,7 +292,7 @@ export function plazaWallGeometry() {
 /** 15:00 Transamerica Pyramid. Cuso plants a flag on the spire. */
 export function Pyramid() {
   const flag = useRef<Group>(null);
-  const ground = heightAt(6.5, -11);
+  const ground = heightAt(PYRAMID.x, PYRAMID.z);
   const { stone } = useLandmarkTextures();
   // The towers' material: same shader program, so the windows light up with downtown at night.
   const material = useMemo(() => downtownMaterial(stone), [stone]);
@@ -313,7 +302,7 @@ export function Pyramid() {
     if (flag.current) flag.current.rotation.y = Math.sin(clock.elapsedTime * 2.4) * FLAG.swing;
   });
   return (
-    <group position={[6.5, ground, -11]}>
+    <group position={[PYRAMID.x, ground, PYRAMID.z]}>
       <mesh geometry={geometry} material={material} castShadow receiveShadow />
       <mesh position={BEACON} material={beacon}>
         <sphereGeometry args={[0.05, 8, 6]} />

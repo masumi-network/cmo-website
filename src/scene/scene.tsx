@@ -15,13 +15,15 @@ import { City } from "./city";
 import { CoitTower } from "./coit-tower";
 import { Cuso } from "./cuso";
 import { FerryBuilding } from "./ferry";
-import { BayBridge, GoldenGate, MuralWall, Roads } from "./landmarks";
+import { BayBridge, GoldenGate, Roads } from "./landmarks";
+import { MuralWall } from "./mission";
 import { Pyramid } from "./pyramid";
 import { Rooftop } from "./rooftop";
 import { Shopfront } from "./shop";
 import { UnionSquare } from "./union-square";
 import { Pier } from "./pier";
 import { Pins } from "./pins";
+import { Reflections } from "./reflections";
 import { rig } from "./shared";
 
 type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean };
@@ -48,7 +50,12 @@ function Ready({ onReady }: { onReady: () => void }) {
     const compiled = gl.compileAsync(scene, camera); // collects the materials right away
     gl.setRenderTarget(previous);
     target.dispose();
-    compiled.then(onReady, onReady);
+    // then the glass probe (reflections.ts) may render: its first render is behind the poster
+    const done = () => {
+      scene.userData.shadersReady = true;
+      onReady();
+    };
+    compiled.then(done, done);
   });
   return null;
 }
@@ -97,6 +104,7 @@ export default function Scene({ onReady, onGo, lite }: Props) {
         <Roads />
         <Cuso />
         <Pins onGo={onGo} />
+        <Reflections lite={lite} />
         <Ready onReady={onReady} />
       </Suspense>
       <CameraRig />

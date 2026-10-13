@@ -16,6 +16,7 @@ import { ROOFTOP } from "@/scene/rooftop";
 import { reliefDepth } from "@/scene/houses";
 import { CITY } from "@/scene/layout";
 import { DECK, RAIL } from "@/scene/pier";
+import { MISSION } from "@/scene/mission";
 import { HULL } from "@/scene/rig";
 import { SHOP } from "@/scene/shop";
 import { HYDRANT, LAMP, SIGN } from "@/scene/street";
@@ -80,11 +81,32 @@ function landmarkSolids(): Solid[] {
     out.push(around("shop lamp", s.lamp.x, s.lamp.z, LAMP.reach, LAMP.reach, s.lamp.y, s.lamp.y + LAMP.height));
   }
 
-  // 12:00 Union Square: building, cornices, parapet (not on the south edge), billboard, cable car.
+  // 09:00 Mission building: walls, the front's bays, awning and cornice over its sidewalk, the lamps over the posts, the ladder and the paint pail.
+  {
+    const m = MISSION;
+    const g = m.ground;
+    out.push(solid("Mission building", m.x0, m.x1, g - 1, g + m.top, m.z0, m.z1));
+    out.push(solid("Mission front", m.x0, m.x1, g + m.awning, g + m.top, m.z1, m.z1 + m.reach));
+    const { z, y, out: reach } = m.lamps;
+    out.push(solid("Mission lamps", m.x1, m.x1 + reach, g + y - 0.3, g + y + 0.1, Math.min(...z) - 0.15, Math.max(...z) + 0.15));
+    const l = m.ladder;
+    out.push(solid("Mission ladder", l.x - l.h * Math.sin(l.lean) - 0.05, l.x + 0.05, g, g + l.h, l.z - 0.4, l.z + 0.4));
+    const b = m.bucket;
+    out.push(around("Mission paint pail", b.x, b.z, b.r + 0.02, b.r + 0.02, g, g + b.h + 0.25));
+  }
+
+  // 12:00 Union Square: building (with its facade relief), cornices, parapet (not on the south edge),
+  // stair bulkhead, billboard, the monument in the square, cable car.
   {
     const g = heightAt(7, 9);
     const u = UNION;
+    const r = u.relief;
+    out.push(solid("Union Square walls", u.x0 - r, u.x1 + r, g, g + u.cornice.bottom, u.z0 - r, u.z1 + r));
     out.push(solid("Union Square walls", u.x0, u.x1, g, g + u.roof, u.z0, u.z1));
+    const b = u.bulkhead;
+    out.push(around("Union Square bulkhead", b.x, b.z, b.w / 2, b.d / 2, g + u.roof, g + b.top));
+    const m = u.monument;
+    out.push(around("Dewey Monument", m.x, m.z, m.base / 2, m.base / 2, g, g + m.top));
     out.push(...ring("Union Square cornice", u, g + u.cornice.bottom, g + u.cornice.top, u.cornice.out, 0.01));
     out.push(...ring("Union Square belt course", u, g + u.belt.y - 0.06, g + u.belt.y + 0.06, u.belt.out, 0.01));
     out.push(...ring("Union Square parapet", u, g + u.roof, g + u.roof + u.parapet, 0.05, u.wall + 0.01, [0, 2, 3]));

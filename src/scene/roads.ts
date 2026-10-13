@@ -328,7 +328,8 @@ export function roadGeometry(road: Road) {
   const fs = frames(road.points);
   const road_: number[] = [];
   const marks: number[] = [];
-  const concrete: number[] = [];
+  const m = mason();
+  const concrete = m.pos;
   asphalt(road_, fs);
   const [c0, dir] = phase(road);
   centreLine(marks, fs, c0, dir, (i) => road.points[i][1] - road.ground(road.points[i][0], road.points[i][2]) > 0.06);
@@ -361,21 +362,51 @@ export function roadGeometry(road: Road) {
     const k = near.reduce((a, b) => a + b, 0) / near.length;
     return k < 0.05 ? 0.001 : 0.5 * k;
   });
-  // just outside the road (cars use its whole width), its foot tucked down beside the slab edge
+  // just outside the road (cars use its whole width), its foot tucked down beside the slab edge,
+  // under a coping that overhangs the outer face
+  const coping = parapet.map((p) => Math.min(1, p / 0.3));
   for (const s of [1, -1]) {
-    const [u0, u1] = s > 0 ? [RAIL.inner, RAIL.inner + RAIL.parapet] : [-RAIL.inner - RAIL.parapet, -RAIL.inner];
-    sweepBox(concrete, approach, u0, u1, (i) => (parapet[i] > 0.01 ? -0.25 : 0), (i) => parapet[i]);
+    const span = (u0: number, u1: number): [number, number] => (s > 0 ? [u0, u1] : [-u1, -u0]);
+    sweepBox(concrete, approach, ...span(RAIL.inner, RAIL.inner + RAIL.parapet), (i) => (parapet[i] > 0.01 ? -0.25 : 0), (i) => parapet[i]);
+    for (const [a, b] of runs(parapet.map((p) => p > 0.01))) {
+      sweepBox(concrete, approach.slice(a, b + 1), ...span(RAIL.inner, RAIL.inner + RAIL.parapet + 0.05), (i) => parapet[a + i] - 0.06 * coping[a + i], (i) => parapet[a + i] + 0.02 * coping[a + i]);
+    }
   }
-  for (const [x, z, base, top] of piers(road)) {
-    const f = fs.find(({ p }) => p[0] === x && p[2] === z) as Frame;
-    const box = (along: number, acrossU: number, y0: number, y1: number) => {
-      const ends = [-along, along].map((d): Frame => ({ p: [x + f.t[0] * d, top, z + f.t[1] * d], t: f.t, n: f.n }));
-      sweepBox(concrete, ends, -acrossU, acrossU, () => y0 - top, () => y1 - top);
-    };
-    box(0.4, 0.5, base - 0.2, top - 0.35); // column
-    box(0.45, 1.3, top - 0.4, top); // cap under the slab
+  // rain streaks hang from the road's edge or the parapet's coping above each wall
+  for (let k = m.top.length; k < concrete.length / 3; k++) {
+    let best = 0;
+    for (let i = 1, d = Infinity; i < approach.length; i++) {
+      const e = (approach[i].p[0] - concrete[3 * k]) ** 2 + (approach[i].p[2] - concrete[3 * k + 2]) ** 2;
+      if (e < d) [d, best] = [e, i];
+    }
+    m.top.push(approach[best].p[1] + (parapet[best] > 0.01 ? parapet[best] + 0.02 : 0));
   }
-  return { asphalt: geometry(road_), marks: geometry(marks), concrete: geometry(concrete) };
+  for (const [x, z, base, top] of piers(road)) pier(m, x, z, (fs.find(({ p }) => p[0] === x && p[2] === z) as Frame).t, base, top);
+  return { asphalt: geometry(road_), marks: geometry(marks), concrete: masonryGeometry(m) };
+}
+
+/** Index ranges [first, last] where `on` holds, each at least two points long. */
+function runs(on: boolean[]) {
+  const out: [number, number][] = [];
+  for (let i = 0; i < on.length; i++) {
+    if (!on[i]) continue;
+    const a = i;
+    while (i + 1 < on.length && on[i + 1]) i++;
+    if (i > a) out.push([a, i]);
+  }
+  return out;
+}
+
+/**
+ * An approach pier: a tapered column with chamfered edges, flaring into a
+ * hammerhead crossbeam under the slab (`top`). `dir` is the road's heading.
+ * At its foot it stays inside half a unit (its footing in the water).
+ */
+export function pier(m: Mason, x: number, z: number, dir: [number, number], base: number, top: number) {
+  const at: [number, number] = [x, z];
+  prism(m, { at, dir, y: [base - 0.2, top - 0.5], half: [0.42, 0.5], halfTop: [0.32, 0.4], chamfer: 0.08 });
+  prism(m, { at, dir, y: [top - 0.5, top - 0.28], half: [0.32, 0.4], halfTop: [0.4, 1.3], top });
+  prism(m, { at, dir, y: [top - 0.28, top], half: [0.4, 1.3] });
 }
 
 /** Railings and parapets stand just outside the road: inner face this far from the centre line. */
@@ -446,4 +477,149 @@ export function spanGeometry(road: Road) {
   sweepBox(out, fs, -h, h, () => -0.53, () => -0.03);
   sweepBox(out, fs, -1.3, 1.3, () => -1.63, () => -0.53);
   return mergeGeometries([geometry(out), railingGeometry(points)]);
+}
+
+// ---------------------------------------------------------------------------
+// Masonry kit: concrete parts as flat-shaded triangles. Each vertex also keeps
+// the height of the ledge or deck above it (`aTop`): the concrete material
+// hangs rain streaks from it.
+
+/** The bay's surface (WATER_Y in bay.tsx, tested to match): the concrete is wet below it. */
+export const WATERLINE = -0.45;
+
+export type Mason = { pos: number[]; top: number[] };
+export const mason = (): Mason => ({ pos: [], top: [] });
+/** Everything added since the last call hangs from `top`. */
+function settle(m: Mason, top: number) {
+  for (let k = m.top.length; k < m.pos.length / 3; k++) m.top.push(top);
+}
+export function masonryGeometry(m: Mason) {
+  const g = geometry(m.pos);
+  g.setAttribute("aTop", new Float32BufferAttribute(m.top, 1));
+  return g;
+}
+
+/** World point from (along, across) round a centre facing `dir`. */
+const local = ([cx, cz]: [number, number], [dx, dz]: [number, number], a: number, u: number, y: number): P => [cx + dx * a + dz * u, y, cz + dz * a - dx * u];
+
+export type Prism = {
+  /** Centre (x, z). */
+  at: [number, number];
+  y: [number, number];
+  /** Half size along `dir` and across it at the bottom, and at the top if it tapers. */
+  half: [number, number];
+  halfTop?: [number, number];
+  /** Upright edges cut off by this much (bottom, top). */
+  chamfer?: number | [number, number];
+  /** Unit direction of the first half size (default +x). */
+  dir?: [number, number];
+  /** The ledge above (default: its own top). */
+  top?: number;
+  /** Close the bottom too (an overhang seen from below). */
+  bottom?: boolean;
+};
+
+/** A block, tapered and chamfered if asked: plinths, pilasters, caps, columns. */
+export function prism(m: Mason, p: Prism) {
+  const dir = p.dir ?? [1, 0];
+  const [c0, c1] = typeof p.chamfer === "number" ? [p.chamfer, p.chamfer] : (p.chamfer ?? [0, 0]);
+  const ring = ([a, b]: [number, number], c: number, y: number) =>
+    (c0 + c1 > 0
+      ? [[a, -b + c], [a, b - c], [a - c, b], [-a + c, b], [-a, b - c], [-a, -b + c], [-a + c, -b], [a - c, -b]]
+      : [[a, -b], [a, b], [-a, b], [-a, -b]]
+    ).map(([u, v]) => local(p.at, dir, u, v, y));
+  const lo = ring(p.half, c0, p.y[0]);
+  const hi = ring(p.halfTop ?? p.half, c1, p.y[1]);
+  const n = lo.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const out: P = [(lo[i][0] + lo[j][0] + hi[i][0] + hi[j][0]) / 4 - p.at[0], 0, (lo[i][2] + lo[j][2] + hi[i][2] + hi[j][2]) / 4 - p.at[1]];
+    quad(m.pos, lo[i], lo[j], hi[i], hi[j], out);
+  }
+  for (let i = 1; i < n - 1; i++) tri(m.pos, hi[0], hi[i], hi[i + 1], UP);
+  if (p.bottom) for (let i = 1; i < n - 1; i++) tri(m.pos, lo[0], lo[i], lo[i + 1], [0, -1, 0]);
+  settle(m, p.top ?? p.y[1]);
+}
+
+export type Arch = {
+  /** Foot of the opening's centre line (x, z) and its height (the road surface). */
+  at: [number, number];
+  y: number;
+  /** Unit direction through the opening. */
+  dir: [number, number];
+  /** Faces at these distances along `dir` from `at`. */
+  depth: [number, number];
+  /** Opening: half width, straight jambs `spring` tall, then an elliptical head `rise` tall. */
+  half: number;
+  spring: number;
+  rise: number;
+  /** Foot of the wall. */
+  base: number;
+  /** Outline: a wall (half width, top), or a ring `band` wide round the opening. */
+  outer: { half: number; top: number } | { band: number };
+  top?: number;
+};
+
+/** A wall with an arched opening (a portal's headwall), or an arch ring round one (its stepped surround). */
+export function archWall(m: Mason, w: Arch) {
+  const N = 16;
+  const pt = (d: number, u: number, y: number) => local(w.at, w.dir, d, u, y);
+  const [d0, d1] = w.depth;
+  const head = (k: number, grow = 0): [number, number] => {
+    const t = (Math.PI * k) / N;
+    return [-(w.half + grow) * Math.cos(t), w.y + w.spring + (w.rise + grow) * Math.sin(t)];
+  };
+  const spring = w.y + w.spring;
+  const ring = "band" in w.outer ? w.outer.band : 0;
+  const outerHalf = "band" in w.outer ? w.half + ring : w.outer.half;
+  const jambTop = "band" in w.outer ? spring : w.outer.top;
+  const back: P = [w.dir[0], 0, w.dir[1]];
+  const front: P = [-w.dir[0], 0, -w.dir[1]];
+  const across = (s: number): P => [w.dir[1] * s, 0, -w.dir[0] * s];
+  for (const [d, want] of [[d0, front], [d1, back]] as [number, P][]) {
+    // jambs either side, the sill under the opening, then the head
+    for (const s of [-1, 1]) quad(m.pos, pt(d, s * outerHalf, w.base), pt(d, s * w.half, w.base), pt(d, s * outerHalf, jambTop), pt(d, s * w.half, jambTop), want);
+    quad(m.pos, pt(d, -w.half, w.base), pt(d, w.half, w.base), pt(d, -w.half, w.y), pt(d, w.half, w.y), want);
+    for (let k = 0; k < N; k++) {
+      const [ua, ya] = head(k);
+      const [ub, yb] = head(k + 1);
+      const [oa, oya] = ring ? head(k, ring) : [ua, jambTop];
+      const [ob, oyb] = ring ? head(k + 1, ring) : [ub, jambTop];
+      quad(m.pos, pt(d, ua, ya), pt(d, ub, yb), pt(d, oa, oya), pt(d, ob, oyb), want);
+    }
+  }
+  // soffit of the head and the inner faces of the jambs
+  for (let k = 0; k < N; k++) {
+    const [ua, ya] = head(k);
+    const [ub, yb] = head(k + 1);
+    const t = (Math.PI * (k + 0.5)) / N;
+    const a = across(Math.cos(t));
+    quad(m.pos, pt(d0, ua, ya), pt(d1, ua, ya), pt(d0, ub, yb), pt(d1, ub, yb), [a[0], -Math.sin(t), a[2]]);
+  }
+  for (const s of [-1, 1]) quad(m.pos, pt(d0, s * w.half, w.y), pt(d1, s * w.half, w.y), pt(d0, s * w.half, spring), pt(d1, s * w.half, spring), across(-s));
+  // outside: the ring's back of the arch, or the wall's ends and top
+  if (ring) {
+    for (let k = 0; k < N; k++) {
+      const [ua, ya] = head(k, ring);
+      const [ub, yb] = head(k + 1, ring);
+      const t = (Math.PI * (k + 0.5)) / N;
+      const a = across(-Math.cos(t));
+      quad(m.pos, pt(d0, ua, ya), pt(d1, ua, ya), pt(d0, ub, yb), pt(d1, ub, yb), [a[0], Math.sin(t), a[2]]);
+    }
+  } else quad(m.pos, pt(d0, -outerHalf, jambTop), pt(d1, -outerHalf, jambTop), pt(d0, outerHalf, jambTop), pt(d1, outerHalf, jambTop), UP);
+  for (const s of [-1, 1]) quad(m.pos, pt(d0, s * outerHalf, w.base), pt(d1, s * outerHalf, w.base), pt(d0, s * outerHalf, jambTop), pt(d1, s * outerHalf, jambTop), across(s));
+  settle(m, w.top ?? jambTop + ("band" in w.outer ? w.rise + ring : 0));
+}
+
+/** A straight member from a to b, `w` either side along `side` and `h` either side across that: arch ribs, posts, struts. */
+export function beam(out: number[], a: P, b: P, w: number, h: number, side: P) {
+  const d: P = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const len = Math.hypot(...d) || 1;
+  const n: P = [(d[1] * side[2] - d[2] * side[1]) / len, (d[2] * side[0] - d[0] * side[2]) / len, (d[0] * side[1] - d[1] * side[0]) / len];
+  const c = (p: P, i: number, j: number): P => [p[0] + side[0] * w * i + n[0] * h * j, p[1] + side[1] * w * i + n[1] * h * j, p[2] + side[2] * w * i + n[2] * h * j];
+  const scale = (v: P, k: number): P => [v[0] * k, v[1] * k, v[2] * k];
+  for (const i of [-1, 1]) quad(out, c(a, i, -1), c(a, i, 1), c(b, i, -1), c(b, i, 1), scale(side, i));
+  for (const j of [-1, 1]) quad(out, c(a, -1, j), c(a, 1, j), c(b, -1, j), c(b, 1, j), scale(n, j));
+  quad(out, c(a, -1, -1), c(a, 1, -1), c(a, -1, 1), c(a, 1, 1), scale(d, -1));
+  quad(out, c(b, -1, -1), c(b, 1, -1), c(b, -1, 1), c(b, 1, 1), d);
 }

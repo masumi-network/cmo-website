@@ -249,6 +249,30 @@ function streetFurniture(trees: Tree[]) {
 /** The generated city, computed once. */
 export const CITY = generateCity();
 
+/**
+ * Transamerica Pyramid: four white precast faces with a constant taper up to
+ * Cuso's platform (y 28), the two plumb wings on the east and west faces,
+ * and the hollow aluminium spire beside him. `pyramidHalf(y)` is the
+ * half-width of the body at height y. The base is as wide as the block allows:
+ * its corners stop on the sidewalks of the streets at z -6 and -16. Drawn by
+ * pyramid.tsx; kept here so the camera and the layout can read it.
+ */
+export const PYRAMID = { x: 6.5, z: -11, base: 3.4, top: 0.56, height: 28 };
+export const pyramidHalf = (y: number) => PYRAMID.base + ((PYRAMID.top - PYRAMID.base) * y) / PYRAMID.height;
+/** Wings: [side (+1 east, -1 west), bottom, top, width]. Their outer walls are plumb. */
+export const WINGS: [number, number, number, number][] = [
+  [1, 13, 21.5, 1.1],
+  [-1, 13, 21, 0.9],
+];
+
+/**
+ * The Ferry Building's bounding boxes as [width, top, depth] around (x, z):
+ * stone plinth (the pier deck), hall (with its cornice and skylight) and clock
+ * tower. The 18:00 cable car stands on its rails out front. Drawn by ferry.tsx; the collision test
+ * and the camera read it.
+ */
+export const FERRY = { x: 33.4, z: -3, plinth: [5, 0.3, 14], hall: [3.16, 4.05, 12.16], tower: [1.62, 11.65] } as const;
+
 type Box = { minX: number; maxX: number; minZ: number; maxZ: number; top: number };
 
 /** Solid boxes the camera must not enter: every building plus landmark buildings. */
@@ -257,10 +281,38 @@ export const OBSTACLES: Box[] = [
   { minX: -17.5, maxX: -10.5, minZ: -13.6, maxZ: -7.4, top: heightAt(-14, -10.4) + 8.5 }, // Russian Hill rooftop
   { minX: -15, maxX: -7, minZ: 7, maxZ: 11.6, top: heightAt(-11, 9.3) + 6.8 }, // Hayes Valley shop
   { minX: 3.5, maxX: 10.5, minZ: 6.4, maxZ: 11.6, top: heightAt(7, 9) + 9.6 }, // Union Square + billboard
-  { minX: -6, maxX: -5.4, minZ: 26.4, maxZ: 31.6, top: 5.4 }, // Mission wall
+  { minX: -10.4, maxX: -5.4, minZ: 26.4, maxZ: 32.1, top: heightAt(-5.7, 29) + 7 }, // Mission building and its awning (mission.tsx)
   { minX: 1.3, maxX: 2.7, minZ: -26.7, maxZ: -25.3, top: heightAt(2, -26) + 6.4 }, // Coit Tower (6.06 tall on its plaza, coit-tower.tsx)
+  ...ferryBoxes(),
 ];
 
+/** The Ferry Building's plinth and hall, and its clock tower, as camera obstacles (a little air around them). */
+function ferryBoxes(): Box[] {
+  const { x, z, plinth, hall, tower } = FERRY;
+  const g = heightAt(x, z);
+  const around = (w: number, d: number, top: number) => ({ minX: x - w / 2 - 0.3, maxX: x + w / 2 + 0.3, minZ: z - d / 2 - 0.3, maxZ: z + d / 2 + 0.3, top: g + top + 0.5 });
+  return [around(Math.max(plinth[0], hall[0]), hall[2], hall[1]), around(tower[0], tower[0], tower[1])];
+}
+
+/** Air the camera keeps from the Pyramid's faces and wings. */
+const PYRAMID_AIR = 0.4;
+const PYRAMID_GROUND = heightAt(PYRAMID.x, PYRAMID.z);
+
+/** Inside the Transamerica Pyramid's tapered body or one of its wings (plus a little air)? */
+function insidePyramid(x: number, y: number, z: number) {
+  const h = y - PYRAMID_GROUND;
+  if (h > PYRAMID.height + 0.5 || h < -1) return false;
+  const dx = Math.abs(x - PYRAMID.x);
+  const dz = Math.abs(z - PYRAMID.z);
+  if (dx < pyramidHalf(Math.max(0, h)) + PYRAMID_AIR && dz < pyramidHalf(Math.max(0, h)) + PYRAMID_AIR) return true;
+  // wings: plumb outer walls from the face out to the wing's width at its foot
+  return WINGS.some(([side, y0, y1, w]) => h > y0 - PYRAMID_AIR && h < y1 + PYRAMID_AIR && Math.sign(x - PYRAMID.x) === side && dx < pyramidHalf(y0) + PYRAMID_AIR && dz < w / 2 + PYRAMID_AIR);
+}
+
 /** True if a point is inside a building. */
+/** Air the camera keeps from every wall, so the near plane never slices into a facade. */
+const WALL_AIR = 0.35;
+
 export const insideBuilding = (x: number, y: number, z: number) =>
-  OBSTACLES.some((b) => x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ && y < b.top);
+  insidePyramid(x, y, z) ||
+  OBSTACLES.some((b) => x > b.minX - WALL_AIR && x < b.maxX + WALL_AIR && z > b.minZ - WALL_AIR && z < b.maxZ + WALL_AIR && y < b.top);

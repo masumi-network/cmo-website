@@ -64,6 +64,8 @@ const probe = new Vector3();
 /** Pull the camera towards Cuso (and up) until nothing solid is in between. */
 function keepClear(camera: Vector3) {
   eye.set(rig.cuso.x, rig.cuso.y + 1.4, rig.cuso.z);
+  // Mid-jump up a wall his head can be inside a building's margin: nothing to measure from.
+  if (insideBuilding(eye.x, eye.y, eye.z)) return;
   for (let lift = 0; lift < 3; lift++) {
     let clearTo = 1;
     for (let k = 1; k <= 20; k++) {
@@ -238,12 +240,16 @@ export function CameraRig() {
       camera.position.copy(pos);
       look.current = tgt.clone();
     }
+    // The blend between two shots, and the eased path towards it, can cut
+    // through a building (the Pyramid on the way to 15:00): keep both clear.
+    if (day.mode !== "explore" && !PIN) keepClear(pos);
     const k = damp(day.mode === "explore" ? 2 : 3.2, dt);
     // Slide the picture (not the camera) so Cuso sits in the free band.
     slide.current += (slideTo - slide.current) * k;
     if (Math.abs(slide.current) > 0.5) cam.setViewOffset(size.width, size.height, 0, slide.current, size.width, size.height);
     else if (cam.view?.enabled) cam.clearViewOffset();
     camera.position.lerp(pos, k);
+    if (day.mode !== "explore" && !PIN) keepClear(camera.position);
     look.current.lerp(tgt, k);
     camera.lookAt(look.current);
     rig.target.copy(look.current);

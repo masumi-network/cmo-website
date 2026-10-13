@@ -2,15 +2,20 @@
 
 // Downtown and SoMa towers. Placement, footprint, height and tiers come from
 // layout.ts; this file decides what each one looks like and builds the whole
-// skyline as one merged mesh (one draw call) for `downtownMaterial`.
+// skyline as two merged meshes for `downtownMaterial`: the body (walls,
+// crowns, roofs; casts the shadows) and the window relief (receives only).
 //
 // Three kinds, base / shaft / crown:
 // - deco: 1920s limestone or terracotta, a tall lobby, inset shaft, cornices,
 //   a pyramid, stepped or flat crown (flat ones carry a penthouse and a water tank).
-// - glass: curtain wall with mullions and spandrels, a recessed glazed lobby,
-//   metal bands at setbacks, a sloped top or a crisp parapet with a plant room.
-// - loft: SoMa brick or concrete mid-rise with big windows, shops below, a
-//   parapet with a coping and often a wooden water tank.
+//   Punched one-over-one windows set REVEAL back between stone piers, over
+//   recessed spandrels, each on a stone sill.
+// - glass: curtain wall with metal fins on the mullion lines and, on half of
+//   them, spandrel bands at each floor; a recessed glazed lobby, metal bands at
+//   setbacks, a sloped top or a crisp parapet with a plant room.
+// - loft: SoMa brick or concrete mid-rise with big steel windows set back
+//   between piers, shops below, a parapet with a coping and often a wooden water tank.
+// Shop fronts on deco and loft towers stand back between real piers under a fascia.
 
 import { useMemo } from "react";
 import { BufferGeometry, Color, Float32BufferAttribute } from "three";
@@ -23,14 +28,43 @@ export type Style = (typeof STYLES)[number];
 /** Rooftop parts (parapets, tanks, plant rooms, masts) rise at most this far over a tower's height. */
 export const ROOF_MARGIN = 1;
 
-/** Surface kinds, read by the shader from `aInfo.x`. */
-export const PART = { glass: 0, windows: 1, storefront: 2, plain: 3, metal: 4 } as const;
+/**
+ * Surface kinds, read by the shader from `aInfo.x` (5 is the Pyramid's aluminium).
+ * glass: curtain wall; roof: tar and gravel; sash: a one-over-one window pane;
+ * masonry: stone or brick piers, spandrels and sills; steel: a steel factory window pane.
+ */
+export const PART = { glass: 0, roof: 1, storefront: 2, plain: 3, metal: 4, sash: 6, masonry: 7, steel: 8 } as const;
+/** How far punched windows sit behind the face of their piers. */
+export const REVEAL = 0.1;
+/** How far shop windows sit behind the face of the piers between them. */
+const SHOP_REVEAL = 0.12;
+/** Curtain wall fins: width, and how far they stand out of the glass. */
+const FIN = { w: 0.04, out: 0.035 };
+/** Spandrel bands on curtain walls stand out this far. */
+const BAND_OUT = 0.015;
+/** Stone sill under a punched window: its height. */
+const SILL = 0.05;
+/** The body's wall behind punched windows sits this far behind the glass (hidden; it casts the shadow). */
+const CORE_GAP = 0.015;
+
+/**
+ * Window relief on a facade. punched: piers `pier` wide on the column lines,
+ * windows from `sill` to `head` (fractions of a storey), spandrels `recess`
+ * behind the pier face, glass of part `pane`. curtain: fins on the mullion
+ * lines and, when `band` > 0, a spandrel band `band` storeys tall at each floor.
+ * shop: piers between the shop bays, a fascia over them and a stall riser under them.
+ */
+export type Relief =
+  | { kind: "punched"; pier: number; sill: number; head: number; recess: number; pane: number }
+  | { kind: "curtain"; band: number }
+  | { kind: "shop"; pier: number };
 
 type V3 = [number, number, number];
 /** Wall grid: column width and storey height (both fitted to the wall), counted from y0. */
 type Grid = { col: number; storey: number; y0: number };
 export type Piece = {
-  shape: "box" | "pyramid" | "wedge" | "cylinder" | "cone";
+  /** facade: window relief on the walls of the box min..max (its faces are the wall plane). */
+  shape: "box" | "pyramid" | "wedge" | "cylinder" | "cone" | "facade";
   min: V3;
   max: V3;
   part: number;
@@ -42,6 +76,7 @@ export type Piece = {
   group?: number;
   /** Floodlit tower: height of the lights that wash its crown at night. */
   flood?: number;
+  relief?: Relief;
 };
 
 const hash = (x: number, z: number, k: number) => {
@@ -59,6 +94,14 @@ export function towerStyle(t: Tower) {
   const crown =
     style === "deco" ? (["pyramid", "stepped", "flat"] as const)[Math.floor(r(19) * 3)] : style === "glass" && r(1) < 0.5 ? "slope" : "flat";
   const color = style === "glass" ? t.color : style === "loft" ? BRICK[Math.floor(r(3) * BRICK.length)] : DECO[Math.floor(r(3) * DECO.length)];
+  const pane = style === "glass" ? PART.glass : style === "loft" ? PART.steel : PART.sash;
+  const relief: Relief =
+    style === "glass"
+      ? // Half the curtain walls have deep spandrels (the shader's choice, by the same seed): those get bands.
+        { kind: "curtain", band: hash(t.x, t.z, 9) >= 0.5 ? 0.2 : 0 }
+      : style === "loft"
+        ? { kind: "punched", pier: 0.3, sill: 0.18, head: 0.86, recess: 0.015, pane }
+        : { kind: "punched", pier: 0.4, sill: 0.25, head: 0.85, recess: 0.025, pane };
   return {
     style,
     crown,
@@ -79,6 +122,9 @@ export function towerStyle(t: Tower) {
     tank: style !== "glass" && crown === "flat" && r(2) < 0.7,
     corner: Math.floor(r(4) * 4),
     high: (r(5) < 0.5 ? 1 : -1) as 1 | -1,
+    relief,
+    /** The part of its window glass. */
+    pane,
   };
 }
 
@@ -101,6 +147,8 @@ export function towerPieces(t: Tower, flood: boolean): Piece[] {
   let group = 0;
   const box = (r: Rect, y0: number, y1: number, part: number, color: string, extra: Partial<Piece> = {}) =>
     out.push({ shape: "box", min: [r.x0, y0, r.z0], max: [r.x1, y1, r.z1], part, color, ...extra });
+  const facade = (r: Rect, y0: number, y1: number, color: string, grid: Grid, relief: Relief) =>
+    out.push({ shape: "facade", min: [r.x0, y0, r.z0], max: [r.x1, y1, r.z1], part: PART.masonry, color, grid, relief });
   /** A cornice or parapet: four walls of thickness `th` around the edge of r. */
   const ring = (r: Rect, y0: number, y1: number, th: number, part: number, color: string) => {
     box({ ...r, z1: r.z0 + th }, y0, y1, part, color);
@@ -154,11 +202,19 @@ export function towerPieces(t: Tower, flood: boolean): Piece[] {
     for (const [x, z] of [[foot.x0, foot.z0], [foot.x1 - 0.22, foot.z0], [foot.x0, foot.z1 - 0.22], [foot.x1 - 0.22, foot.z1 - 0.22]])
       box({ x0: x, x1: x + 0.22, z0: z, z1: z + 0.22 }, t.y, t.y + G, PART.metal, s.base);
   } else {
-    box(foot, t.y, t.y + G, PART.storefront, s.base, { grid: { col: s.bay, storey: G, y0: t.y } });
+    // Shop windows set back between piers; the piers, fascia and stall riser are relief on the footprint's walls.
+    const grid = { col: s.bay, storey: G, y0: t.y };
+    box(shrink(foot, SHOP_REVEAL), t.y, t.y + G, PART.storefront, s.base, { grid });
+    facade(foot, t.y, t.y + G, s.base, grid, { kind: "shop", pier: 0.2 });
   }
   box(foot, t.y + G, t.y + G + belt, s.style === "glass" ? PART.metal : PART.plain, s.trim);
 
-  const facade = s.style === "glass" ? PART.glass : PART.windows;
+  /** A wall of windows on rect w from y0 to y1: the body behind it and the relief in front. */
+  const wallOf = (w: Rect, y0: number, y1: number, grid: Grid) => {
+    if (s.relief.kind === "curtain") box(w, y0, y1, PART.glass, s.color, { grid });
+    else box(shrink(w, REVEAL + CORE_GAP), y0, y1, PART.roof, s.color);
+    facade(w, y0, y1, s.color, grid, s.relief);
+  };
   t.tiers.forEach((tier, i) => {
     const last = i === t.tiers.length - 1;
     const r = rect(t.x, t.z, tier.w, tier.d);
@@ -169,8 +225,7 @@ export function towerPieces(t: Tower, flood: boolean): Piece[] {
     const crownH =
       crown === "pyramid" ? Math.min(2, Math.max(1, Math.min(tier.w, tier.d) * 0.42)) : crown === "stepped" ? 2 : crown === "slope" ? Math.min(2.2, Math.max(1.2, tier.w * 0.35)) : 0;
     const roof = top - crownH;
-    const grid = { col: s.col, storey: s.storey, y0 };
-    box(wall, y0, roof, facade, s.color, { grid });
+    wallOf(wall, y0, roof, { col: s.col, storey: s.storey, y0 });
     const inner = shrink(r, s.inset + 0.14);
 
     if (crown === "pyramid") {
@@ -180,14 +235,14 @@ export function towerPieces(t: Tower, flood: boolean): Piece[] {
     } else if (crown === "stepped") {
       parapet(r, roof, 0.22, 0.12, s.inset + 0.1);
       const step = scaled(r, 0.72);
-      box(shrink(step, 0.05), roof, roof + 1.25, facade, s.color, { grid: { col: s.col, storey: 1.25, y0: roof } });
+      wallOf(shrink(step, 0.05), roof, roof + 1.25, { col: s.col, storey: 1.25, y0: roof });
       parapet(step, roof + 1.25, 0.16, 0.1, 0.12);
       const cap = scaled(r, 0.46);
       box(cap, roof + 1.25, top, PART.plain, s.trim);
       box(rect(t.x, t.z, 0.05, 0.05), top, top + 0.8, PART.metal, "#4a4c4f", { group: ++group });
     } else if (crown === "slope") {
       box(r, roof - 0.08, roof, PART.metal, s.trim);
-      out.push({ shape: "wedge", min: [wall.x0, roof, wall.z0], max: [wall.x1, top, wall.z1], part: PART.glass, color: s.color, grid, high: s.high });
+      out.push({ shape: "wedge", min: [wall.x0, roof, wall.z0], max: [wall.x1, top, wall.z1], part: PART.glass, color: s.color, grid: { col: s.col, storey: s.storey, y0 }, high: s.high });
     } else if (s.style === "glass") {
       // Crisp metal parapet: the curtain wall runs up past the roof.
       ring(r, roof - 0.06, roof + (last ? 0.3 : 0.12), s.inset + 0.05, PART.metal, s.trim);
@@ -206,6 +261,9 @@ export function towerPieces(t: Tower, flood: boolean): Piece[] {
   }
   return out;
 }
+
+const range = (n: number) => Array.from({ length: n }, (_, i) => i);
+const mid = (p: V3[]): V3 => [0, 1, 2].map((k) => p.reduce((s, v) => s + v[k], 0) / p.length) as V3;
 
 /** Builds triangles with flat (or given) normals, wound to face away from a shape's centre. */
 class Builder {
@@ -259,7 +317,113 @@ class Builder {
     ];
   }
 
+  /**
+   * Window relief on the four walls of `piece` (see `Relief`). Each wall is
+   * worked in its own coordinates: u along it, y up, d in from the wall plane.
+   * Walls along z start and stop `d` in from the corners (the walls along x
+   * own the corner piers), so nothing overlaps.
+   */
+  facade(piece: Piece) {
+    const relief = piece.relief!;
+    const grid = piece.grid!;
+    const [x0, y0, z0] = piece.min;
+    const [x1, y1, z1] = piece.max;
+    const storeys = Math.max(1, Math.round((y1 - grid.y0) / grid.storey));
+    const sh = (y1 - grid.y0) / storeys;
+    const walls: { a: V3; t: V3; n: V3; len: number; side: boolean }[] = [
+      { a: [x0, 0, z1], t: [1, 0, 0], n: [0, 0, 1], len: x1 - x0, side: false },
+      { a: [x1, 0, z1], t: [0, 0, -1], n: [1, 0, 0], len: z1 - z0, side: true },
+      { a: [x1, 0, z0], t: [-1, 0, 0], n: [0, 0, -1], len: x1 - x0, side: false },
+      { a: [x0, 0, z0], t: [0, 0, 1], n: [-1, 0, 0], len: z1 - z0, side: true },
+    ];
+    const metal = { ...piece, part: PART.metal, color: "#b4b9be" };
+    const spandrel = { ...piece, part: PART.metal, color: `#${new Color(piece.color).multiplyScalar(0.3).getHexString()}` };
+    const zero: [number, number][] = [[0, 0], [0, 0], [0, 0], [0, 0]];
+    for (const w of walls) {
+      const P = (u: number, y: number, d: number): V3 => [w.a[0] + w.t[0] * u - w.n[0] * d, y, w.a[2] + w.t[2] * u - w.n[2] * d];
+      /** The named faces (front, left, right, top, bottom) of the block u0..u1, ya..yb, d0..d1. */
+      const block = (u0: number, u1: number, ya: number, yb: number, d0: number, d1: number, faces: string, s: Piece = piece, uv = zero) => {
+        const q = (p: V3[], n: V3) => {
+          const m = mid(p);
+          this.quad(p, uv, s, [m[0] - n[0], m[1] - n[1], m[2] - n[2]]);
+        };
+        if (faces.includes("f")) q([P(u0, ya, d0), P(u1, ya, d0), P(u1, yb, d0), P(u0, yb, d0)], w.n);
+        if (faces.includes("l")) q([P(u0, ya, d0), P(u0, ya, d1), P(u0, yb, d1), P(u0, yb, d0)], [-w.t[0], 0, -w.t[2]]);
+        if (faces.includes("r")) q([P(u1, ya, d0), P(u1, ya, d1), P(u1, yb, d1), P(u1, yb, d0)], w.t);
+        if (faces.includes("t")) q([P(u0, yb, d0), P(u1, yb, d0), P(u1, yb, d1), P(u0, yb, d1)], [0, 1, 0]);
+        if (faces.includes("b")) q([P(u0, ya, d0), P(u1, ya, d0), P(u1, ya, d1), P(u0, ya, d1)], [0, -1, 0]);
+      };
+      /** Piers (or fins) over the spans u0..u1, clipped to lo..hi; a cut end against a corner has no side. */
+      const piers = (spans: number[][], lo: number, hi: number, d0: number, d1: number, s: Piece) => {
+        for (const [a, b] of spans) {
+          const u0 = Math.max(lo, a);
+          const u1 = Math.min(hi, b);
+          if (u1 - u0 < 1e-4) continue;
+          block(u0, u1, y0, y1, d0, d1, `f${u0 > lo + 1e-6 || !w.side ? "l" : ""}${u1 < hi - 1e-6 || !w.side ? "r" : ""}`, s);
+        }
+      };
+      /** Spans `width` wide on the lines; on walls along x the end ones reach out to lo and hi (the corner). */
+      const spans = (lines: number[], width: number, lo: number, hi: number) =>
+        lines.map((c, i) => [!w.side && i === 0 ? lo : c - width / 2, !w.side && i === lines.length - 1 ? hi : c + width / 2]);
+
+      if (relief.kind === "punched") {
+        // The reveals reach back past the glass to the body, so no crack along a pane's edge ever shows it.
+        const D = REVEAL;
+        const back = D + CORE_GAP;
+        const cols = Math.max(1, Math.round(w.len / grid.col));
+        const cw = w.len / cols;
+        const lo = w.side ? D : 0;
+        const hi = w.side ? w.len - D : w.len;
+        const pw = relief.pier;
+        piers(spans(range(cols + 1).map((k) => k * cw), pw, lo, hi), lo, hi, 0, back, piece);
+        const sills = range(storeys).map((j) => grid.y0 + (j + relief.sill) * sh);
+        const heads = range(storeys).map((j) => grid.y0 + (j + relief.head) * sh);
+        // Spandrels: under the first sill, between each head and the sill above, over the last head (with a cap behind the cornice).
+        block(lo, hi, y0, sills[0] - SILL, relief.recess, back, "f");
+        for (let j = 0; j < storeys; j++) block(lo, hi, heads[j], j + 1 < storeys ? sills[j + 1] - SILL : y1, relief.recess, back, "fb");
+        block(lo, hi, y1, y1, 0, back, "t");
+        const pane = { ...piece, part: relief.pane, color: "#46505a" };
+        for (let j = 0; j < storeys; j++) {
+          for (let k = 0; k < cols; k++) {
+            const u0 = Math.max(lo, k * cw + pw / 2);
+            const u1 = Math.min(hi, (k + 1) * cw - pw / 2);
+            if (u1 - u0 < 0.05) continue;
+            // The pane: u, v run 0..1 over it, plus its column and storey (the shader lights whole floors in runs).
+            const e = 0.999;
+            block(u0, u1, sills[j], heads[j], D, D, "f", pane, [[k, j], [k + e, j], [k + e, j + e], [k, j + e]]);
+            block(u0, u1, sills[j] - SILL, sills[j], 0, back, "ftb");
+          }
+        }
+      } else if (relief.kind === "curtain") {
+        // Same columns and storeys as the painted curtain wall (`wallUv`), so fins and bands land on its lines.
+        const cols = Math.max(1, Math.round(w.len / grid.col));
+        const cw = w.len / cols;
+        const out = FIN.out;
+        // Walls along x carry the corner fins round the corner.
+        const [lo, hi] = w.side ? [0, w.len] : [-out, w.len + out];
+        piers(spans(range(cols + 1).map((k) => k * cw), FIN.w, lo, hi), lo, hi, -out, 0, metal);
+        if (relief.band > 0) {
+          const hb = (relief.band * sh) / 2;
+          const [u0, u1] = w.side ? [0, w.len] : [-BAND_OUT, w.len + BAND_OUT];
+          for (let j = 1; j < storeys; j++) block(u0, u1, grid.y0 + j * sh - hb, grid.y0 + j * sh + hb, -BAND_OUT, 0, w.side ? "ftb" : "ftblr", spandrel);
+        }
+      } else {
+        // Shop bays as the painted shop front counts them (`wallUv` on the recessed glass).
+        const D = SHOP_REVEAL;
+        const cols = Math.max(1, Math.round((w.len - 2 * D) / grid.col));
+        const cw = (w.len - 2 * D) / cols;
+        const lo = w.side ? D : 0;
+        const hi = w.side ? w.len - D : w.len;
+        piers(spans(range(cols + 1).map((k) => D + k * cw), relief.pier, lo, hi), lo, hi, 0, D, piece);
+        const G = y1 - y0;
+        block(lo, hi, y0 + 0.74 * G, y1, 0, D, "fb");
+        block(lo, hi, y0, y0 + 0.09 * G, 0.03, D, "ft");
+      }
+    }
+  }
+
   add(piece: Piece) {
+    if (piece.shape === "facade") return this.facade(piece);
     const [x0, y0, z0] = piece.min;
     const [x1, y1, z1] = piece.max;
     const centre: V3 = [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2];
@@ -321,28 +485,51 @@ class Builder {
   }
 }
 
-/** All towers as one geometry: position, normal, colour, `aUv` (wall grid) and `aInfo` (part, seed, flood height). */
+/**
+ * All towers as two geometries: `body` (walls, crowns, roofs, rooftop parts)
+ * and `relief` (piers, spandrels, sills, window panes, fins). Attributes:
+ * position, normal, colour, `aUv` (wall grid) and `aInfo` (part, seed, flood height).
+ */
 export function towerGeometry(towers: Tower[]) {
   const lit = floodlit(towers);
-  const parts = { pos: [] as number[], nor: [] as number[], col: [] as number[], uv: [] as number[], info: [] as number[] };
+  const keys = ["pos", "nor", "col", "uv", "info"] as const;
+  const empty = () => ({ pos: [] as number[], nor: [] as number[], col: [] as number[], uv: [] as number[], info: [] as number[] });
+  const body = empty();
+  const relief = empty();
   for (const t of towers) {
     const b = new Builder(hash(t.x, t.z, 9));
-    for (const p of towerPieces(t, lit.has(t))) b.add(p);
-    for (const k of Object.keys(parts) as (keyof typeof parts)[]) parts[k].push(...b[k]);
+    const r = new Builder(hash(t.x, t.z, 9));
+    for (const p of towerPieces(t, lit.has(t))) (p.shape === "facade" ? r : b).add(p);
+    for (const k of keys) {
+      for (const v of b[k]) body[k].push(v);
+      for (const v of r[k]) relief[k].push(v);
+    }
   }
-  const g = new BufferGeometry();
-  g.setAttribute("position", new Float32BufferAttribute(parts.pos, 3));
-  g.setAttribute("normal", new Float32BufferAttribute(parts.nor, 3));
-  g.setAttribute("color", new Float32BufferAttribute(parts.col, 3));
-  g.setAttribute("aUv", new Float32BufferAttribute(parts.uv, 2));
-  g.setAttribute("aInfo", new Float32BufferAttribute(parts.info, 3));
-  g.computeBoundingSphere();
-  return g;
+  const geometry = (parts: ReturnType<typeof empty>) => {
+    const g = new BufferGeometry();
+    g.setAttribute("position", new Float32BufferAttribute(parts.pos, 3));
+    g.setAttribute("normal", new Float32BufferAttribute(parts.nor, 3));
+    g.setAttribute("color", new Float32BufferAttribute(parts.col, 3));
+    g.setAttribute("aUv", new Float32BufferAttribute(parts.uv, 2));
+    g.setAttribute("aInfo", new Float32BufferAttribute(parts.info, 3));
+    g.computeBoundingSphere();
+    return g;
+  };
+  return { body: geometry(body), relief: geometry(relief) };
 }
 
-/** Downtown: the whole skyline in one draw call. */
+/**
+ * Downtown: the whole skyline in two draw calls. Only the body casts shadows
+ * (the relief is too fine for the shadow map). The relief draws first, so the
+ * body's walls hidden behind it are never shaded.
+ */
 export function Towers({ towers, tex }: { towers: Tower[]; tex: Textures }) {
   const material = useMemo(() => downtownMaterial(tex.stone), [tex.stone]);
-  const geometry = useMemo(() => towerGeometry(towers), [towers]);
-  return <mesh geometry={geometry} material={material} castShadow receiveShadow />;
+  const { body, relief } = useMemo(() => towerGeometry(towers), [towers]);
+  return (
+    <>
+      <mesh geometry={relief} material={material} receiveShadow renderOrder={-1} />
+      <mesh geometry={body} material={material} castShadow receiveShadow />
+    </>
+  );
 }

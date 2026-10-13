@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chapters } from "@/content/day";
-import { CLEAR, X_STREETS, Z_STREETS, STREET, blocksView, generateCity, insideBuilding, insideLand } from "@/scene/layout";
+import { heightAt } from "@/lib/terrain";
+import { CLEAR, FERRY, PYRAMID, WINGS, X_STREETS, Z_STREETS, STREET, blocksView, generateCity, insideBuilding, insideLand, pyramidHalf } from "@/scene/layout";
 
 const city = generateCity();
 const corners = (b: { x: number; z: number; w: number; d: number }) => [
@@ -50,6 +51,20 @@ describe("city layout", () => {
 
   it("never starts a chapter shot inside a building", () => {
     for (const c of chapters) expect(insideBuilding(...c.camera.position), c.id).toBe(false);
+  });
+
+  it("keeps the camera out of the Transamerica Pyramid, its wings and the Ferry Building", () => {
+    const g = heightAt(PYRAMID.x, PYRAMID.z);
+    // inside the tapered body, low and high, and just outside its faces
+    expect(insideBuilding(PYRAMID.x + 2, g + 2, PYRAMID.z)).toBe(true);
+    expect(insideBuilding(PYRAMID.x, g + 20, PYRAMID.z - pyramidHalf(20) + 0.1)).toBe(true);
+    expect(insideBuilding(PYRAMID.x, g + 20, PYRAMID.z - pyramidHalf(20) - 0.8)).toBe(false); // north face: no wing there
+    expect(insideBuilding(PYRAMID.x, g + PYRAMID.height + 1, PYRAMID.z)).toBe(false); // over the platform, where Cuso stands
+    for (const [side, y0, y1] of WINGS) expect(insideBuilding(PYRAMID.x + side * (pyramidHalf(y1) + 0.2), g + (y0 + y1) / 2, PYRAMID.z)).toBe(true);
+    const fg = heightAt(FERRY.x, FERRY.z);
+    expect(insideBuilding(FERRY.x, fg + 2, FERRY.z + 4)).toBe(true); // the hall
+    expect(insideBuilding(FERRY.x, fg + 9, FERRY.z)).toBe(true); // the clock tower
+    expect(insideBuilding(FERRY.x - FERRY.plinth[0], fg + 2, FERRY.z)).toBe(false); // the Embarcadero in front
   });
 
   it("never puts a building on Cuso's spot", () => {

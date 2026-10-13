@@ -5,7 +5,8 @@
 import { useTexture } from "@react-three/drei";
 import { useMemo } from "react";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { towerMaterial } from "./materials";
+import { concreteMaterial, towerMaterial } from "./materials";
+import { WATERLINE } from "./roads";
 import { type V3 } from "./parts";
 import { BoxGeometry, BufferGeometry, CanvasTexture, CylinderGeometry, MeshStandardMaterial, Object3D, RepeatWrapping, SRGBColorSpace, type Texture } from "three";
 
@@ -88,3 +89,9 @@ export function drawn(width: number, height: number, draw: (ctx: CanvasRendering
   return texture;
 }
 
+
+/** The bridges' concrete (concreteMaterial): one material for every anchorage, pylon, pier, wall and portal. */
+export function useConcrete() {
+  const { concrete } = useLandmarkTextures();
+  return useMemo(() => concreteMaterial(concrete, WATERLINE), [concrete]);
+}

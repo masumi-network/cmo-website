@@ -1,23 +1,21 @@
 "use client";
 
 // The bay: a water shader (moving ripples, fresnel, sun glint, shallows and
-// foam along every shore, a planar reflection in full mode), Alcatraz, five
-// sailboats and a ferry. Boat routes and the shore distance field are pure
-// functions, tested in tests/unit/bay.test.ts.
+// foam along every shore, a planar reflection in full mode), Yerba Buena, five
+// sailboats and a ferry; Alcatraz and Treasure Island are in islands.tsx. Boat
+// routes and the shore distance field are pure functions, tested in
+// tests/unit/bay.test.ts.
 
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import {
-  AdditiveBlending,
   BackSide,
   BoxGeometry,
   BufferGeometry,
   Color,
-  ConeGeometry,
   CylinderGeometry,
   DataTexture,
   DoubleSide,
-  ExtrudeGeometry,
   Float32BufferAttribute,
   HalfFloatType,
   LinearFilter,
@@ -33,7 +31,6 @@ import {
   RedFormat,
   RepeatWrapping,
   ShaderChunk,
-  Shape,
   Vector2,
   Vector3,
   Vector4,
@@ -51,7 +48,7 @@ import {
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { headlandHeight } from "@/lib/terrain";
-import { facadeMaterial } from "./facade";
+import { Alcatraz, TREASURE_ISLAND, TreasureIsland, alcatrazDistance, islandGeometries, roundedBoxDistance } from "./islands";
 import { BAY_TOWERS, GG } from "./landmarks";
 import { LAND, insideLand } from "./layout";
 import { BAY_ANCHORS, ISLAND, ROADS, piers } from "./roads";
@@ -119,18 +116,6 @@ export function yerbaBuenaHeight(x: number, z: number) {
   return ISLAND.y + ISLAND.h * (dome + (hill - dome) * free);
 }
 
-/** Treasure Island: flat made land north of Yerba Buena, with a causeway. [x, z, half x, half z, corner]. */
-const TREASURE_ISLAND: [number, number, number, number, number][] = [
-  [143, -7, 10, 8.5, 2.5],
-  [141.5, 3.5, 2.2, 4, 0.6],
-];
-const TREASURE_Y = 0.35;
-const roundedBoxDistance = (x: number, z: number, [cx, cz, hx, hz, r]: number[]) => {
-  const qx = Math.abs(x - cx) - hx + r;
-  const qz = Math.abs(z - cz) - hz + r;
-  return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - r;
-};
-
 function yerbaBuenaGeometry() {
   const A = 96;
   const RINGS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.78, 0.85, 0.9, 0.94, 0.97, 0.99, 1, 1.1];
@@ -195,52 +180,13 @@ function yerbaBuenaTrees() {
   return out;
 }
 
-function treasureIslandGeometry() {
-  // shape space is (x, -z), counter-clockwise
-  const shapes = TREASURE_ISLAND.map(([cx, cz, hx, hz, r]) => {
-    const [x0, x1, y0, y1] = [cx - hx, cx + hx, -(cz + hz), -(cz - hz)];
-    const s = new Shape();
-    s.moveTo(x0 + r, y0);
-    s.lineTo(x1 - r, y0);
-    s.absarc(x1 - r, y0 + r, r, -Math.PI / 2, 0, false);
-    s.lineTo(x1, y1 - r);
-    s.absarc(x1 - r, y1 - r, r, 0, Math.PI / 2, false);
-    s.lineTo(x0 + r, y1);
-    s.absarc(x0 + r, y1 - r, r, Math.PI / 2, Math.PI, false);
-    s.lineTo(x0, y0 + r);
-    s.absarc(x0 + r, y0 + r, r, Math.PI, Math.PI * 1.5, false);
-    return s;
-  });
-  const g = new ExtrudeGeometry(shapes, { depth: TREASURE_Y + 1.2 - 0.1, bevelEnabled: true, bevelSize: 0.1, bevelThickness: 0.1, bevelSegments: 1 });
-  g.rotateX(-Math.PI / 2);
-  g.translate(0, -1.2, 0);
-  return g;
-}
-
-/** The 1939 exposition hangars and Building One, low and pale. */
-function treasureBuildingsGeometry() {
-  const parts: BufferGeometry[] = [];
-  for (const [x, z] of [[138, -10.5], [141.2, -10.5], [144.4, -10.5]]) {
-    parts.push(box(2.4, 0.7, 3.6, x, TREASURE_Y + 0.35, z, "#c9c3b5"));
-    parts.push(paint(new CylinderGeometry(1.2, 1.2, 3.6, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2).scale(1, 0.4, 1).translate(x, TREASURE_Y + 0.7, z), "#aaa498"));
-  }
-  parts.push(box(4, 0.9, 1.4, 141.5, TREASURE_Y + 0.45, -3, "#d6d0c2")); // Building One
-  parts.push(box(1, 1.4, 1, 141.5, TREASURE_Y + 0.7, -3, "#d6d0c2"));
-  return mergeGeometries(parts);
-}
-
 /** Yerba Buena (wooded, rocky shore, the Bay Bridge tunnel) and flat Treasure Island to its north. */
 export function Hills({ map }: { map: Texture }) {
   const ground = useMemo(() => yerbaBuenaGeometry(), []);
-  const flat = useMemo(() => treasureIslandGeometry(), []);
-  const buildings = useMemo(() => treasureBuildingsGeometry(), []);
   const trees = useMemo(() => yerbaBuenaTrees(), []);
   const materials = useMemo(
     () => ({
       ground: new MeshStandardMaterial({ map, vertexColors: true, roughness: 1 }),
-      lawn: new MeshStandardMaterial({ color: "#8d9868", roughness: 1 }),
-      wall: new MeshStandardMaterial({ color: "#a9a397", roughness: 0.95 }),
-      paint: new MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }),
       leaves: new MeshStandardMaterial({ roughness: 0.9, flatShading: true }),
     }),
     [map],
@@ -266,8 +212,7 @@ export function Hills({ map }: { map: Texture }) {
   return (
     <>
       <mesh geometry={ground} material={materials.ground} position={[ISLAND.x, 0, ISLAND.z]} castShadow receiveShadow />
-      <mesh geometry={flat} material={[materials.lawn, materials.wall]} receiveShadow castShadow />
-      <mesh geometry={buildings} material={materials.paint} castShadow receiveShadow />
+      <TreasureIsland />
       <instancedMesh ref={woods} args={[undefined, materials.leaves, trees.length]} castShadow receiveShadow>
         <icosahedronGeometry args={[1, 1]} />
       </instancedMesh>
@@ -285,26 +230,6 @@ const FOOTINGS: [number, number, number, number][] = [
     .map(([x, z]): [number, number, number, number] => [x, z, 0.5, 0.5]),
   [33.4, -3, 2.5, 7],
 ];
-
-/** Alcatraz: an ellipse with a rocky outline, long axis north-west to south-east. */
-const ALCATRAZ = { x: -6, z: -66, a: 7, b: 3.4, angle: -0.6 };
-const alcatrazOutline = (theta: number) => 1 + 0.07 * Math.sin(3 * theta + 1) + 0.05 * Math.sin(5 * theta + 2.3) + 0.03 * Math.sin(11 * theta + 0.7);
-/** Island-local coordinates (u along the long axis) to a normalised radius: 1 at the water line. */
-function alcatrazRho(u: number, v: number) {
-  const { a, b } = ALCATRAZ;
-  return Math.hypot(u / a, v / b) / alcatrazOutline(Math.atan2(v / b, u / a));
-}
-function alcatrazDistance(x: number, z: number) {
-  const { angle } = ALCATRAZ;
-  const dx = x - ALCATRAZ.x;
-  const dz = z - ALCATRAZ.z;
-  const u = dx * Math.cos(angle) - dz * Math.sin(angle);
-  const v = dx * Math.sin(angle) + dz * Math.cos(angle);
-  const e = 0.02;
-  const r = alcatrazRho(u, v);
-  const g = Math.hypot(alcatrazRho(u + e, v) - r, alcatrazRho(u, v + e) - r) / e;
-  return (r - 0.99) / Math.max(g, 1e-4);
-}
 
 function segmentDistance(px: number, pz: number, ax: number, az: number, bx: number, bz: number) {
   const vx = bx - ax;
@@ -1051,153 +976,6 @@ export function Water({ lite }: { lite: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// Alcatraz: a rocky island with the cellhouse, the lighthouse and the water tower.
-
-/** Rings of the island mesh: normalised radius and height above the water. */
-const RINGS: [number, number][] = [
-  [0, 2.35],
-  [0.35, 2.3],
-  [0.62, 2.15],
-  [0.78, 2.0],
-  [0.84, 1.65],
-  [0.9, 0.95],
-  [0.95, 0.35],
-  [1, -0.05],
-  [1.12, -1.2],
-];
-function alcatrazGeometry() {
-  const { a, b } = ALCATRAZ;
-  const A = 72;
-  const pos: number[] = [];
-  const col: number[] = [];
-  const rock = new Color("#7f7465");
-  const scrub = new Color("#7a8656");
-  const path = new Color("#b9b1a1");
-  const c = new Color();
-  for (let r = 0; r < RINGS.length; r++) {
-    const [rho, height] = RINGS[r];
-    for (let k = 0; k < (r === 0 ? 1 : A); k++) {
-      const theta = (k / A) * Math.PI * 2;
-      const R = alcatrazOutline(theta) * rho * (1 + (r > 3 && r < 7 ? (hash(k, r) - 0.5) * 0.1 : 0));
-      const u = a * R * Math.cos(theta);
-      const v = b * R * Math.sin(theta);
-      // The north-west end is a lower terrace (the parade ground).
-      const terrace = r < 4 ? 1 - 0.3 * smoothstep(0, -a, u) : 1;
-      const y = height * terrace + (r > 3 && r < 7 ? (hash(r, k) - 0.5) * 0.3 : 0);
-      pos.push(u, y, v);
-      if (r >= 4) c.copy(rock).multiplyScalar(0.85 + 0.25 * hash(k * 3, r));
-      else c.copy(scrub).lerp(path, hash(k, r * 7) > 0.7 ? 0.8 : 0.1);
-      col.push(c.r, c.g, c.b);
-    }
-  }
-  const index: number[] = [];
-  for (let k = 0; k < A; k++) index.push(0, 1 + ((k + 1) % A), 1 + k);
-  for (let r = 1; r < RINGS.length - 1; r++) {
-    const s0 = 1 + (r - 1) * A;
-    const s1 = 1 + r * A;
-    for (let k = 0; k < A; k++) {
-      const k1 = (k + 1) % A;
-      index.push(s0 + k, s0 + k1, s1 + k, s0 + k1, s1 + k1, s1 + k);
-    }
-  }
-  const g = new BufferGeometry();
-  g.setAttribute("position", new Float32BufferAttribute(pos, 3));
-  g.setAttribute("color", new Float32BufferAttribute(col, 3));
-  g.setIndex(index);
-  g.computeVertexNormals();
-  return g;
-}
-/** Plateau height (island local) for placing buildings. */
-const plateau = (u: number) => 2.3 * (1 - 0.3 * smoothstep(0, -ALCATRAZ.a, u));
-
-const LIGHTHOUSE = { u: -2.2, v: 1.1, h: 2.6 };
-function alcatrazParts() {
-  const lh = plateau(LIGHTHOUSE.u);
-  const wt = { u: 4.4, v: -0.9, y: plateau(4.4) - 0.15 };
-  const legs = [-0.36, 0.36].flatMap((dx) => [-0.36, 0.36].map((dz) => box(0.06, 1.8, 0.06, wt.u + dx, wt.y + 0.9, wt.v + dz, "#7d776e")));
-  return mergeGeometries([
-    box(5.6, 0.12, 1.9, 0.9, plateau(0.9) + 1.65, 0, "#a39d92"), // cellhouse roof
-    paint(new CylinderGeometry(0.2, 0.3, LIGHTHOUSE.h, 8).translate(LIGHTHOUSE.u, lh + LIGHTHOUSE.h / 2 - 0.1, LIGHTHOUSE.v), "#efe9dc"),
-    paint(new CylinderGeometry(0.34, 0.34, 0.07, 8).translate(LIGHTHOUSE.u, lh + LIGHTHOUSE.h, LIGHTHOUSE.v), "#4a4a4a"),
-    paint(new ConeGeometry(0.26, 0.3, 8).translate(LIGHTHOUSE.u, lh + LIGHTHOUSE.h + 0.5, LIGHTHOUSE.v), "#3d3d3d"),
-    ...legs,
-    paint(new CylinderGeometry(0.55, 0.55, 0.75, 14).translate(wt.u, wt.y + 2.15, wt.v), "#d8d1c3"),
-    paint(new ConeGeometry(0.58, 0.25, 14).translate(wt.u, wt.y + 2.65, wt.v), "#8c867c"),
-  ]);
-}
-
-/** Two soft beams from the lantern, apex at the origin, fading outwards. */
-function beamGeometry() {
-  const beams = [0, Math.PI].map((r) => new ConeGeometry(0.9, 18, 20, 1, true).translate(0, -9, 0).rotateZ(Math.PI / 2).rotateY(r));
-  const g = mergeGeometries(beams);
-  const p = g.attributes.position;
-  const colors = new Float32Array(p.count * 3);
-  for (let i = 0; i < p.count; i++) {
-    const k = Math.max(0, 1 - Math.hypot(p.getX(i), p.getZ(i)) / 18) ** 2.5;
-    colors.set([k, k, k], i * 3);
-  }
-  g.setAttribute("color", new Float32BufferAttribute(colors, 3));
-  return g;
-}
-
-/** Additive, fading along the beam and at its edges (where the cone is seen edge-on). */
-function beamGlow() {
-  const material = new MeshBasicMaterial({ color: "#fff1c9", vertexColors: true, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, side: DoubleSide });
-  material.customProgramCacheKey = () => "bay-beam";
-  material.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying float vFacing;")
-      .replace("#include <project_vertex>", "#include <project_vertex>\nvFacing = abs(dot(normalize(normalMatrix * normal), normalize(-mvPosition.xyz)));");
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying float vFacing;")
-      .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.a *= vFacing * vFacing;");
-  };
-  return material;
-}
-
-function Alcatraz({ paintMaterial }: { paintMaterial: MeshStandardMaterial }) {
-  const island = useMemo(() => alcatrazGeometry(), []);
-  const parts = useMemo(() => alcatrazParts(), []);
-  const beams = useMemo(() => beamGeometry(), []);
-  const rockMaterial = useMemo(() => new MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), []);
-  const block = useMemo(() => {
-    const m = facadeMaterial({ floor: 0.85, window: 0.36, lit: 0.2 });
-    m.color.set("#ddd6c6");
-    return m;
-  }, []);
-  const lantern = useGlow("#fff1c9", 5, 0.2);
-  const beamMaterial = useMemo(() => beamGlow(), []);
-  const beam = useRef<Mesh>(null);
-  useEffect(() => {
-    const b = beam.current;
-    if (!b) return;
-    notReflected.add(b);
-    return () => void notReflected.delete(b);
-  }, []);
-  useFrame((_, dt) => {
-    const b = beam.current;
-    if (!b) return;
-    b.rotation.y += dt * 0.5;
-    b.visible = rig.night > 0.05;
-    beamMaterial.opacity = rig.night * 0.3;
-  });
-  const lh = plateau(LIGHTHOUSE.u) + LIGHTHOUSE.h + 0.22;
-  return (
-    <group position={[ALCATRAZ.x, WATER_Y, ALCATRAZ.z]} rotation-y={ALCATRAZ.angle}>
-      <mesh geometry={island} material={rockMaterial} castShadow receiveShadow />
-      <mesh geometry={parts} material={paintMaterial} castShadow receiveShadow />
-      <mesh position={[0.9, plateau(0.9) + 0.75, 0]} material={block} castShadow receiveShadow>
-        <boxGeometry args={[5.4, 1.75, 1.7]} />
-      </mesh>
-      <mesh position={[LIGHTHOUSE.u, lh, LIGHTHOUSE.v]} material={lantern}>
-        <cylinderGeometry args={[0.18, 0.18, 0.32, 8]} />
-      </mesh>
-      <mesh ref={beam} geometry={beams} material={beamMaterial} position={[LIGHTHOUSE.u, lh, LIGHTHOUSE.v]} visible={false} />
-    </group>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // The boats.
 
 const TRACKS = ROUTES.map(track);
@@ -1287,7 +1065,7 @@ export function Bay() {
 
   return (
     <>
-      <Alcatraz paintMaterial={paintMaterial} />
+      <Alcatraz waterY={WATER_Y} unreflected={notReflected} />
       <instancedMesh ref={hulls} args={[hullGeo, paintMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
       <instancedMesh ref={mains} args={[mainGeo, sailMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
       <instancedMesh ref={jibs} args={[jibGeo, sailMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
@@ -1309,10 +1087,6 @@ export const bayGeometries = () => ({
   jib: jibGeometry(),
   ferry: ferryGeometry(),
   ferryWindows: ferryWindowsGeometry(),
-  alcatraz: alcatrazGeometry(),
-  alcatrazParts: alcatrazParts(),
-  beam: beamGeometry(),
   yerbaBuena: yerbaBuenaGeometry(),
-  treasureIsland: treasureIslandGeometry(),
-  treasureBuildings: treasureBuildingsGeometry(),
+  ...islandGeometries(),
 });

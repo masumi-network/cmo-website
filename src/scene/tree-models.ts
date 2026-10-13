@@ -97,7 +97,7 @@ type Rand = () => number;
 const UP = new Vector3(0, 1, 0);
 const V = (x: number, y: number, z: number) => new Vector3(x, y, z);
 
-/** Indexed geometry in the making: bark (position, normal, uv, color) or leaves (plus aLeaf: sway, outerness). */
+/** Indexed geometry in the making: bark (position, normal, uv, color) or leaves (plus aLeaf: sway, light through the leaf, sky fill). */
 class Mesh {
   pos: number[] = [];
   nor: number[] = [];
@@ -108,12 +108,12 @@ class Mesh {
   get count() {
     return this.pos.length / 3;
   }
-  vert(p: Vector3, n: Vector3, u: number, v: number, rgb: [number, number, number], sway = 0, outer = 0) {
+  vert(p: Vector3, n: Vector3, u: number, v: number, rgb: [number, number, number], sway = 0, scatter = 0, sky = 0) {
     this.pos.push(p.x, p.y, p.z);
     this.nor.push(n.x, n.y, n.z);
     this.uv.push(u, v);
     this.col.push(...rgb.map((c) => Math.min(1, Math.max(0, c))));
-    this.leaf.push(sway, outer);
+    this.leaf.push(sway, scatter, sky);
     return this.count - 1;
   }
   tri(a: number, b: number, c: number) {
@@ -125,7 +125,7 @@ class Mesh {
     g.setAttribute("normal", new Float32BufferAttribute(this.nor, 3));
     g.setAttribute("uv", new Float32BufferAttribute(this.uv, 2));
     g.setAttribute("color", new Float32BufferAttribute(this.col, 3));
-    if (leaves) g.setAttribute("aLeaf", new Float32BufferAttribute(this.leaf, 2));
+    if (leaves) g.setAttribute("aLeaf", new Float32BufferAttribute(this.leaf, 3));
     g.setIndex(this.idx);
     g.computeBoundingSphere();
     return g;
@@ -245,9 +245,12 @@ function sprite(kind: Kind, i: number): [number, number, number, number] {
  * One leaf card: a square facing roughly `facing`, turned by `roll`. Its
  * normals lean out from the crown's centre (the crown shades as one soft
  * mass); its colour is ambient occlusion (dark deep inside and underneath).
+ * A cypress pad's cards are shaded per pad instead: tops face the sky and
+ * stay lighter, undersides darker, and sun shines through them from behind,
+ * most at the rim; so backlit pads keep their layers.
  * Shrunk if a corner would reach past the crown's bounds.
  */
-function card(m: Mesh, plan: Plan, c: Vector3, facing: Vector3, roll: number, size: number, uv: [number, number, number, number], flip: boolean, sway: number) {
+function card(m: Mesh, plan: Plan, c: Vector3, facing: Vector3, roll: number, size: number, uv: [number, number, number, number], flip: boolean, sway: number, pad?: { y: number; rim: boolean }) {
   const n = facing.clone().normalize();
   const a = new Vector3().crossVectors(n, Math.abs(n.y) > 0.95 ? V(1, 0, 0) : UP).normalize();
   const b = new Vector3().crossVectors(n, a);
@@ -264,12 +267,16 @@ function card(m: Mesh, plan: Plan, c: Vector3, facing: Vector3, roll: number, si
     const d = depthIn(plan, p);
     const radial = V((p.x - plan.center.x) / plan.rx, (p.y - plan.center.y) / plan.ry, (p.z - plan.center.z) / plan.rx).normalize();
     const own = n.dot(radial) < 0 ? n.clone().negate() : n;
-    const normal = radial.multiplyScalar(0.72).addScaledVector(own, 0.28).normalize();
+    const normal = pad ? radial.multiplyScalar(0.45).addScaledVector(UP, 0.4).addScaledVector(own, 0.15).normalize() : radial.multiplyScalar(0.72).addScaledVector(own, 0.28).normalize();
     const height = Math.min(1, Math.max(0, (p.y - plan.bottom) / (plan.top - plan.bottom)));
-    const ao = 0.3 + 0.5 * Math.min(1, d) ** 1.6 + 0.3 * height;
+    const outer = Math.min(1, d);
+    const ao = pad
+      ? 0.55 + 0.22 * outer + 0.13 * height + 0.12 * Math.min(1, Math.max(-1, (p.y - pad.y) / 0.12))
+      : 0.3 + 0.5 * outer ** 1.6 + 0.3 * height;
     const warm = Math.max(0, height - 0.7) * 0.25;
     const u = (flip ? -sx : sx) < 0 ? u0 : u1;
-    m.vert(p, normal, u, sy < 0 ? v0 : v1, [ao * (1 + warm), ao, ao * (0.95 - warm)], Math.min(1, d) ** 2 * sway, Math.min(1, d));
+    const scatter = pad ? (pad.rim ? 1.2 : 0.8) * (0.5 + 0.5 * outer) : outer;
+    m.vert(p, normal, u, sy < 0 ? v0 : v1, [ao * (1 + warm), ao, ao * (0.95 - warm)], outer ** 2 * sway, scatter, pad ? 1 : 0);
   }
   m.tri(base, base + 1, base + 2);
   m.tri(base, base + 2, base + 3);
@@ -443,7 +450,7 @@ function build(plan: Plan, rand: Rand, far: boolean) {
         const p = c.p.clone().add(V(Math.cos(a) * r, (rand() - 0.5) * 0.08, Math.sin(a) * r));
         const out = V(Math.cos(a), 0, Math.sin(a));
         const facing = k >= flat ? UP.clone().addScaledVector(out, 0.9 + rand() * 1.2) : UP.clone().add(unit(rand).multiplyScalar(0.3));
-        card(leaves, plan, p, facing, rand() * Math.PI * 2, c.size * (far ? 1.5 : 1) * (0.85 + rand() * 0.3), pick(), rand() < 0.5, 0.6);
+        card(leaves, plan, p, facing, rand() * Math.PI * 2, c.size * (far ? 1.5 : 1) * (0.85 + rand() * 0.3), pick(), rand() < 0.5, 0.6, { y: c.p.y, rim: k >= flat });
       }
       continue;
     }

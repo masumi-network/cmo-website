@@ -10,7 +10,7 @@
 import { useMemo } from "react";
 import { Float32BufferAttribute } from "three";
 import { heightAt } from "@/lib/terrain";
-import { PALETTES, SLOT, builder, palette, type Builder, type Frame, type L3, type P2, type Rect, type Span } from "./house-models";
+import { PALETTES, SLOT, builder, moulding, palette, sides, type Box2, type Builder, type Frame, type P2, type Rect, type Span } from "./house-models";
 import { useLandmarkTextures } from "./landmark-kit";
 import { houseMaterial } from "./materials";
 
@@ -51,39 +51,9 @@ export const APARTMENT = {
 const RUST = 0.04; // how far the base courses stand out
 const BASE = SLOT.panel; // the base's stone: the scheme's deeper cream
 const WORLD: Frame = { o: [0, 0, 0], u: [1, 0, 0] };
-type Box2 = { x0: number; x1: number; z0: number; z1: number };
 
 /** A point in a wall's frame (a along it, c out of it), in the world. */
 const at = ({ o, u }: Frame, a: number, c: number): P2 => [o[0] + u[0] * a - u[2] * c, o[2] + u[2] * a + u[0] * c];
-
-/** Four walls of a rectangle, counter-clockwise from the south (+z): each faces out. `wraps`: N and S run round the corners. */
-function sides(r: Box2) {
-  return [
-    { f: { o: [r.x0, 0, r.z1], u: [1, 0, 0] } as Frame, len: r.x1 - r.x0, wraps: true, name: "south" },
-    { f: { o: [r.x1, 0, r.z1], u: [0, 0, -1] } as Frame, len: r.z1 - r.z0, wraps: false, name: "east" },
-    { f: { o: [r.x1, 0, r.z0], u: [-1, 0, 0] } as Frame, len: r.x1 - r.x0, wraps: true, name: "north" },
-    { f: { o: [r.x0, 0, r.z0], u: [0, 0, 1] } as Frame, len: r.z1 - r.z0, wraps: false, name: "west" },
-  ];
-}
-
-/**
- * A moulding run round a rectangle and mitred at its corners. `profile` is
- * (out, y) points from the wall out and back, counter-clockwise seen along
- * the wall (out to the right); out < 0 runs round the inside (a parapet).
- */
-function moulding(k: Builder, r: Box2, profile: P2[], slot: number) {
-  const ring = (c: number): P2[] => [[r.x0 - c, r.z0 - c], [r.x1 + c, r.z0 - c], [r.x1 + c, r.z1 + c], [r.x0 - c, r.z1 + c]];
-  const outs: P2[] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-  for (let i = 0; i < profile.length - 1; i++) {
-    const [[c0, y0], [c1, y1]] = [profile[i], profile[i + 1]];
-    const [p, q] = [ring(c0), ring(c1)];
-    for (let s = 0; s < 4; s++) {
-      const t = (s + 1) % 4;
-      const out: L3 = [outs[s][0] * (y1 - y0), c0 - c1, outs[s][1] * (y1 - y0)];
-      k.face(WORLD, [[p[s][0], y0, p[s][1]], [p[t][0], y0, p[t][1]], [q[t][0], y1, q[t][1]], [q[s][0], y1, q[s][1]]], out, slot);
-    }
-  }
-}
 
 /** Runs from a0 to a1 with the openings' spans left out. */
 function runs(a0: number, a1: number, gaps: Span[]): Span[] {

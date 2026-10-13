@@ -36,14 +36,13 @@ type Uniforms = { uTime: { value: number } };
 function windy(shader: { uniforms: Record<string, unknown>; vertexShader: string }, uniforms: Uniforms, leaves: boolean) {
   shader.uniforms.uTime = uniforms.uTime;
   shader.vertexShader = shader.vertexShader
-    .replace("#include <common>", `#include <common>\n${WIND}\n${leaves ? "attribute vec2 aLeaf;\nvarying float vOuter;" : ""}`)
+    .replace("#include <common>", `#include <common>\n${WIND}\n${leaves ? "attribute vec3 aLeaf;" : ""}`)
     .replace(
       "#include <begin_vertex>",
       `#include <begin_vertex>
       #ifdef USE_BATCHING
         transformed = treeWind(transformed, normal, ${leaves ? "aLeaf.x" : "0.0"}, batchingMatrix);
-      #endif
-      ${leaves ? "vOuter = aLeaf.y;" : ""}`,
+      #endif`,
     );
 }
 
@@ -66,18 +65,33 @@ function materials(uniforms: Uniforms) {
   leaves.customProgramCacheKey = () => "tree-leaves";
   leaves.onBeforeCompile = (shader) => {
     windy(shader, uniforms, true);
+    // Light through the leaf, sky fill, and how much the leaf faces up (in the world).
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vLeaf;").replace(
+      "#include <begin_vertex>",
+      `#include <begin_vertex>
+      #ifdef USE_BATCHING
+        vLeaf = vec3(aLeaf.yz, normalize(mat3(batchingMatrix) * normal).y);
+      #else
+        vLeaf = vec3(aLeaf.yz, normal.y);
+      #endif`,
+    );
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying float vOuter;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vLeaf;")
       .replace("#include <map_fragment>", KEEP_ALPHA)
       // Both faces of a card share its normal (out of the crown): no flip for the back.
       .replace("#include <normal_fragment_begin>", "#include <normal_fragment_begin>\nnormal = normalize(vNormal);\nnonPerturbedNormal = normal;")
-      // Outer leaves seen against the sun glow a little (light through the leaf).
+      // Outer leaves seen against the sun glow a little (light through the leaf). Cypress pads
+      // (sky fill > 0) also pass sun through wherever they face away from it, and take sky light on top.
       .replace(
         "#include <lights_fragment_end>",
         `#include <lights_fragment_end>
         #if NUM_DIR_LIGHTS > 0
           float tBack = pow(saturate(dot(-geometryViewDir, directionalLights[0].direction)), 3.0);
-          reflectedLight.indirectDiffuse += diffuseColor.rgb * directionalLights[0].color * tBack * 0.9 * vOuter;
+          float tThrough = saturate(-dot(normal, directionalLights[0].direction));
+          reflectedLight.indirectDiffuse += diffuseColor.rgb * directionalLights[0].color * (tBack * 0.9 + tThrough * 0.45 * vLeaf.y) * vLeaf.x;
+        #endif
+        #if NUM_HEMI_LIGHTS > 0
+          reflectedLight.indirectDiffuse += diffuseColor.rgb * hemisphereLights[0].skyColor * saturate(vLeaf.z) * vLeaf.y * 0.6;
         #endif`,
       );
   };

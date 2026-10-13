@@ -73,7 +73,7 @@ describe("trees", () => {
           expect(Math.min(...c)).toBeGreaterThanOrEqual(0);
           expect(Math.max(...c)).toBeLessThanOrEqual(1.0001);
         }
-        expect(leaves.attributes.aLeaf.itemSize).toBe(2);
+        expect(leaves.attributes.aLeaf.itemSize).toBe(3);
         expect(Array.from(leaves.attributes.aLeaf.array).every((w) => Number.isFinite(w) && w >= 0 && w <= 1.5)).toBe(true);
       }
     }

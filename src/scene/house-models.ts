@@ -28,12 +28,12 @@ export const RELIEF_DEPTH = 0.36;
 /**
  * Paints. The first seven come from the house's palette, the next five are the same on every house.
  * The last two are for the 06:00 apartment (rooftop.tsx): `stucco` (the body colour without siding)
- * and `gravel` (a tar-and-gravel roof).
+ * and `gravel` (a tar-and-gravel roof). `copper`: weathered green copper (the Ferry Building's roof and dome).
  */
-export const SLOTS = ["body", "trim", "frieze", "panel", "sash", "door", "scales", "glass", "roof", "tar", "stone", "brick", "stucco", "gravel"] as const;
+export const SLOTS = ["body", "trim", "frieze", "panel", "sash", "door", "scales", "glass", "roof", "tar", "stone", "brick", "stucco", "gravel", "copper"] as const;
 export type Slot = (typeof SLOTS)[number];
 export const SLOT = Object.fromEntries(SLOTS.map((s, i) => [s, i])) as Record<Slot, number>;
-const FIXED = { glass: "#0c1014", roof: "#8f8a84", tar: "#5b5853", stone: "#c4beb2", brick: "#94695a", gravel: "#8e877c" };
+const FIXED = { glass: "#0c1014", roof: "#8f8a84", tar: "#5b5853", stone: "#c4beb2", brick: "#94695a", gravel: "#8e877c", copper: "#86a194" };
 
 /**
  * Painted Lady colour schemes: a muted pastel body, white or cream trim, a
@@ -332,7 +332,7 @@ export function builder() {
     g.setIndex(idx);
     return g;
   }
-  return { face, box, profile, slab, prism, quad, wall, reveal, ring2, glazing, window, geometry };
+  return { face, solid, box, profile, slab, prism, quad, wall, reveal, ring2, glazing, window, geometry };
 }
 
 /** The front of variant `v`: the front wall from the footing to the cornice crown, and everything on it. Frame: x across, y up, z out. */
@@ -374,6 +374,42 @@ export function frontGeometry(v: number) {
 }
 
 export type Builder = ReturnType<typeof builder>;
+
+// ---------- Shared by the landmark blocks (rooftop.tsx, union-square.tsx) ----------
+
+/** A rectangle in plan (world x and z). */
+export type Box2 = { x0: number; x1: number; z0: number; z1: number };
+/** World axes as a frame: (a, b, c) is (x, y, z). */
+const WORLD: Frame = { o: [0, 0, 0], u: [1, 0, 0] };
+
+/** Four walls of a rectangle, counter-clockwise from the south (+z), each facing out. `wraps`: north and south run round the corners. */
+export function sides(r: Box2) {
+  return [
+    { f: { o: [r.x0, 0, r.z1], u: [1, 0, 0] } as Frame, len: r.x1 - r.x0, wraps: true, name: "south" },
+    { f: { o: [r.x1, 0, r.z1], u: [0, 0, -1] } as Frame, len: r.z1 - r.z0, wraps: false, name: "east" },
+    { f: { o: [r.x1, 0, r.z0], u: [-1, 0, 0] } as Frame, len: r.x1 - r.x0, wraps: true, name: "north" },
+    { f: { o: [r.x0, 0, r.z0], u: [0, 0, 1] } as Frame, len: r.z1 - r.z0, wraps: false, name: "west" },
+  ];
+}
+
+/**
+ * A moulding run round a rectangle and mitred at its corners. `profile` is
+ * (out, y) points from the wall out and back, counter-clockwise seen along
+ * the wall (out to the right); out < 0 runs round the inside (a parapet).
+ */
+export function moulding(k: Builder, r: Box2, profile: P2[], slot: number) {
+  const ring = (c: number): P2[] => [[r.x0 - c, r.z0 - c], [r.x1 + c, r.z0 - c], [r.x1 + c, r.z1 + c], [r.x0 - c, r.z1 + c]];
+  const outs: P2[] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  for (let i = 0; i < profile.length - 1; i++) {
+    const [[c0, y0], [c1, y1]] = [profile[i], profile[i + 1]];
+    const [p, q] = [ring(c0), ring(c1)];
+    for (let s = 0; s < 4; s++) {
+      const t = (s + 1) % 4;
+      const out: L3 = [outs[s][0] * (y1 - y0), c0 - c1, outs[s][1] * (y1 - y0)];
+      k.face(WORLD, [[p[s][0], y0, p[s][1]], [p[t][0], y0, p[t][1]], [q[t][0], y1, q[t][1]], [q[s][0], y1, q[s][1]]], out, slot);
+    }
+  }
+}
 
 /** The bay window: three faces with a window per storey, corner posts, floor cornices, its base. */
 function bay(k: Builder, s: Variant, id: number) {
