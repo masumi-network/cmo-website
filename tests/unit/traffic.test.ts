@@ -153,7 +153,7 @@ describe("traffic", () => {
       }),
     );
     expect(touching).toEqual([]);
-  });
+  }, 30_000); // every pair of places on every pair of routes: seconds on a slow CI runner
 
   it("stops for Cuso, and the cars behind queue without touching", () => {
     const driven = Float32Array.from(cars, (c) => c.offset);
