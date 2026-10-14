@@ -48,6 +48,7 @@ import { dayNow } from "./shared";
 import { CHAINS, screenSpace, type Chain } from "./fx-lab";
 import { splitScene } from "./plates";
 import { bakeGround } from "./bake-ground";
+import { uvProbe } from "./lightmap-lab";
 import { TRACE_LAYER, buildTwins, farCasters, lightHousings, studioFill } from "./traced";
 
 type Stats = {
@@ -428,6 +429,11 @@ export default function RaytraceLab() {
         twins.group.traverse((o) => (o as Mesh).geometry?.dispose());
       });
 
+      if (mode === "uv") {
+        (window as Window & { __uv?: unknown }).__uv = "running";
+        uvProbe(scene).then((r) => ((window as Window & { __uv?: unknown }).__uv = r), (e: unknown) => ((window as Window & { __uv?: unknown }).__uv = { error: String(e) }));
+        return;
+      }
       if (fxMode) {
         runEffects(renderer, scene, camera as PerspectiveCamera, twins.originals, stats, panel, () => stop);
         return;

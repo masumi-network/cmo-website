@@ -66,6 +66,15 @@ What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `ray
 - House windows: about half light up at night, warm, by window and house as the shader picks them (the GPU's 32-bit hash picks a similar share, not the same windows).
 - Downtown towers (`downtown`): the vertex tint times a generated window tile per surface kind (curtain wall, sash, steel, shopfront; `facade-maps.ts`), laid on the wall grid (`aUv`) with a whole-cell offset per tower and face. Each tile carries colour, roughness and metalness, and the night's lit windows (runs along busy floors) as an emissive map scaled by the hour's night. Flat tops are tar. Landmark stone (`tower`): the facade tile in world units, like bridge steel.
 
+## Lightmaps: first measure (2026-10-15)
+- Goal (team doc): bake light per chapter hour so the city keeps bounced light while moving.
+- Dev only: `?raytrace=uv` (`src/scene/lightmap-lab.ts`) unwraps every static mesh with `xatlas-web` and puts the numbers on `window.__uv`. It needs the wasm in the gitignored `public/lab/`: `cp node_modules/xatlas-web/dist/xatlas-web.wasm public/lab/`. The package is a web-only build (it will not load in Node).
+- The static city: 352 meshes. 332 plain (1.9 M vertices, 819 k triangles), 16 instanced (1,853 instances: the shop shell, small parts), 2 batched (trees).
+- Unwrapping all 332 took 552 s on this Mac; one 38 k-vertex mesh alone took 500 s. Without it, about 52 s. Far too slow for the page: UVs would have to ship.
+- xatlas re-indexes each mesh (seams split vertices): 1.75 M new vertices. Shipping a second UV set means UVs, a vertex remap and new index buffers, about 20 MB before compression, plus every custom attribute remapped. Any change to the city's geometry breaks both the UVs and the lightmaps.
+- `xatlas-web` 0.1.0 takes no options (texel density, padding, atlas size), and three-gpu-pathtracer's own wrapper writes 16-bit indices: meshes over 65,535 vertices (eight of ours) are not safe with it.
+- The bake side is open: the tracer takes any camera with a `getCameraRayFn()` (WGSL `getCameraRay`, see `EquirectCameraShim`). A camera that starts each ray on a surface point (a lightmap texel or a probe) reuses the whole tracer, twins and sky included. Rays leaving a surface never see the sun directly (it is a directional light, sampled only at hits), so the result is bounced light plus sky: exactly what the raster lacks next to its own sun and shadows.
+
 ## Spike (2026-10-14)
 - Dev only: `?raytrace` (`src/scene/raytrace-lab.tsx`) path-traces the live city over the WebGL canvas. R hides the traced image, F freezes the WebGL city, P restarts. Options: `&scale=0.5` (half resolution), `&spp=8` (denoise sooner), `&denoise=0`, `&pose=0` (keep load-time poses).
 - `node scripts/raytrace-bench.mjs <dir> 0 3 6` saves today's render, traced shots at 1 to 16 s, and `bench.json`.
