@@ -57,14 +57,16 @@ export function facadeMaps(kind: FacadeKind) {
   if (t) return t;
   const size = FACADE_CELLS * PX;
   const [map, orm, lit] = [0, 1, 2].map(() => new Uint8Array(size * size * 4));
-  // runs of lit windows along a floor: four panes on curtain walls, three in punched walls
+  // runs of lit windows along a floor: four panes on curtain walls, three in punched walls. Each floor is busier or
+  // quieter; on average 70% of punched windows light (55% of office panes): what the towers show on the GPU at
+  // 18:00 (measured), not the 40% the shader's hash would give with exact sines
   const run = kind === "curtain" ? 4 : 3;
-  const busyShare = kind === "curtain" ? 0.6 : 0.8;
+  const base = kind === "curtain" ? 0.3 : 0.45;
   for (let cy = 0; cy < FACADE_CELLS; cy++) {
     const busy = hash(cy, 57.1);
     for (let cx = 0; cx < FACADE_CELLS; cx++) {
       const r = hash(cx + 0.31, cy + 0.77);
-      const on = kind === "storefront" || hash(Math.floor(cx / run), cy + 13.3) < busy * busyShare;
+      const on = kind === "storefront" || hash(Math.floor(cx / run), cy + 13.3) < base + 0.5 * busy;
       for (let py = 0; py < PX; py++) {
         for (let px = 0; px < PX; px++) {
           const p = pixel(kind, (px + 0.5) / PX, (py + 0.5) / PX, r, on);

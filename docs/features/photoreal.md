@@ -33,7 +33,7 @@ All eight chapters ship. Reviewed against today's frame:
 | 2 (09:00 Mission mural) | ships | |
 | 3 (12:00 Union Square) | ships | |
 | 4 (15:00 Pyramid) | ships | |
-| 5 (18:00 Ferry Building) | ships | lit windows a little paler than today's amber |
+| 5 (18:00 Ferry Building) | ships | |
 | 6 (22:00 pier) | ships | |
 | 7 (06:00 tomorrow) | ships | a faint band of real dawn shadow from a downtown tower crosses one street; today's shadow box stops short of it |
 
@@ -59,6 +59,7 @@ What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `ray
 - A bake catches the camera wherever the rig eased to: check the plate's pose against today's rest view after baking (chapter 4 landed 0.4 m off once; a re-bake landed exactly).
 - Any change to the camera rig can move a rest view off its plate (chapter 3 did): re-run `CHECK=1` for all chapters after one.
 - Lamps: a point light sits inside its glass globe, which blocked every light ray in the trace (the raster's lights cast no shadows), so the pier lamp lit nothing. `lightHousings` finds the small meshes a light sits in and the lab sets the tracer's `visibleToShadowRays` false on them (an object flag; the material `castShadow` the docs mention is not read by the WebGPU tracer).
+- Tower windows at night: the window tiles light 70% of punched windows and 55% of office panes on average, by floor. That is what the towers show on the GPU at 18:00 (measured: 58 to 80% of panes), not the 40% the shader's hash gives with exact sines. At 40% chapter 5's plate had half today's lit panes and read dark.
 - House windows: about half light up at night, warm, by window and house as the shader picks them (the GPU's 32-bit hash picks a similar share, not the same windows).
 - Downtown towers (`downtown`): the vertex tint times a generated window tile per surface kind (curtain wall, sash, steel, shopfront; `facade-maps.ts`), laid on the wall grid (`aUv`) with a whole-cell offset per tower and face. Each tile carries colour, roughness and metalness, and the night's lit windows (runs along busy floors) as an emissive map scaled by the hour's night. Flat tops are tar. Landmark stone (`tower`): the facade tile in world units, like bridge steel.
 

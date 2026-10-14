@@ -4,7 +4,7 @@ import { SLOTS } from "@/scene/house-models";
 import { depthProxy, splitScene } from "@/scene/plates";
 import { CAFE_MAT } from "@/scene/shop";
 import { traceInfo } from "@/scene/trace-info";
-import { FACADE_CELLS } from "@/scene/facade-maps";
+import { FACADE_CELLS, facadeMaps } from "@/scene/facade-maps";
 import { TRACE_LAYER, buildTwins, farCasters, lightHousings, studioFill } from "@/scene/traced";
 import { PART } from "@/scene/towers";
 
@@ -371,6 +371,19 @@ describe("traced twins", () => {
       expect([uv.getX(i), uv.getY(i)]).toEqual([expect.closeTo(u / 4.8, 5), expect.closeTo(pos.getY(i) / 7.2, 5)]);
     }
     expect(twins.length).toBe(2); // walls, and the tops at 0.62
+  });
+
+  it("lights as many windows at 18:00 as today's towers show (60 to 80 percent, measured on the GPU)", () => {
+    for (const kind of ["sash", "steel"] as const) {
+      const lit = facadeMaps(kind).lit.image.data as Uint8Array;
+      const size = Math.sqrt(lit.length / 4);
+      const cell = size / FACADE_CELLS;
+      let on = 0;
+      for (let cy = 0; cy < FACADE_CELLS; cy++) for (let cx = 0; cx < FACADE_CELLS; cx++) on += lit[((cy * cell + cell / 2) * size + cx * cell + cell / 2) * 4] > 0 ? 1 : 0;
+      const share = on / FACADE_CELLS ** 2;
+      expect(share, kind).toBeGreaterThan(0.6);
+      expect(share, kind).toBeLessThan(0.8);
+    }
   });
 
   it("traces the towers' metal (vents, roof decks) dark and matte, as the raster shows it without an environment", () => {
