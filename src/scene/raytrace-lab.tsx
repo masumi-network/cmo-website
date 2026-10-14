@@ -47,7 +47,7 @@ import { dayNow } from "./shared";
 import { CHAINS, screenSpace, type Chain } from "./fx-lab";
 import { splitScene } from "./plates";
 import { bakeGround } from "./bake-ground";
-import { TRACE_LAYER, buildTwins } from "./traced";
+import { TRACE_LAYER, buildTwins, lightHousings } from "./traced";
 
 type Stats = {
   buildMs: number;
@@ -407,6 +407,10 @@ export default function RaytraceLab() {
       const tw0 = performance.now();
       const twins = buildTwins(scene, bakeGround(gl, scene));
       scene.add(twins.group);
+      // lamps: the light sits inside its glass globe, which would block every light ray (the raster's lights cast no shadows)
+      const housings = lightHousings(scene) as (Mesh & { visibleToShadowRays?: boolean })[];
+      for (const m of housings) m.visibleToShadowRays = false;
+      cleanup.push(() => housings.forEach((m) => delete m.visibleToShadowRays));
       stats.twinMs = performance.now() - tw0;
       cleanup.push(() => {
         scene.remove(twins.group);

@@ -5,7 +5,7 @@
 // textures get UVs projected the same way the shaders do it. Twins are in world
 // space (instances expanded), on a layer only the tracer sees.
 
-import { BufferGeometry, Color, Float32BufferAttribute, Group, Matrix3, Matrix4, Mesh, MeshStandardMaterial, type LineBasicMaterial, type LineSegments, type Material, type Texture, Vector2, Vector3, type InstancedBufferAttribute, type InstancedMesh, type Object3D } from "three";
+import { Box3, BufferGeometry, Color, Float32BufferAttribute, Group, Matrix3, Matrix4, Mesh, MeshStandardMaterial, type LineBasicMaterial, type LineSegments, type Material, type Texture, Vector2, Vector3, type InstancedBufferAttribute, type InstancedMesh, type Object3D, type PointLight, type SpotLight } from "three";
 import { SLOT, SLOTS } from "./house-models";
 import { FACADE_CELLS, type FacadeKind, facadeMaps } from "./facade-maps";
 import { CAFE_MAT } from "./shop";
@@ -346,4 +346,31 @@ export function buildTwins(scene: Object3D, baked = new Map<Material, Texture>()
   /** Re-reads the glows that follow the hour (lit windows, the café's lamps): the bake builds twins at load, then scrolls to its chapter. */
   const refresh = () => follow.forEach((set) => set());
   return { group, originals, refresh };
+}
+
+const housing = new Box3();
+const lamp = new Vector3();
+/**
+ * The small meshes a light sits inside (the pier lamp's glass globe). The
+ * raster's lights cast no shadows, so they shine through; in the tracer every
+ * light ray hit the globe and the lamp lit nothing. The lab sets the tracer's
+ * `visibleToShadowRays` false on these. Big meshes (a deck, a merged
+ * district) that merely enclose a light are not housings.
+ */
+export function lightHousings(scene: Object3D): Mesh[] {
+  const lights: Vector3[] = [];
+  scene.traverseVisible((o) => {
+    if ((o as PointLight).isPointLight || (o as SpotLight).isSpotLight) lights.push(o.getWorldPosition(lamp).clone());
+  });
+  const out: Mesh[] = [];
+  if (!lights.length) return out;
+  scene.traverseVisible((o) => {
+    const mesh = o as Mesh;
+    if (!mesh.isMesh || (mesh as InstancedMesh).isInstancedMesh) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    housing.copy(mesh.geometry.boundingBox!).applyMatrix4(mesh.matrixWorld);
+    const size = housing.getSize(lamp);
+    if (Math.max(size.x, size.y, size.z) <= 1.5 && lights.some((l) => housing.containsPoint(l))) out.push(mesh);
+  });
+  return out;
 }

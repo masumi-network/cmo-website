@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { BoxGeometry, BufferGeometry, Color, DirectionalLight, Float32BufferAttribute, InstancedBufferAttribute, InstancedMesh, Group, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Scene, ShaderMaterial, Texture, Vector3 } from "three";
+import { BoxGeometry, BufferGeometry, Color, DirectionalLight, Float32BufferAttribute, InstancedBufferAttribute, InstancedMesh, Group, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, PointLight, Scene, SphereGeometry, ShaderMaterial, Texture, Vector3 } from "three";
 import { SLOTS } from "@/scene/house-models";
 import { splitScene } from "@/scene/plates";
 import { CAFE_MAT } from "@/scene/shop";
 import { traceInfo } from "@/scene/trace-info";
 import { FACADE_CELLS } from "@/scene/facade-maps";
-import { TRACE_LAYER, buildTwins } from "@/scene/traced";
+import { TRACE_LAYER, buildTwins, lightHousings } from "@/scene/traced";
 import { PART } from "@/scene/towers";
 
 /** A scene like the city's: static blocks, a light, the sky dome, the fog bank, lines, glass, and live objects nested inside groups. */
@@ -51,6 +51,23 @@ describe("the scene at rest on a plate", () => {
     const { scene, fogBank, sun } = city();
     const { live, catchers, hidden } = splitScene(scene);
     for (const kept of [fogBank, sun]) expect([...live, ...catchers, ...hidden]).not.toContain(kept);
+  });
+});
+
+describe("lamps in the trace", () => {
+  it("finds the glass a light sits inside (the pier lamp's globe), not the big meshes round it", () => {
+    const scene = new Scene();
+    const globe = new Mesh(new SphereGeometry(0.17), new MeshStandardMaterial({ emissive: "#ffd28a" }));
+    globe.position.set(40, 2.4, 25);
+    const light = new PointLight("#ffcf8a", 26, 8, 2);
+    light.position.set(40, 2.35, 25);
+    const deck = new Mesh(new BoxGeometry(20, 1, 20), new MeshStandardMaterial()); // holds the light too, but it is the deck
+    deck.position.set(40, 2, 25);
+    const post = new Mesh(new BoxGeometry(0.1, 2, 0.1), new MeshStandardMaterial());
+    post.position.set(40, 1, 25);
+    scene.add(globe, light, deck, post);
+    scene.updateMatrixWorld(true);
+    expect(lightHousings(scene)).toEqual([globe]);
   });
 });
 
