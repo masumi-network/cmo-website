@@ -76,7 +76,7 @@ const VALUE_NOISE = /* glsl */ `
 export function houseMaterial(siding: Texture, shingles: Texture, palette: Float32Array) {
   const n = SLOTS.length;
   const material = new MeshStandardMaterial({ roughness: 0.82 });
-  traceInfo.set(material, { kind: "house", siding, shingles, palette });
+  traceInfo.set(material, { kind: "house", siding, shingles, palette, night: facadeNight });
   return patch(material, "house", {
     uniforms: { uSiding: { value: siding }, uShingles: { value: shingles }, uPalette: { value: palette }, ...glassUniforms },
     vertHead: "attribute float aSlot;\nattribute float aWin;\nattribute vec2 aPane;\nattribute float aPalette;\nattribute vec2 aOrigin;\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;",
@@ -168,7 +168,9 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
 
 /** Towers: a tileable facade texture repeated in world units (one tile = 4 x 4 windows). */
 export function towerMaterial(facade: Texture, tile: { w: number; h: number }, glassy: boolean) {
-  return patch(new MeshStandardMaterial({ roughness: glassy ? 0.35 : 0.8, metalness: glassy ? 0.25 : 0 }), `tower-${glassy ? 1 : 0}`, {
+  const material = new MeshStandardMaterial({ roughness: glassy ? 0.35 : 0.8, metalness: glassy ? 0.25 : 0 });
+  traceInfo.set(material, { kind: "tower", facade, tile, glassy });
+  return patch(material, `tower-${glassy ? 1 : 0}`, {
     uniforms: { uFacade: { value: facade }, uTile: { value: [tile.w, tile.h] } },
     fragHead: "uniform sampler2D uFacade;\nuniform vec2 uTile;\nfloat fLit = 0.0;\nfloat fIsGlass = 0.0;",
     color: /* glsl */ `
@@ -207,7 +209,9 @@ export function towerMaterial(facade: Texture, tile: { w: number; h: number }, g
  * so they reflect more head-on than plain windows.
  */
 export function downtownMaterial(stone: Texture) {
-  return patch(new MeshStandardMaterial({ vertexColors: true }), "downtown", {
+  const material = new MeshStandardMaterial({ vertexColors: true });
+  traceInfo.set(material, { kind: "downtown", stone, night: facadeNight });
+  return patch(material, "downtown", {
     uniforms: { uStone: { value: stone }, ...glassUniforms },
     // vInfo is flat: interpolating a constant is not exact on every GPU (SwiftShader), and the window
     // hashes amplify the tiniest error into per-pixel speckle.

@@ -7,7 +7,10 @@
 
 import { BufferGeometry, Color, Float32BufferAttribute, Group, Matrix3, Matrix4, Mesh, MeshStandardMaterial, type LineBasicMaterial, type LineSegments, type Material, type Texture, Vector2, Vector3, type InstancedBufferAttribute, type InstancedMesh, type Object3D } from "three";
 import { SLOT, SLOTS } from "./house-models";
+import { FACADE_CELLS, type FacadeKind, facadeMaps } from "./facade-maps";
 import { CAFE_MAT } from "./shop";
+import { ALUMINIUM } from "./pyramid";
+import { PART } from "./towers";
 import { traceInfo, type TraceInfo } from "./trace-info";
 
 /** A layer no WebGL camera renders: the tracer ignores layers, so twins show only there. */
@@ -49,6 +52,12 @@ function eachTriangle(mesh: Mesh, fn: (t: Tri) => void) {
   }
 }
 
+const fract = (x: number) => x - Math.floor(x);
+/** The shaders' fHash (materials.ts). The GPU runs it in 32-bit floats, so a twin picks a similar share, not the same windows. */
+const glslHash = (x: number, y: number) => fract(Math.sin(x * 12.9898 + y * 78.233) * 43758.5453);
+/** Downtown parts with windows (towers.tsx PART) and their tile in facade-maps.ts. */
+const FACADE: Partial<Record<number, FacadeKind>> = { [PART.glass]: "curtain", [PART.storefront]: "storefront", [PART.sash]: "sash", [PART.steel]: "steel" };
+
 /** The painted shader's surfaces (shop.tsx CAFE_MAT) as roughness and metalness. */
 const SURFACES: Partial<Record<number, Partial<MeshStandardMaterial>>> = {
   [CAFE_MAT.wood]: { roughness: 0.38 },
@@ -74,7 +83,7 @@ const along = (p: Vector3, face: Vector3) => {
 };
 
 /** Twins for one patched mesh: a mesh per bucket (texture or surface kind). `baked`: colour textures baked from shaders (bake-ground.ts). */
-function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>): Mesh[] {
+function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>, follow: (() => void)[]): Mesh[] {
   if (info.kind === "ground") {
     // same geometry and uv as the original, its shader's colour baked into one texture
     const map = baked.get(mesh.material as Material);
@@ -102,11 +111,31 @@ function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>): Mesh[
   const base = mesh.material as MeshStandardMaterial;
   const plain = (extra: Partial<MeshStandardMaterial> = {}) => () =>
     Object.assign(new MeshStandardMaterial({ vertexColors: true, roughness: base.roughness, metalness: base.metalness, side: base.side }), extra);
+  // a glow that follows the hour: set now, and again on every refresh (buildTwins)
+  const glowing = (make: () => MeshStandardMaterial, level: () => number) => () => {
+    const m = make();
+    const set = () => void (m.emissiveIntensity = level());
+    set();
+    follow.push(set);
+    return m;
+  };
 
   if (info.kind === "house") {
     const n = SLOTS.length;
     const slot = mesh.geometry.attributes.aSlot;
     const pal = mesh.geometry.attributes.aPalette;
+    const win = mesh.geometry.attributes.aWin;
+    const at = mesh.geometry.attributes.aOrigin;
+    const placed = new Vector3();
+    // the house's seed point: its instance's position, or the front-wall origin houses.tsx merged in (else none)
+    const origin = (t: Tri) => {
+      if ((mesh as InstancedMesh).isInstancedMesh) {
+        (mesh as InstancedMesh).getMatrixAt(t.k, im);
+        placed.setFromMatrixPosition(im);
+        return glslHash(placed.x, placed.z);
+      }
+      return at ? glslHash(at.getX(t.i[0]), at.getY(t.i[0])) : glslHash(0, 0);
+    };
     const c = new Color();
     eachTriangle(mesh, (t) => {
       const s = Math.round(slot?.getX(t.i[0]) ?? 0);
@@ -120,8 +149,12 @@ function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>): Mesh[
         const k = Math.max(0.3, Math.hypot(t.face.x, t.face.z));
         put("roof", plain({ map: info.shingles }), t, { color: new Color(1, 1, 1).lerp(c, 0.6).multiplyScalar(1.1), uv: t.p.map((p) => [along(p, t.face) / 1.3, p.y / k / 1.3]) });
       } else if (s === SLOT.glass) {
-        // a dark room behind a glossy pane: the tracer reflects the real street
-        put("glass", plain({ roughness: 0.06, metalness: 0 }), t, { color: c.clone().multiplyScalar(0.9) });
+        // a dark room behind a glossy pane: the tracer reflects the real street. At night about
+        // half the windows light up, each as a whole (its id and the house), warm, as the shader does
+        const seed = origin(t);
+        const lit = glslHash(win?.getX(t.i[0]) ?? 0, seed * 31) >= 0.5;
+        if (lit) put("glass-lit", glowing(plain({ roughness: 0.06, metalness: 0, emissive: new Color(1, 0.7, 0.38) }), () => 1.1 * info.night.value), t, { color: c.clone().multiplyScalar(0.9) });
+        else put("glass", plain({ roughness: 0.06, metalness: 0 }), t, { color: c.clone().multiplyScalar(0.9) });
       } else {
         put("paint", plain(), t, { color: c });
       }
@@ -154,12 +187,44 @@ function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>): Mesh[
       if (glow > 1.5) {
         // lamp shades and bulbs: the shader's emissive times glow times paint
         const e = base.emissive.clone().multiply(color[0]);
-        put(`glow:${glow}:${e.getHexString()}`, plain({ emissive: e, emissiveIntensity: base.emissiveIntensity * glow }), t, { color });
+        put(`glow:${glow}:${e.getHexString()}`, glowing(plain({ emissive: e }), () => base.emissiveIntensity * glow), t, { color });
         return;
       }
       const surface = SURFACES[mat] ?? {};
       const map = (mat === CAFE_MAT.art || mat === CAFE_MAT.leaf) && atlas ? { map: atlas, alphaTest: mat === CAFE_MAT.leaf ? 0.5 : 0 } : {};
       put(`mat:${mat}`, plain({ ...surface, ...map, emissiveIntensity: 0 }), t, { color, uv });
+    });
+  } else if (info.kind === "downtown") {
+    // as downtownMaterial: walls by part, their windows from facade-maps.ts on the wall grid (aUv)
+    const g = mesh.geometry.attributes;
+    const tar = new Color(0.2, 0.195, 0.185);
+    eachTriangle(mesh, (t) => {
+      const part = Math.round(g.aInfo.getX(t.i[0]));
+      const seed = g.aInfo.getY(t.i[0]);
+      const tint = t.i.map((i) => new Color().fromBufferAttribute(g.color, i));
+      const kind = FACADE[part];
+      if (Math.abs(t.face.y) > 0.97 && part <= PART.storefront) {
+        put("tar", plain({ roughness: 0.85, metalness: 0 }), t, { color: tint.map((c) => c.lerp(tar, 0.7)) });
+      } else if (kind) {
+        // a whole-cell offset per tower and face, so neighbours do not light the same windows
+        const face = Math.floor(t.face.x + 0.5) * 3 + Math.floor(t.face.z + 0.5) * 7;
+        const [ox, oy] = [Math.floor(fract(seed * 113 + face * 0.17) * FACADE_CELLS), Math.floor(fract(seed * 31 + face * 0.29) * FACADE_CELLS)];
+        const maps = facadeMaps(kind);
+        const make = () => new MeshStandardMaterial({ vertexColors: true, map: maps.map, roughnessMap: maps.orm, metalnessMap: maps.orm, roughness: 1, metalness: 1, emissive: 0xffffff, emissiveMap: maps.lit });
+        put(`facade:${kind}`, glowing(make, () => 1.4 * info.night.value), t, { color: tint, uv: t.i.map((i): [number, number] => [(g.aUv.getX(i) + ox) / FACADE_CELLS, (g.aUv.getY(i) + oy) / FACADE_CELLS]) });
+      } else {
+        const [roughness, metalness, k] = part === PART.metal ? [0.4, 0.6, 1] : part === ALUMINIUM ? [0.5, 0.15, 1] : part === PART.roof ? [0.85, 0, 0.4] : [0.85, 0, 1];
+        put(`part:${part}`, plain({ roughness, metalness }), t, { color: tint.map((c) => c.multiplyScalar(k)) });
+      }
+    });
+  } else if (info.kind === "tower") {
+    // as towerMaterial: the facade tile on walls by (x or z, height) over the tile size, tops darker
+    eachTriangle(mesh, (t) => {
+      if (Math.abs(t.face.y) >= 0.5) return put("top", plain(), t, { color: new Color(0.62, 0.62, 0.62) });
+      put("facade", plain({ map: info.facade }), t, {
+        color: new Color(1, 1, 1).multiplyScalar(info.glassy ? 0.78 : 1),
+        uv: t.p.map((p): [number, number] => [(Math.abs(t.face.x) > 0.5 ? p.z : p.x) / info.tile.w, p.y / info.tile.h]),
+      });
     });
   } else if (info.kind === "water") {
     eachTriangle(mesh, (t) => {
@@ -251,6 +316,7 @@ function lineTwin(line: LineSegments, width: number): Mesh {
 export function buildTwins(scene: Object3D, baked = new Map<Material, Texture>()) {
   const group = new Group();
   group.layers.set(TRACE_LAYER);
+  const follow: (() => void)[] = [];
   const originals: Mesh[] = [];
   scene.updateMatrixWorld(true);
   scene.traverseVisible((o) => {
@@ -265,17 +331,19 @@ export function buildTwins(scene: Object3D, baked = new Map<Material, Texture>()
       originals.push(mesh);
       for (const part of visibleGroups(mesh)) {
         const info = traceInfo.get(part.material as Material);
-        const twins = info ? twin(part, info, baked) : [];
+        const twins = info ? twin(part, info, baked, follow) : [];
         for (const t of twins.length ? twins : [part]) group.add(t);
       }
       return;
     }
     const info = traceInfo.get(mesh.material);
     if (!info) return;
-    const twins = twin(mesh, info, baked);
+    const twins = twin(mesh, info, baked, follow);
     if (!twins.length) return; // nothing to stand in: the tracer reads the original
     originals.push(mesh);
     for (const t of twins) group.add(t);
   });
-  return { group, originals };
+  /** Re-reads the glows that follow the hour (lit windows, the café's lamps): the bake builds twins at load, then scrolls to its chapter. */
+  const refresh = () => follow.forEach((set) => set());
+  return { group, originals, refresh };
 }

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 // Photo-real mode (F12): behind ?photoreal, on desktop. At rest on a chapter with a
 // plate (public/plates), the plate fades in and the city turns into a shadow catcher
-// (data-plate: off, fade, rest); scrolling on brings the city back at once. Chapter 1
+// (data-plate: off, fade, rest); scrolling on brings the city back at once. Chapter 4
 // has no plate yet.
 test.describe("photo-real plates", () => {
   test.skip(({ isMobile }) => isMobile, "desktop only");
@@ -17,8 +17,8 @@ test.describe("photo-real plates", () => {
     const canvas = page.locator("canvas").first();
     await expect(canvas).toHaveAttribute("data-plate", "rest", { timeout: 60_000 });
 
-    // chapter 1's plate is held back (docs/features/photoreal.md): the city as usual
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 8));
+    // chapter 4's plate is held back (docs/features/photoreal.md): the city as usual
+    await page.evaluate(() => window.scrollTo(0, document.querySelector<HTMLElement>("main > section")!.offsetHeight * 4));
     await expect(canvas).toHaveAttribute("data-plate", "off");
     await page.waitForTimeout(3000);
     await expect(canvas).toHaveAttribute("data-plate", "off");

@@ -4,7 +4,9 @@ import { SLOTS } from "@/scene/house-models";
 import { splitScene } from "@/scene/plates";
 import { CAFE_MAT } from "@/scene/shop";
 import { traceInfo } from "@/scene/trace-info";
+import { FACADE_CELLS } from "@/scene/facade-maps";
 import { TRACE_LAYER, buildTwins } from "@/scene/traced";
+import { PART } from "@/scene/towers";
 
 /** A scene like the city's: static blocks, a light, the sky dome, the fog bank, lines, glass, and live objects nested inside groups. */
 function city() {
@@ -140,7 +142,7 @@ describe("traced twins", () => {
     palette.fill(0.2, 0, n * 3); // palette 0: dark
     palette.fill(0.8, n * 3); // palette 1: light
     const material = new MeshStandardMaterial();
-    traceInfo.set(material, { kind: "house", siding: new Texture(), shingles: new Texture(), palette });
+    traceInfo.set(material, { kind: "house", siding: new Texture(), shingles: new Texture(), palette, night: { value: 0 } });
     const geometry = new BoxGeometry();
     geometry.setAttribute("aSlot", new Float32BufferAttribute(new Float32Array(geometry.attributes.position.count).fill(SLOTS.indexOf("trim")), 1));
     geometry.setAttribute("aPalette", new InstancedBufferAttribute(new Float32Array([1]), 1));
@@ -202,6 +204,115 @@ describe("traced twins", () => {
       p.addScaledVector(axis, -p.dot(axis));
       expect(p.dot(new Vector3().fromBufferAttribute(nrm, i))).toBeGreaterThan(0);
     }
+  });
+
+  it("lights about half a house's windows at night, warm, as the house shader does", () => {
+    const n = SLOTS.length;
+    const night = { value: 0.15 };
+    const material = new MeshStandardMaterial();
+    traceInfo.set(material, { kind: "house", siding: new Texture(), shingles: new Texture(), palette: new Float32Array(n * 3).fill(0.3), night });
+    const scene = new Scene();
+    // forty windows, each a box of glass with its own id, on one house (one origin)
+    for (let w = 1; w <= 40; w++) {
+      const g = new BoxGeometry(0.5, 0.8, 0.05);
+      const count = g.attributes.position.count;
+      g.setAttribute("aSlot", new Float32BufferAttribute(new Float32Array(count).fill(SLOTS.indexOf("glass")), 1));
+      g.setAttribute("aWin", new Float32BufferAttribute(new Float32Array(count).fill(w), 1));
+      g.setAttribute("aOrigin", new Float32BufferAttribute(Array.from({ length: count }, () => [3, 7]).flat(), 2));
+      const pane = new Mesh(g, material);
+      pane.position.x = w;
+      scene.add(pane);
+    }
+    const twins = buildTwins(scene).group.children as Mesh[];
+    const lit = twins.find((t) => (t.material as MeshStandardMaterial).emissive.r > 0)!;
+    const dark = twins.find((t) => t !== lit)!;
+    expect((dark.material as MeshStandardMaterial).emissive.getHex()).toBe(0);
+    const share = lit.geometry.attributes.position.count / (lit.geometry.attributes.position.count + dark.geometry.attributes.position.count);
+    expect(share).toBeGreaterThan(0.3);
+    expect(share).toBeLessThan(0.7);
+    const m = lit.material as MeshStandardMaterial;
+    expect(m.emissiveIntensity).toBeCloseTo(1.1 * 0.15);
+    expect([m.emissive.r, m.emissive.g, m.emissive.b]).toEqual([1, expect.closeTo(0.7), expect.closeTo(0.38)]);
+  });
+
+  it("dresses the downtown towers: windows by their wall grid, tar roofs, lit windows only at night", () => {
+    const night = { value: 0 };
+    const material = new MeshStandardMaterial({ vertexColors: true });
+    traceInfo.set(material, { kind: "downtown", stone: new Texture(), night });
+    const g = new BoxGeometry(4, 6, 4);
+    const n = g.attributes.position.count;
+    const p = g.attributes.position;
+    const tint = new Color(0.5, 0.6, 0.7);
+    g.setAttribute("color", new Float32BufferAttribute(Array.from({ length: n }, () => [tint.r, tint.g, tint.b]).flat(), 3));
+    // a curtain wall (part 0): the grid counts columns along x and storeys up y
+    g.setAttribute("aUv", new Float32BufferAttribute(Array.from({ length: n }, (_, i) => [p.getX(i) * 2, p.getY(i) * 3]).flat(), 2));
+    g.setAttribute("aInfo", new Float32BufferAttribute(Array.from({ length: n }, () => [PART.glass, 0.3, 0]).flat(), 3));
+    const tower = new Mesh(g, material);
+    const scene = new Scene();
+    scene.add(tower);
+
+    const twins = () => buildTwins(scene).group.children as Mesh[];
+    const day = twins();
+    const wall = day.find((t) => (t.material as MeshStandardMaterial).map)!;
+    const m = wall.material as MeshStandardMaterial;
+    expect(m.roughnessMap).toBeTruthy();
+    expect(m.emissiveMap).toBeTruthy();
+    expect(m.emissiveIntensity).toBe(0);
+    // whole cells: uv = (grid + a whole offset) / FACADE_CELLS, so every window lands on one
+    const uv = wall.geometry.attributes.uv;
+    const pos = wall.geometry.attributes.position;
+    for (let i = 0; i < uv.count; i++) {
+      const offset = uv.getX(i) * FACADE_CELLS - pos.getX(i) * 2;
+      if (Math.abs(wall.geometry.attributes.normal.getZ(i)) > 0.5) expect(Math.abs(offset - Math.round(offset))).toBeLessThan(1e-4);
+    }
+    // the flat top is tar, not glass
+    const roof = day.find((t) => t !== wall && !(t.material as MeshStandardMaterial).map)!;
+    expect(roof.geometry.attributes.color.getX(0)).toBeCloseTo(tint.r * 0.3 + 0.2 * 0.7, 3);
+
+    night.value = 1;
+    const lit = twins().find((t) => (t.material as MeshStandardMaterial).map)!.material as MeshStandardMaterial;
+    expect(lit.emissiveIntensity).toBeCloseTo(1.4);
+  });
+
+  it("follows the hour: twins built at dawn light up when refreshed at dusk (the bake builds them at load, then scrolls)", () => {
+    const n = SLOTS.length;
+    const night = { value: 0 };
+    const material = new MeshStandardMaterial();
+    traceInfo.set(material, { kind: "house", siding: new Texture(), shingles: new Texture(), palette: new Float32Array(n * 3).fill(0.3), night });
+    const scene = new Scene();
+    for (let w = 1; w <= 20; w++) {
+      const g = new BoxGeometry(0.5, 0.8, 0.05);
+      const count = g.attributes.position.count;
+      g.setAttribute("aSlot", new Float32BufferAttribute(new Float32Array(count).fill(SLOTS.indexOf("glass")), 1));
+      g.setAttribute("aWin", new Float32BufferAttribute(new Float32Array(count).fill(w), 1));
+      scene.add(new Mesh(g, material));
+    }
+    const built = buildTwins(scene);
+    const lit = (built.group.children as Mesh[]).map((t) => t.material as MeshStandardMaterial).find((m) => m.emissive.r > 0)!;
+    expect(lit.emissiveIntensity).toBe(0);
+    night.value = 0.5;
+    built.refresh();
+    expect(lit.emissiveIntensity).toBeCloseTo(0.55);
+  });
+
+  it("maps a landmark's stone facade in world units, as the tower shader does", () => {
+    const facade = new Texture();
+    const material = new MeshStandardMaterial();
+    traceInfo.set(material, { kind: "tower", facade, tile: { w: 4.8, h: 7.2 }, glassy: false });
+    const scene = new Scene();
+    const box = new Mesh(new BoxGeometry(2, 2, 2), material);
+    box.position.set(10, 1, 4);
+    scene.add(box);
+    const twins = buildTwins(scene).group.children as Mesh[];
+    const wall = twins.find((t) => (t.material as MeshStandardMaterial).map === facade)!;
+    const uv = wall.geometry.attributes.uv;
+    const pos = wall.geometry.attributes.position;
+    const nrm = wall.geometry.attributes.normal;
+    for (let i = 0; i < uv.count; i++) {
+      const u = Math.abs(nrm.getX(i)) > 0.5 ? pos.getZ(i) : pos.getX(i);
+      expect([uv.getX(i), uv.getY(i)]).toEqual([expect.closeTo(u / 4.8, 5), expect.closeTo(pos.getY(i) / 7.2, 5)]);
+    }
+    expect(twins.length).toBe(2); // walls, and the tops at 0.62
   });
 
   it("leaves plain meshes alone: the tracer reads them as they are", () => {

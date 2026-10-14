@@ -24,7 +24,7 @@ Last updated: 2026-10-14 · Status: v0, behind a flag · Launch: ok (off by defa
 - Re-bake after changing the static city, its materials, a chapter's camera, or the lighting at its hour. The OIDN weights for the denoiser are gitignored in `public/lab/oidn/` (see Denoiser below).
 
 ## Which chapters have plates (2026-10-14)
-Chapters 0 to 3 ship. Reviewed against today's frame:
+Chapters 0 to 3 and 5 ship. Reviewed against today's frame:
 
 | Chapter | Status | Missing |
 | --- | --- | --- |
@@ -32,10 +32,10 @@ Chapters 0 to 3 ship. Reviewed against today's frame:
 | 1 (07:00 shop) | ships | |
 | 2 (09:00 Mission mural) | ships | |
 | 3 (12:00 Union Square) | ships | |
-| 4 (15:00 Pyramid) | baked, held back | `downtown` towers trace pale (no mullions, dark glass or tar roofs); the Bay Bridge throws a dark lattice shadow on the water that today's frame lacks |
-| 5 (18:00 Ferry Building) | baked, held back | `downtown` walls trace pink and flat, windows black (today they glow warm) |
-| 6 (22:00 pier) | baked, held back | far too dark: the street lamp is no light in the trace, so the deck and anchorage lose their pool; no stars; water reflections turn to squiggles |
-| 7 (06:00 tomorrow) | baked, held back | Telegraph Hill's trees and palms are missing; a dark streak (likely a line tube's shadow) crosses the houses; `downtown` glass tower pale |
+| 4 (15:00 Pyramid) | held back | the Bay Bridge throws a dark lattice shadow on the water that today's frame lacks; roofs read lighter than today (the tracer's sun on up-facing faces, not the material) |
+| 5 (18:00 Ferry Building) | ships | lit windows a little paler than today's amber |
+| 6 (22:00 pier) | held back | far too dark: the street lamp is no light in the trace, so the deck and anchorage lose their pool; no stars; water reflections turn to squiggles |
+| 7 (06:00 tomorrow) | held back | Telegraph Hill's trees and palms are missing; a dark streak (likely a line tube's shadow) crosses the houses |
 
 What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `raytrace-lab.tsx`):
 - Ground: its own shader drawn in uv space and read back as one colour texture (32 texels per unit), on the same geometry (the mask itself had traced as red, green and blue).
@@ -48,6 +48,9 @@ What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `ray
 - The shop (`shop-painted`): its warm emissive is masked to the cafe by `aGlow` in the shader, so the tracer made the whole front glow tan. The twin keeps the vertex colours, gives each `aMat` surface its gloss, and lets only lamp parts (`aGlow` over 1.5) emit.
 - Houses on `<Instances>` (the shop's shell) carry `aPalette` per instance, not per vertex: the twin reads it by instance (the shell traced blue, not cream).
 - Line tubes (suspenders) are wound to face out: inward sides traced the red cables dark brown.
+- Glows that follow the hour (house and downtown lit windows, the café's lamps) are set again by `refresh()` from `buildTwins`: the lab builds twins at load (06:00, no night) and then scrolls to its chapter, so 18:00 windows had traced black. The lab refreshes on every hour change and at rest, then `updateMaterials()`.
+- House windows: about half light up at night, warm, by window and house as the shader picks them (the GPU's 32-bit hash picks a similar share, not the same windows).
+- Downtown towers (`downtown`): the vertex tint times a generated window tile per surface kind (curtain wall, sash, steel, shopfront; `facade-maps.ts`), laid on the wall grid (`aUv`) with a whole-cell offset per tower and face. Each tile carries colour, roughness and metalness, and the night's lit windows (runs along busy floors) as an emissive map scaled by the hour's night. Flat tops are tar. Landmark stone (`tower`): the facade tile in world units, like bridge steel.
 
 ## Spike (2026-10-14)
 - Dev only: `?raytrace` (`src/scene/raytrace-lab.tsx`) path-traces the live city over the WebGL canvas. R hides the traced image, F freezes the WebGL city, P restarts. Options: `&scale=0.5` (half resolution), `&spp=8` (denoise sooner), `&denoise=0`, `&pose=0` (keep load-time poses).
@@ -75,7 +78,7 @@ What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `ray
   - Bridge steel and deck (`worldMaterial`), concrete: the same textures with projected UVs.
   - Water: the ripple texture as a normal map on glossy water.
   - Lines (Golden Gate suspenders): thin square tubes.
-- Each patched factory records its inputs in `trace-info.ts` (`traceInfo`, a WeakMap). Four factories do so now: house, world, concrete, water.
+- Each patched factory records its inputs in `trace-info.ts` (`traceInfo`, a WeakMap): house, world, concrete, water, ground, the shop's paint, downtown, landmark stone.
 - Distance fog: a WebGPU depth pass (redrawn at rest) blends the scene's linear fog over the traced image. Lines and GLSL meshes stay out of it.
 - At rest (camera still for 300 ms) the lab reads the scene again so Cuso's pose and the cars match: 530 ms on the main thread.
 - The renderer asks for the adapter's storage limits: the city needs a 140 MB storage binding, over WebGPU's default 128 MB.

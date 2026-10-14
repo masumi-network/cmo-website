@@ -456,9 +456,12 @@ export default function RaytraceLab() {
           hour = h;
           sky?.dispose();
           sky = skyTexture(hour);
+          // and the twins' lit windows and lamps
+          twins.refresh();
           asTraced(scene, sky, staticHidden, () => {
             tracer!.updateEnvironment();
             tracer!.updateLights();
+            tracer!.updateMaterials();
           });
           resetAt = now;
           stats.reached = {};
@@ -476,6 +479,8 @@ export default function RaytraceLab() {
         if (!posed && now - stillSince > 300) {
           posed = true;
           const p0 = performance.now();
+          // the night as it is now (lit windows, lamps): setScene below reads the materials again
+          twins.refresh();
           // plates re-read too: level-of-detail models (trees) switch on and off with the camera
           if (params.get("pose") === "0") {
             // keep the poses read at load: only restart the samples
