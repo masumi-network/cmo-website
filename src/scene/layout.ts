@@ -7,7 +7,7 @@ import { heightAt } from "@/lib/terrain";
 export { LAND, PARKS, STREET, SIDEWALK, X_STREETS, Z_STREETS, insideLand } from "./grid";
 import { EDGE, STREET, SIDEWALK, X_STREETS, Z_STREETS, WALK_X, WALK_Z, groundAt, inPark, insideLand, streetDrop } from "./grid";
 import { FOOTING } from "./materials";
-import { onRoad } from "./roads";
+import { BAY_ANCHORS, BAY_TOWERS, ROADS, SLAB, bayDeckY, onRoad, piers } from "./roads";
 import { PATHS } from "./routes";
 
 /** Places the generator keeps clear: [x, z, radius]. */
@@ -284,7 +284,28 @@ export const OBSTACLES: Box[] = [
   { minX: -10.4, maxX: -5.4, minZ: 26.4, maxZ: 32.1, top: heightAt(-5.7, 29) + 7 }, // Mission building and its awning (mission.tsx)
   { minX: 1.3, maxX: 2.7, minZ: -26.7, maxZ: -25.3, top: heightAt(2, -26) + 6.4 }, // Coit Tower (6.06 tall on its plaza, coit-tower.tsx)
   ...ferryBoxes(),
+  ...bridgeBoxes(),
 ];
+
+/** The Bay Bridge's anchorages (up to the road on them), tower piers with their steel towers, and every road's piers (roads.ts, landmarks.tsx). */
+function bridgeBoxes(): Box[] {
+  const box = (x: number, z: number, hx: number, hz: number, top: number) => ({ minX: x - hx, maxX: x + hx, minZ: z - hz, maxZ: z + hz, top });
+  return [
+    ...BAY_ANCHORS.map((x) => box(x, 14, 1.15, 2.25, bayDeckY(x) - SLAB)),
+    // tower piers, then the steel legs (0.9 by 0.7, inner faces 1.8 off the road's centre, 26 tall)
+    ...BAY_TOWERS.map((x) => box(x, 14, 1.2, 2.7, 2.8)),
+    ...BAY_TOWERS.flatMap((x) => [-1, 1].map((s) => box(x, 14 + s * 2.15, 0.45, 0.35, 26))),
+    // a pier: 0.42 either side along its road, its cap 1.3 across it
+    ...ROADS.flatMap((road) =>
+      piers(road).map(([x, z, , top]) => {
+        const i = road.points.findIndex((q) => q[0] === x && q[2] === z);
+        const [a, b] = [road.points[Math.max(0, i - 1)], road.points[Math.min(road.points.length - 1, i + 1)]];
+        const along = Math.abs(b[0] - a[0]) > Math.abs(b[2] - a[2]); // the road runs along x
+        return along ? box(x, z, 0.42, 1.3, top) : box(x, z, 1.3, 0.42, top);
+      }),
+    ),
+  ];
+}
 
 /** The Ferry Building's plinth and hall, and its clock tower, as camera obstacles (a little air around them). */
 function ferryBoxes(): Box[] {

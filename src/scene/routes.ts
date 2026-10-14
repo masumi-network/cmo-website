@@ -22,9 +22,11 @@ const WALK_ENDS = 4;
 
 const ground = (x: number, z: number): Step => ({ p: [x, surfaceAt(x, z), z] });
 const lineZ = (z: number) => z + WALK_OFFSET; // walking line on an east-west street
-// walking line on a north-south street; on the waterfront (x 29) it keeps
-// clear of the pier deck and the Ferry Building's plinth, which reach x 30.9
-const lineX = (x: number) => x + WALK_OFFSET - (x === 29 ? 0.4 : 0);
+// walking line on a north-south street; on the waterfront (x 29) it takes the
+// west side, clear of the pier deck, the Ferry Building's plinth (x 30.9) and
+// the Bay Bridge's anchorage (x 31.55): on the east side the lead cam had no
+// room between him and the anchorage's wall
+const lineX = (x: number) => (x === 29 ? x - WALK_OFFSET : x + WALK_OFFSET);
 const RUSSIAN_HILL_ROOF = chapters[0].spot[1];
 const UNION_SQUARE_ROOF = chapters[3].spot[1];
 const PYRAMID_TIP = chapters[4].spot[1];
@@ -44,7 +46,7 @@ const APPROACH: Record<ChapterId, Step[]> = {
   // up beside the pyramid's south face to just above the platform's edge, then a hop to the middle
   seo: [ground(6.5, lineZ(-6)), ground(6.5, -7.0), { p: [6.5, PYRAMID_TIP + 0.5, -10.1], how: "jump" }],
   newsletter: [ground(19.95, lineZ(4))],
-  night: [ground(lineX(29), 24.2), { p: [31.4, 0.55, 24.2], how: "jump" }],
+  night: [ground(lineX(29), 24.2), ground(30.2, 24.2), { p: [31.4, 0.55, 24.2], how: "jump" }],
   join: ROOFTOP_WAY,
 };
 /** Moves onto the spot that are jumps (the pyramid tip, the cable car step). */

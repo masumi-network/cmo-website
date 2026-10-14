@@ -138,6 +138,30 @@ export function stepBoom(b: Boom, need: number, dt: number) {
   return b;
 }
 
+/** The lead cam: this far ahead of Cuso, to his side and up; how fast it swaps sides (1/s) and how long the usual side must be clear to swap back (s). */
+export const LEAD = { ahead: 7, side: 3.2, up: 3.6, swap: 6, hold: 0.5 };
+export const newSide = () => ({ x: 1, v: 0, goal: 1, clear: 0 });
+
+/**
+ * Which side of Cuso the lead cam stands (`x`: 1 as authored, -1 mirrored,
+ * eased between): the other side when a wall stands between him and the
+ * usual one (the Bay Bridge's anchorage beside the Embarcadero), back once
+ * the usual side has been clear for LEAD.hold. `at(side)` is the lead cam there.
+ */
+export function stepSide(s: { x: number; v: number; goal: number; clear: number }, eye: Vector3, at: (side: number) => Vector3, dt: number) {
+  const blocked = (side: number) => sightHit(eye, at(side)) < 1;
+  if (s.goal > 0) {
+    if (blocked(1) && !blocked(-1)) s.goal = -1;
+    s.clear = 0;
+  } else if (blocked(1)) s.clear = 0;
+  else if ((s.clear += dt) >= LEAD.hold) {
+    s.goal = 1;
+    s.clear = 0;
+  }
+  spring(s, s.goal, LEAD.swap, dt);
+  return s;
+}
+
 /**
  * The arm: the boom frames Cuso, the arm is the guarantee. If a building
  * still stands between his eye and the camera (the boom lags a dash, cannot
@@ -385,6 +409,7 @@ export function CameraRig() {
     slide: 0,
     boom: newBoom(),
     arm: newArm(),
+    side: newSide(),
     flight: null as Flight | null,
     jumpAt: -1,
     blinks: 0,
@@ -462,7 +487,9 @@ export function CameraRig() {
         const h = rig.heading;
         const fx = Math.sin(h);
         const fz = Math.cos(h);
-        chasePos.set(rig.cuso.x + fx * 7 + fz * 3.2, rig.cuso.y + 3.6, rig.cuso.z + fz * 7 - fx * 3.2);
+        const lead = (side: number) => chasePos.set(rig.cuso.x + fx * LEAD.ahead + fz * LEAD.side * side, rig.cuso.y + LEAD.up, rig.cuso.z + fz * LEAD.ahead - fx * LEAD.side * side);
+        stepSide(r.side, tmp.set(rig.cuso.x, rig.cuso.y + 1.4, rig.cuso.z), lead, dt);
+        lead(r.side.x);
         chaseTgt.set(rig.cuso.x - fx * 1.5, rig.cuso.y + 1.1, rig.cuso.z - fz * 1.5);
         orbitLerp(pos, tmp.set(rig.cuso.x, rig.cuso.y + 1.1, rig.cuso.z), chasePos, chase);
         tgt.lerp(chaseTgt, chase);

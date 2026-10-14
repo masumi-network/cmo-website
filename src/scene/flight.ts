@@ -53,7 +53,7 @@ export function flightPlan(a: Vector3, b: Vector3): Plan {
 /**
  * Seconds a flight on `plan` from `a` to `b` takes: longer the farther it
  * really goes (over the arc), so it never rushes. About 1.7 s next door,
- * 3.6 s at most (over the towers).
+ * 4 s at most (high over the towers).
  */
 export function flightTime(a: Vector3, b: Vector3, plan = flightPlan(a, b)) {
   let length = 0;
@@ -63,5 +63,5 @@ export function flightTime(a: Vector3, b: Vector3, plan = flightPlan(a, b)) {
     length += p.distanceTo(q);
     q.copy(p);
   }
-  return Math.min(3.6, Math.max(1.6, 1.2 + length / 35));
+  return Math.min(4, Math.max(1.6, 1.2 + length / 35));
 }

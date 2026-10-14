@@ -7,7 +7,7 @@ import { worldMaterial } from "./materials";
 import { useGlow, type V3 } from "./parts";
 import { BufferGeometry, Color, CatmullRomCurve3, DoubleSide, Float32BufferAttribute, TubeGeometry, Vector3, MeshStandardMaterial, Object3D, type InstancedMesh } from "three";
 import { useConcrete, useLandmarkTextures, merged } from "./landmark-kit";
-import { BAY_ANCHORS, CABLE, DECKS, DECK_Y, ROADS, SLAB, archWall, bayDeckY, beam, deckGeometry, mason, masonryGeometry, piers, prism, railingGeometry, roadGeometry, spanGeometry, type Mason, type Road } from "./roads";
+import { BAY_ANCHORS, BAY_TOWERS, CABLE, DECKS, DECK_Y, ROADS, SLAB, archWall, bayDeckY, beam, deckGeometry, mason, masonryGeometry, piers, prism, railingGeometry, roadGeometry, spanGeometry, type Mason, type Road } from "./roads";
 
 function catenary(x0: number, y0: number, x1: number, y1: number, sag: number, z: number, along: "x" | "z", n = 24): V3[] {
   return Array.from({ length: n + 1 }, (_, i) => {
@@ -18,7 +18,7 @@ function catenary(x0: number, y0: number, x1: number, y1: number, sag: number, z
   });
 }
 
-export const BAY_TOWERS = [52, 70, 88, 106];
+export { BAY_TOWERS };
 const [BAY_WEST, BAY_EAST] = BAY_ANCHORS;
 /** Cables run from the anchorages (ends hidden inside them) over the towers. */
 const BAY_CABLES: [number, number, number, number, number][] = [

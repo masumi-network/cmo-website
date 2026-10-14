@@ -119,6 +119,8 @@ const spanEnd = (xz: [number, number][], x: number) => xz.findIndex(([px]) => Ma
 
 /** Bay Bridge anchorages, where the side spans end: west at the SF sea wall, east in the bay. */
 export const BAY_ANCHORS = [32.7, 124];
+/** Bay Bridge towers (x, at z 14), drawn by landmarks.tsx. */
+export const BAY_TOWERS = [52, 70, 88, 106];
 
 export const ROADS: Road[] = [
   // Tucked just under the street at its end (a kerb below the sidewalks), so the ground's asphalt takes over.

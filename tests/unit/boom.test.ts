@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { Vector3 } from "three";
 import { chapters } from "@/content/day";
 import { heightAt } from "@/lib/terrain";
-import { ARM, BOOM, PORTRAIT_FOV, armPose, boomNeed, fitBand, boomPose, follow, newArm, newBoom, newTrail, orbitLerp, stepBoom, trail } from "@/scene/camera-rig";
+import { ARM, BOOM, LEAD, PORTRAIT_FOV, armPose, newSide, stepSide, boomNeed, fitBand, boomPose, follow, newArm, newBoom, newTrail, orbitLerp, stepBoom, trail } from "@/scene/camera-rig";
 import { FERRY, PYRAMID, insideBuilding, sightClear, sightHit } from "@/scene/layout";
 import { rig } from "@/scene/shared";
 
@@ -287,5 +287,44 @@ describe("the arm", () => {
     }
     expect(worst).toBeLessThan(ARM.out * dt); // a spring, never a step
     expect(p.distanceTo(out)).toBeLessThan(1e-6);
+  });
+});
+
+describe("the lead cam's side", () => {
+  // Cuso dashing north past the Bay Bridge's west anchorage (on the way to the 22:00 pier): it stands to his right
+  const eye = new Vector3(30.2, 1.5, 6.4);
+  const at = (side: number) => new Vector3(eye.x + LEAD.side * side, eye.y + 2.2, eye.z + LEAD.ahead);
+
+  it("goes round to his other side when a wall stands between him and the usual one, easing across", () => {
+    expect(sightClear(eye, at(1))).toBe(false);
+    expect(sightClear(eye, at(-1))).toBe(true);
+    const s = newSide();
+    const dt = 1 / 60;
+    let prev = s.x;
+    let worst = 0;
+    for (let t = 0; t < 3; t += dt) {
+      stepSide(s, eye, at, dt);
+      worst = Math.max(worst, Math.abs(s.x - prev));
+      prev = s.x;
+    }
+    expect(s.x).toBe(-1);
+    expect(worst).toBeLessThan(LEAD.swap * dt * 2); // eased, never a cut
+  });
+
+  it("comes back to the usual side only once it has been clear for a moment", () => {
+    const s = newSide();
+    for (let t = 0; t < 2; t += 1 / 60) stepSide(s, eye, at, 1 / 60);
+    const open = (side: number) => new Vector3(eye.x + side, eye.y + 30, eye.z); // straight up: clear both ways
+    stepSide(s, eye, open, LEAD.hold / 2);
+    expect(s.goal).toBe(-1);
+    for (let t = 0; t < 3; t += 1 / 60) stepSide(s, eye, open, 1 / 60);
+    expect(s.x).toBe(1);
+  });
+
+  it("keeps the usual side when both are blocked (the arm and the boom take over)", () => {
+    const s = newSide();
+    const walled = () => new Vector3(32.7, 3, 14); // inside the anchorage
+    for (let t = 0; t < 1; t += 1 / 60) stepSide(s, eye, walled, 1 / 60);
+    expect(s.x).toBe(1);
   });
 });

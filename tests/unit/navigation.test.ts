@@ -63,7 +63,7 @@ describe("where Cuso starts on a rail jump", () => {
 });
 
 describe("the jump's timing and light", () => {
-  it("takes longer the farther it goes: under 2 s to a neighbour, 3.6 s at most across the city", () => {
+  it("takes longer the farther it goes: under 2 s to a neighbour, 4 s at most across the city", () => {
     const shot = (i: number) => new Vector3(...chapters[i].camera.position);
     let worst = 0;
     for (let i = 0; i < chapters.length; i++) {
@@ -71,7 +71,7 @@ describe("the jump's timing and light", () => {
         if (i === j) continue;
         const t = jumpTime(i, j);
         expect(t).toBeGreaterThanOrEqual(1.6);
-        expect(t).toBeLessThanOrEqual(3.6);
+        expect(t).toBeLessThanOrEqual(4);
         // never a rush: the camera averages under 25 units a second
         worst = Math.max(worst, shot(i).distanceTo(shot(j)) / t);
       }
