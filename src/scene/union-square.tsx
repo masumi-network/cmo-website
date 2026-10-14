@@ -15,10 +15,10 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo } from "react";
 import { AdditiveBlending, BoxGeometry, BufferGeometry, CircleGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, LatheGeometry, Matrix4, MeshBasicMaterial, MeshStandardMaterial, OctahedronGeometry, PlaneGeometry, Quaternion, SphereGeometry, TorusGeometry, Vector2, Vector3 } from "three";
 import { heightAt } from "@/lib/terrain";
-import { rig, useNightGlow } from "./shared";
+import { rig, useInterior, useNightGlow } from "./shared";
 import { CableCar, Rails } from "./cable-car";
 import { PALETTES, SLOT, builder, moulding, palette, sides, type Box2, type Builder, type Frame, type L3, type P2, type Rect, type Span } from "./house-models";
-import { box, cyl, merged, placed, useLandmarkTextures, useMat } from "./landmark-kit";
+import { box, cyl, merged, placed, useLandmarkTextures } from "./landmark-kit";
 import { houseMaterial, glassMaterial } from "./materials";
 import { useBrand, type V3 } from "./parts";
 import { useSign } from "./textures";
@@ -55,7 +55,8 @@ export const UNION_CAR = { p: [2.1, 0, 14] as V3 };
 
 /** The billboard's ad face in world units [width, height]; its canvas follows the same shape. */
 export const AD_PANEL = [5.58, 2.78] as const;
-const FACE_Z = 6.95;
+/** Where the ad face hangs (z), just in front of its backing. */
+export const FACE_Z = 6.95;
 
 // Heights up the facade.
 const FOOT = -0.3;
@@ -296,31 +297,35 @@ export function billboardGeometry() {
   const t = 0.07; // trim
   const deck = 6.2;
   const front = 7.455;
+  // The truss stands at the back of the box, flat members well behind the face: deep members close behind
+  // it, seen edge-on, bleed through the face as dashed lines in software GL (headless Chrome).
+  const zt = 6.69;
   const parts: BufferGeometry[] = [
     // backing and the trim frame round the face
-    box([bx, by, 6.915], [w + 2 * t, h + 2 * t, 0.05]),
+    // (its front 4 cm behind the face: closer, the two fight for depth at a distance and the steel shows through)
+    box([bx, by, FACE_Z - 0.065], [w + 2 * t, h + 2 * t, 0.05]),
     box([bx, fy1 + t / 2, 6.97], [w + 2 * t, t, 0.06]),
     box([bx, fy0 - t / 2, 6.97], [w + 2 * t, t, 0.06]),
     box([fx0 - t / 2, by, 6.97], [t, h, 0.06]),
     box([fx1 + t / 2, by, 6.97], [t, h, 0.06]),
     // stringers behind the face, the truss chords under it
-    ...[6.85, 7.75, 8.65, 9.3].map((sy) => box([bx, sy, 6.865], [w + 2 * t, 0.06, 0.05])),
-    ...[5.5, deck - 0.05].map((sy) => box([bx, sy, 6.79], [UPRIGHTS[3] - UPRIGHTS[0] + 0.09, 0.06, 0.06])),
+    ...[6.85, 7.75, 8.65, 9.3].map((sy) => box([bx, sy, 6.8225], [w + 2 * t, 0.06, 0.025])),
+    ...[5.5, deck - 0.05].map((sy) => box([bx, sy, zt], [UPRIGHTS[3] - UPRIGHTS[0] + 0.11, 0.06, 0.04])),
   ];
   UPRIGHTS.forEach((x, i) => {
     parts.push(
-      box([x, (y + fy1 + t) / 2, 6.79], [0.09, fy1 + t - y, 0.1]),
-      box([x, y + 0.015, 6.79], [0.16, 0.03, 0.16]),
+      box([x, (y + fy1 + t) / 2, zt], [0.11, fy1 + t - y, 0.04]),
+      box([x, y + 0.015, zt], [0.16, 0.03, 0.07]),
       // a kicker forward to the roof, the catwalk bracket
-      member([x, deck - 0.08, 6.84], [x, y + 0.03, 7.6], 0.06),
+      member([x, deck - 0.08, zt + 0.02], [x, y + 0.03, 7.6], 0.06),
       box([x, y + 0.015, 7.6], [0.14, 0.03, 0.14]),
-      box([x, deck - 0.03, 7.15], [0.05, 0.05, 0.62]),
+      box([x, deck - 0.03, (zt + 7.46) / 2], [0.05, 0.05, 7.46 - zt]),
     );
     if (i === UPRIGHTS.length - 1) return;
     const n = UPRIGHTS[i + 1];
     // braced panels: under the face (in the truss) and behind it
     const [lo, hi] = i % 2 ? [5.5, deck - 0.05] : [deck - 0.05, 5.5];
-    parts.push(member([x, lo, 6.79], [n, hi, 6.79], 0.05), member([x, 6.85, 6.72], [n, 9.3, 6.72], 0.04), member([x, 9.3, 6.72], [n, 6.85, 6.72], 0.04));
+    parts.push(member([x, lo, zt], [n, hi, zt], 0.05), member([x, 6.85, zt + 0.045], [n, 9.3, zt + 0.045], 0.03), member([x, 9.3, zt + 0.045], [n, 6.85, zt + 0.045], 0.03));
   });
   // the catwalk: deck, toe board, railing posts, mid and top rails, end rails
   const [c0, c1] = [bx - w / 2 - 0.08, bx + w / 2 + 0.08];
@@ -610,6 +615,7 @@ export function displayGeometry() {
 
 /** 12:00 Union Square: rooftop billboard with the visitor's ad, cable car below. */
 export function UnionSquare() {
+  const interior = useInterior();
   const ad = useSign(useBrand(), { bg: "#3d5afe", fg: "#ffffff", sub: "Weekend sale · 20% off", tracking: 0.08, panel: AD_PANEL });
   // No lap siding or shingles here: the siding texture fills both slots (as on the 06:00 apartment).
   const { siding } = useLandmarkTextures();
@@ -621,20 +627,23 @@ export function UnionSquare() {
   // the shops' own light, baked: readable by day, brighter at night
   const shops = useMemo(() => new MeshBasicMaterial({ vertexColors: true }), []);
   const shopGlass = useMemo(() => glassMaterial(), []);
-  const steel = useMat("#2c2c31", 0.55, 0.45);
+  // Seen edge-on, thin members behind the ad face get unreliable depth in software GL and dot through it:
+  // a slope-scaled offset pushes exactly those steep faces back.
+  const steel = useMemo(() => new MeshStandardMaterial({ color: "#2c2c31", roughness: 0.55, metalness: 0.45, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 }), []);
   const glow = useMemo(() => new MeshBasicMaterial({ vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, fog: false, side: DoubleSide }), []);
   useFrame(() => {
     glow.color.setScalar(rig.night);
     shops.color.setScalar(0.9 + 0.5 * rig.night);
   });
-  const adMat = useMemo(() => new MeshStandardMaterial({ map: ad, roughness: 0.6, emissive: "#ffffff", emissiveMap: ad, emissiveIntensity: 0.15 }), [ad]);
+  // polygonOffset: the face always wins the depth test against the steel just behind it (low-precision depth buffers too)
+  const adMat = useMemo(() => new MeshStandardMaterial({ map: ad, roughness: 0.6, emissive: "#ffffff", emissiveMap: ad, emissiveIntensity: 0.15, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), [ad]);
   useNightGlow(adMat, 0.75, 0.15);
   return (
     <group position-y={heightAt(7, 9)}>
       <mesh geometry={building} material={paint} castShadow receiveShadow />
       <mesh geometry={steelGeometry} material={steel} castShadow receiveShadow />
       <mesh geometry={lampGeometry} material={glow} />
-      <mesh geometry={display.content} material={shops} />
+      <mesh ref={interior} geometry={display.content} material={shops} />
       <mesh geometry={display.glass} material={shopGlass} />
       <mesh position={[BOARD.x, BOARD.y, FACE_Z]} material={adMat}>
         <planeGeometry args={AD_PANEL} />

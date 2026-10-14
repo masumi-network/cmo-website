@@ -10,7 +10,7 @@ import { PerspectiveCamera, Vector3, type Camera } from "three";
 import { chapters, overview } from "@/content/day";
 import { usePan } from "@/lib/pan";
 import { insideBuilding } from "./layout";
-import { damp, dayNow, rig, setLerp } from "./shared";
+import { damp, dayNow, overlays, rig, setLerp } from "./shared";
 
 const pos = new Vector3();
 const tgt = new Vector3();
@@ -119,8 +119,8 @@ export function largestGap(edges: readonly (readonly [number, number])[], height
 /** What covers the scene right now: the top bar and every card (`data-card`). */
 function freeBand(height: number) {
   const edges: [number, number][] = [];
-  for (const el of document.querySelectorAll("header, [data-card]")) {
-    const r = el.getBoundingClientRect();
+  const { header, cards } = overlays();
+  for (const r of header ? [header, ...cards] : cards) {
     if (r.width > 0 && r.bottom > 0 && r.top < height) edges.push([r.top, r.bottom]);
   }
   return largestGap(edges, height);
@@ -128,14 +128,16 @@ function freeBand(height: number) {
 
 /** Room kept above his head for the speech bubble, in px. */
 const BUBBLE = 72;
+/** Vertical field of view: upright screens see more sky and street. */
+export const PORTRAIT_FOV = 52;
 const screenY = (y: number, height: number) => ((1 - ndc.set(rig.cuso.x, rig.cuso.y + y, rig.cuso.z).project(probeCam).y) * height) / 2;
 
 /**
- * Phones: pull back until Cuso and his bubble fit the free band, then return
- * how far (px) to slide the picture so he stands in the middle of it.
+ * Phones: pull back until Cuso (at rig.cuso) and his bubble fit the free band
+ * ([top, bottom] in px), then return how far (px) to slide the picture so he
+ * stands in the middle of it. Moves `camPos`.
  */
-function fitBand(camPos: Vector3, camTgt: Vector3, fov: number, size: { width: number; height: number }) {
-  const [top, bottom] = freeBand(size.height);
+export function fitBand(camPos: Vector3, camTgt: Vector3, fov: number, size: { width: number; height: number }, [top, bottom]: [number, number]) {
   probeCam.fov = fov;
   probeCam.aspect = size.width / size.height;
   probeCam.updateProjectionMatrix();
@@ -180,7 +182,7 @@ export function CameraRig() {
     const phone = portrait && size.width < 768;
     let slideTo = 0;
     const cam = camera as PerspectiveCamera;
-    const fov = portrait ? 52 : 35;
+    const fov = portrait ? PORTRAIT_FOV : 35;
     if (cam.fov !== fov) {
       cam.fov = fov;
       cam.updateProjectionMatrix();
@@ -217,7 +219,7 @@ export function CameraRig() {
         tgt.lerp(chaseTgt, chase);
       }
       if (phone) {
-        slideTo = fitBand(pos, tgt, fov, size);
+        slideTo = fitBand(pos, tgt, fov, size, freeBand(size.height));
       } else if (portrait) {
         // Tablets upright: Cuso centred and a step back. The hero card sits on
         // top, so Cuso goes low; everywhere else he goes high.

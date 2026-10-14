@@ -137,7 +137,8 @@ export function BayBridge() {
         <lineBasicMaterial color="#7d8690" transparent opacity={0.7} />
       </lineSegments>
       <instancedMesh ref={lights} args={[undefined, glow, lightPoints.length]}>
-        <sphereGeometry args={[0.07, 6, 4]} />
+        {/* a glowing dot: 8 triangles each, 1,400 of them */}
+        <octahedronGeometry args={[0.08, 0]} />
       </instancedMesh>
     </group>
   );

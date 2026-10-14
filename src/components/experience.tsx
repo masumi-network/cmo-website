@@ -22,14 +22,28 @@ function detect(): Support {
   if (support) return support;
   const params = new URLSearchParams(window.location.search);
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let gl = false;
+  let gl: WebGL2RenderingContext | null = null;
   try {
-    gl = !!document.createElement("canvas").getContext("webgl2");
+    gl = document.createElement("canvas").getContext("webgl2");
   } catch {}
-  const lite = params.has("lite") || window.matchMedia("(pointer: coarse)").matches || navigator.hardwareConcurrency <= 4;
-  support = { webgl: gl && !reduced && !params.has("static"), lite };
+  support = { webgl: !!gl && !reduced && !params.has("static"), lite: params.has("lite") || weak(gl) };
+  gl?.getExtension("WEBGL_lose_context")?.loseContext(); // only asked; the scene makes its own
   return support;
 }
+
+/**
+ * Lite for phones and tablets (touch first), few cores, little memory, or an
+ * integrated or mobile GPU (Intel, Mali, Adreno, PowerVR), where the full
+ * city (water mirror, 4x MSAA, tilt shift) would drop frames.
+ */
+function weak(gl: WebGL2RenderingContext | null) {
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  if (window.matchMedia("(pointer: coarse)").matches || navigator.hardwareConcurrency <= 4 || (memory !== undefined && memory <= 4)) return true;
+  const info = gl?.getExtension("WEBGL_debug_renderer_info");
+  const gpu = info ? String(gl!.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
+  return /intel|mali|adreno|powervr/i.test(gpu);
+}
+
 const noop = () => () => {};
 
 /**

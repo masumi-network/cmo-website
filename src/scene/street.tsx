@@ -80,8 +80,8 @@ export function StreetFurniture({ lamps, hydrants, signs }: { lamps: Fixture[]; 
   return (
     <>
       <Lamps lamps={lamps} />
-      <Instances items={hydrants} geometry={STREET_PARTS.hydrant} material={painted} place={set} />
-      <Instances items={signs} geometry={STREET_PARTS.sign} material={painted} place={set} />
+      <Instances items={hydrants} geometry={STREET_PARTS.hydrant} material={painted} place={set} detail />
+      <Instances items={signs} geometry={STREET_PARTS.sign} material={painted} place={set} detail />
     </>
   );
 }

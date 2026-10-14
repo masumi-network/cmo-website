@@ -1,6 +1,6 @@
 # Verification
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
 
 A change is done when `pnpm verify` passes and the screens look right.
 
@@ -26,7 +26,9 @@ E2E saves a screenshot of every chapter to `screenshots/` (gitignored).
 
 Scripted screenshots of the 3D: headless Chrome pauses `requestAnimationFrame` without user input, so after a programmatic scroll the scene may not update. Move the mouse while waiting (the e2e assertions on the DOM are not affected).
 
-Close-ups of one object: in dev, add `?cam=px,py,pz,tx,ty,tz` (camera position, then the point it looks at). Ignored in production builds.
+Close-ups of one object: in dev, add `?cam=px,py,pz,tx,ty,tz` (camera position, then the point it looks at). Ignored in production builds. Real-GPU close-ups from the dev server: `node scripts/shot.mjs <out-dir> name=px,py,pz,tx,ty,tz` (env `HOUR=0..7` scrolls to a chapter).
+
+Performance: in dev, `?perf` shows fps, draw calls, triangles and programs. `tests/e2e/perf.spec.ts` (`@heavy`) fails if draw calls or triangles per chapter grow past their ceilings; raise a ceiling only on purpose, with a note in the city-scene performance log.
 
 ## 2. Visual check (every UI change)
 

@@ -7,8 +7,8 @@ import { Environment, Lightformer, PerformanceMonitor } from "@react-three/drei"
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Bloom, EffectComposer, HueSaturation, TiltShift2, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
-import { Suspense, useEffect, useRef, useState } from "react";
-import { WebGLRenderTarget, type Material, type Mesh, type Texture } from "three";
+import { Suspense, lazy, memo, useEffect, useRef, useState } from "react";
+import { WebGLRenderTarget, type Camera, type Material, type Mesh, type Object3D, type Scene as ThreeScene, type Texture, type WebGLRenderer } from "three";
 import { Atmosphere } from "./atmosphere";
 import { CameraRig } from "./camera-rig";
 import { City } from "./city";
@@ -24,7 +24,13 @@ import { UnionSquare } from "./union-square";
 import { Pier } from "./pier";
 import { Pins } from "./pins";
 import { Reflections } from "./reflections";
-import { rig } from "./shared";
+import { DETAIL, rig } from "./shared";
+
+/** Dev only: `?perf` shows frame rate, draw calls, triangles and programs. Compiled out of production builds. */
+const PerfOverlay =
+  process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("perf")
+    ? lazy(() => import("./perf-overlay"))
+    : null;
 
 type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean };
 
@@ -49,9 +55,10 @@ function Ready({ onReady }: { onReady: () => void }) {
     gl.setRenderTarget(target);
     const compiled = gl.compileAsync(scene, camera); // collects the materials right away
     gl.setRenderTarget(previous);
-    target.dispose();
-    // then the glass probe (reflections.ts) may render: its first render is behind the poster
+    // then the water mirror and the glass probe may render: their first render is behind the poster
     const done = () => {
+      warmUp(gl, scene, camera, target);
+      target.dispose();
       scene.userData.shadersReady = true;
       onReady();
     };
@@ -60,7 +67,40 @@ function Ready({ onReady }: { onReady: () => void }) {
   return null;
 }
 
-export default function Scene({ onReady, onGo, lite }: Props) {
+/**
+ * compileAsync skips the shadow pass, whose depth shaders differ per caster
+ * (instanced, batched, skinned, textured). One render of everything, culling
+ * off and hidden things shown (the 18:00 envelopes), builds them all, so a
+ * caster entering the sun's shadow box never stalls.
+ */
+function warmUp(gl: WebGLRenderer, scene: ThreeScene, camera: Camera, target: WebGLRenderTarget) {
+  const culled: Object3D[] = [];
+  const hidden: Object3D[] = [];
+  scene.traverse((o) => {
+    if (o.frustumCulled) culled.push(o);
+    if (!o.visible) hidden.push(o);
+    o.frustumCulled = false;
+    o.visible = true;
+  });
+  const previous = gl.getRenderTarget();
+  gl.setRenderTarget(target);
+  gl.render(scene, camera);
+  gl.setRenderTarget(previous);
+  for (const o of culled) o.frustumCulled = true;
+  for (const o of hidden) o.visible = false;
+}
+
+/** Studio light for everything but glass. Memoised: a re-render would redraw its cube and re-filter it (a 200 ms stall). */
+const Studio = memo(function Studio() {
+  return (
+    <Environment resolution={128} frames={1} environmentIntensity={0.5}>
+      <Lightformer intensity={1.6} position={[0, 12, 12]} scale={[40, 12, 1]} />
+      <Lightformer intensity={0.8} position={[-20, 6, -10]} rotation-y={Math.PI / 2} scale={[30, 8, 1]} />
+    </Environment>
+  );
+});
+
+function Scene({ onReady, onGo, lite }: Props) {
   // Sharp on retina screens, until the GPU can't keep up: then one pixel per pixel.
   const [dpr, setDpr] = useState<[number, number]>(lite ? [1, 1.5] : [1, 2]);
   useEffect(() => {
@@ -77,19 +117,17 @@ export default function Scene({ onReady, onGo, lite }: Props) {
       gl={{ antialias: false, powerPreference: "high-performance" }}
       camera={{ fov: 35, near: 0.2, far: 1200 }}
       // Hide the pixels from screen readers, not the pins drawn over them.
-      onCreated={({ gl }) => {
+      onCreated={({ gl, camera }) => {
         gl.domElement.setAttribute("aria-hidden", "true");
+        camera.layers.enable(DETAIL); // reflections leave the details out (shared.ts)
         // Reading the shader log waits for each compile to finish: a stall per new material.
         gl.debug.checkShaderErrors = process.env.NODE_ENV !== "production";
       }}
     >
       <PerformanceMonitor onDecline={() => setDpr([1, 1])} />
       <Suspense fallback={null}>
-        <Atmosphere />
-        <Environment resolution={128} frames={1} environmentIntensity={0.5}>
-          <Lightformer intensity={1.6} position={[0, 12, 12]} scale={[40, 12, 1]} />
-          <Lightformer intensity={0.8} position={[-20, 6, -10]} rotation-y={Math.PI / 2} scale={[30, 8, 1]} />
-        </Environment>
+        <Atmosphere lite={lite} />
+        <Studio />
         <City lite={lite} />
         <Rooftop />
         <Shopfront />
@@ -106,6 +144,7 @@ export default function Scene({ onReady, onGo, lite }: Props) {
         <Pins onGo={onGo} />
         <Reflections lite={lite} />
         <Ready onReady={onReady} />
+        {PerfOverlay && <PerfOverlay />}
       </Suspense>
       <CameraRig />
       {lite ? (
@@ -115,7 +154,9 @@ export default function Scene({ onReady, onGo, lite }: Props) {
           <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
         </EffectComposer>
       ) : (
-        <EffectComposer multisampling={4}>
+        // Retina already draws 4 pixels per point: 2x MSAA looks the same as 4x there (checked on the
+        // Golden Gate cables) and saves about 1.2 ms a frame at 1440x900.
+        <EffectComposer multisampling={Math.min(window.devicePixelRatio, dpr[1]) >= 2 ? 2 : 4}>
           <Bloom mipmapBlur luminanceThreshold={0.9} intensity={0.6} />
           <TiltShift2 blur={0.04} />
           <HueSaturation saturation={0.08} />
@@ -126,3 +167,6 @@ export default function Scene({ onReady, onGo, lite }: Props) {
     </Canvas>
   );
 }
+
+// The page re-renders on every chapter change; the 3D tree must not.
+export default memo(Scene);

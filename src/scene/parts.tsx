@@ -6,7 +6,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { Color, InstancedBufferAttribute, MeshStandardMaterial, Object3D, type BufferGeometry, type InstancedMesh, type Material } from "three";
 import { brandFromUrl } from "@/lib/brand";
 import { useCity } from "@/lib/store";
-import { useNightGlow } from "./shared";
+import { DETAIL, useNightGlow } from "./shared";
 
 export type V3 = [number, number, number];
 
@@ -40,6 +40,7 @@ export function Instances<T>({
   place,
   attributes,
   shadows = true,
+  detail = false,
 }: {
   items: T[];
   geometry: BufferGeometry;
@@ -48,6 +49,8 @@ export function Instances<T>({
   /** Per-instance shader attributes, one float per item. */
   attributes?: Record<string, (item: T, i: number) => number>;
   shadows?: boolean;
+  /** Too small for reflections (shared.ts DETAIL). */
+  detail?: boolean;
 }) {
   const ref = useRef<InstancedMesh>(null);
   const geo = useMemo(() => {
@@ -71,6 +74,7 @@ export function Instances<T>({
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, [items, place]);
+    if (detail) mesh.layers.set(DETAIL);
+  }, [items, place, detail]);
   return <instancedMesh ref={ref} args={[geo, material, items.length]} castShadow={shadows} receiveShadow />;
 }

@@ -960,7 +960,8 @@ export function Water({ lite }: { lite: boolean }) {
       if (scene.fog && "color" in scene.fog) uniforms.uSkyHorizon.value.copy(scene.fog.color);
       if (hemi.current) uniforms.uSkyTop.value.copy(hemi.current.color);
     }
-    if (!mirror || !mesh.current) return;
+    // Not before `Ready` (scene.tsx) has compiled every shader: a mirror render would compile them one by one.
+    if (!mirror || !mesh.current || !scene.userData.shadersReady) return;
     gl.getDrawingBufferSize(_size);
     const w = Math.min(1024, Math.round(_size.x / 2));
     const h = Math.round((w * _size.y) / _size.x);

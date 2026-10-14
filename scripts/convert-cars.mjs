@@ -47,9 +47,10 @@ const ONLY = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
  * How far (metres) a simplified part may stray from the source. In the city a
  * car is under 4 units long, and in the closest shot one pixel is about 4 cm
  * of car, so 4 mm is a tenth of a pixel. The glossy paint and glass show
- * every dent, the dark matte trim and tyres hide them.
+ * every dent; the dark matte trim, tyres and rims hide them, so they may stray
+ * up to half a pixel (sedan tyre 3,191 to 492 triangles, 36 of them on the road).
  */
-const ERROR = { paint: 0.004, glass: 0.004, light_front: 0.004, light_rear: 0.004, trim: 0.008, tyre: 0.005, rim: 0.006 };
+const ERROR = { paint: 0.004, glass: 0.004, light_front: 0.004, light_rear: 0.004, trim: 0.015, tyre: 0.02, rim: 0.015 };
 /** How much a turned normal counts against that error: keeps curved panels from going flat. */
 const NORMAL_WEIGHT = 0.05;
 

@@ -1,18 +1,18 @@
 "use client";
 
 // Victorian row houses (Painted Ladies): six modelled variants (house-models.ts),
-// each instanced over its houses and scaled to the plot, each house in its own
-// colour scheme. Per house: the front
-// (one mesh per variant) and the body behind it (one mesh for all flat roofs,
-// one for all gables). Eight draw calls for the whole city of houses.
+// scaled to the plot, each house in its own colour scheme. Per house: the
+// front (its variant) and the body behind it (flat roof or gable). Houses are
+// static, so they are merged by district (CELL): one draw call per district,
+// and a district off screen or outside the sun's shadow box costs nothing.
 
-import { useMemo } from "react";
-import type { Object3D, Texture } from "three";
+import { useEffect, useMemo } from "react";
+import { Float32BufferAttribute, Object3D, type BufferGeometry, type Texture } from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { WALK_OFFSET, WALK_Z } from "./grid";
 import { BODY_DEPTH, PALETTES, RELIEF_DEPTH, VARIANTS, W, bodyGeometry, frontGeometry, palette } from "./house-models";
 import { HOUSE_GAP, type House } from "./layout";
 import { houseMaterial } from "./materials";
-import { Instances } from "./parts";
 import { HULL } from "./rig";
 
 /** Variants: 2-storey are 0, 2, 4; 3-storey are 1, 3, 5. */
@@ -75,27 +75,52 @@ export function placeBody(h: House, o: Object3D) {
   o.scale.set(scaleOf(h), scaleOf(h), h.d / BODY_DEPTH);
 }
 
-type Item = { h: House; v: number; p: number };
-const paletteAttribute = { aPalette: (it: Item) => it.p };
-const front = (it: Item, o: Object3D) => placeFront(it.h, o);
-const body = (it: Item, o: Object3D) => placeBody(it.h, o);
+/** District size for merging houses (world units). Smaller: more draw calls, tighter culling. */
+export const CELL = 40;
+
+/**
+ * Every house placed and merged, one geometry per district. Each vertex keeps
+ * its house's colour scheme (aPalette) and front-wall origin (aOrigin, the
+ * seed for which windows are lit).
+ */
+export function houseDistricts(houses: House[]): BufferGeometry[] {
+  const palettes = paletteOf(houses);
+  const fronts = VARIANTS.map((_, v) => frontGeometry(v));
+  const bodies = { flat: bodyGeometry(false), gable: bodyGeometry(true) };
+  const cells = new Map<string, BufferGeometry[]>();
+  const o = new Object3D();
+  houses.forEach((h, i) => {
+    const key = `${Math.floor(h.x / CELL)},${Math.floor(h.z / CELL)}`;
+    if (!cells.has(key)) cells.set(key, []);
+    const parts: [BufferGeometry, typeof placeFront][] = [
+      [fronts[variantOf(h, i)], placeFront],
+      [h.roof === "gable" ? bodies.gable : bodies.flat, placeBody],
+    ];
+    for (const [model, place] of parts) {
+      place(h, o);
+      o.scale.z = Math.max(o.scale.z, 1e-4); // a flattened front stays invertible (normals)
+      o.updateMatrix();
+      const g = model.clone().applyMatrix4(o.matrix);
+      const n = g.attributes.position.count;
+      g.setAttribute("aPalette", new Float32BufferAttribute(new Float32Array(n).fill(palettes[i]), 1));
+      const origin = new Float32Array(n * 2);
+      for (let k = 0; k < n; k++) origin.set([o.position.x, o.position.z], k * 2);
+      g.setAttribute("aOrigin", new Float32BufferAttribute(origin, 2));
+      cells.get(key)!.push(g);
+    }
+  });
+  return [...cells.values()].map((parts) => mergeGeometries(parts));
+}
 
 /** Victorian row houses: one modelled front per variant, lap-sided bodies, flat or gabled roofs. */
 export function Houses({ houses, tex }: { houses: House[]; tex: { siding: Texture; shingles: Texture } }) {
   const material = useMemo(() => houseMaterial(tex.siding, tex.shingles, palette()), [tex.siding, tex.shingles]);
-  const meshes = useMemo(() => {
-    const palettes = paletteOf(houses);
-    const items = houses.map((h, i) => ({ h, v: variantOf(h, i), p: palettes[i] }));
-    return [
-      ...VARIANTS.map((_, v) => ({ geometry: frontGeometry(v), items: items.filter((it) => it.v === v), place: front })),
-      { geometry: bodyGeometry(false), items: items.filter((it) => it.h.roof !== "gable"), place: body },
-      { geometry: bodyGeometry(true), items: items.filter((it) => it.h.roof === "gable"), place: body },
-    ];
-  }, [houses]);
+  const districts = useMemo(() => houseDistricts(houses), [houses]);
+  useEffect(() => () => districts.forEach((g) => g.dispose()), [districts]);
   return (
     <>
-      {meshes.map(({ geometry, items, place }, k) => (
-        <Instances key={k} items={items} geometry={geometry} material={material} place={place} attributes={paletteAttribute} />
+      {districts.map((geometry, k) => (
+        <mesh key={k} geometry={geometry} material={material} castShadow receiveShadow />
       ))}
     </>
   );

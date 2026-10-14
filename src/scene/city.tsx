@@ -4,7 +4,7 @@
 // houses, downtown towers, trees, lamps and fog. Layout comes from layout.ts;
 // named places live in landmarks.tsx.
 
-import { Cloud, Clouds, useTexture } from "@react-three/drei";
+import { useTexture } from "@react-three/drei";
 import { useMemo } from "react";
 import {
   ExtrudeGeometry,
@@ -20,10 +20,7 @@ import {
   type Texture,
 } from "three";
 import { Bay, Hills, Water } from "./bay";
-import { chapters } from "@/content/day";
-import { useCity } from "@/lib/store";
 import { heightAt, headlandHeight } from "@/lib/terrain";
-import { activeIndex } from "@/lib/time";
 import { LAND, streetDrop } from "./grid";
 import { kerbGeometry, terrainGeometry } from "./ground";
 import { CITY } from "./layout";
@@ -35,6 +32,8 @@ import { StreetFurniture } from "./street";
 import { Towers } from "./towers";
 import { Trees } from "./trees";
 import { Cars } from "./traffic";
+import { Fog } from "./fog";
+import { detail } from "./shared";
 
 
 const TEXTURES = {
@@ -63,15 +62,15 @@ export function City({ lite }: { lite: boolean }) {
       <Land tex={tex} />
       <Water lite={lite} />
       <Hills map={tex.hills} />
-      <Headlands map={tex.hills} />
+      <Headlands map={tex.hills} lite={lite} />
       <Houses houses={city.houses} tex={tex} />
       <Towers towers={city.towers} tex={tex} />
       <Trees trees={city.trees} lite={lite} />
       <Grass lite={lite} grass={tex.grass} dry={tex.hills} />
       <StreetFurniture lamps={city.lamps} hydrants={city.hydrants} signs={city.signs} />
-      <Cars />
+      <Cars lite={lite} />
       <Bay />
-      <Fog />
+      <Fog lite={lite} />
     </>
   );
 }
@@ -109,17 +108,19 @@ function Land({ tex }: { tex: Textures }) {
     <>
       <mesh geometry={cliffs} material={cliffMaterials} position={[0, -4.6, 0]} receiveShadow />
       <mesh geometry={terrain} material={ground} receiveShadow castShadow />
-      <mesh geometry={kerbs} material={kerbMaterial} receiveShadow />
+      <mesh ref={detail} geometry={kerbs} material={kerbMaterial} receiveShadow />
     </>
   );
 }
 
 // Marin Headlands across the Golden Gate: ridged hills of golden grass and
 // scrub, a cove where the bridge lands, steeper slopes darker.
-function Headlands({ map }: { map: Texture }) {
+function Headlands({ map, lite }: { map: Texture; lite: boolean }) {
   const geometry = useMemo(() => {
     const x0 = -210, x1 = 70, z0 = -290, z1 = -118;
-    const g = new PlaneGeometry(x1 - x0, z1 - z0, (x1 - x0) / 1.2, (z1 - z0) / 1.2);
+    // Far across the water: lite takes a coarser grid (a quarter of the triangles).
+    const step = lite ? 2.4 : 1.2;
+    const g = new PlaneGeometry(x1 - x0, z1 - z0, Math.round((x1 - x0) / step), Math.round((z1 - z0) / step));
     g.rotateX(-Math.PI / 2);
     g.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
     const pos = g.attributes.position;
@@ -141,28 +142,8 @@ function Headlands({ map }: { map: Texture }) {
     }
     g.setAttribute("color", new Float32BufferAttribute(colors, 3));
     return g;
-  }, []);
+  }, [lite]);
   const material = useMemo(() => new MeshStandardMaterial({ map, vertexColors: true, roughness: 1 }), [map]);
-  return <mesh geometry={geometry} material={material} receiveShadow castShadow />;
+  // No shadows cast: a far backdrop whose own shadows never showed in a chapter shot (67k triangles a frame).
+  return <mesh geometry={geometry} material={material} receiveShadow />;
 }
-
-/** Fog color by time of day. Unlit, so backlit fog never turns to dark smoke. */
-const fogTint = (hour: number) => (hour >= 20 && hour < 29 ? "#3c4260" : hour >= 17 && hour < 20 ? "#f1c6a2" : "#fbf8f2");
-
-/** Karl the fog rolling in from the ocean, and a few high clouds. */
-function Fog() {
-  const tint = useCity((s) => fogTint(chapters[activeIndex(s.progress, chapters.length)].hour));
-  // From the bird's-eye map, fog banks read as puffs: leave them to the close shots.
-  const explore = useCity((s) => s.mode === "explore");
-  if (explore) return null;
-  return (
-    <Clouds texture="/textures/cloud.png" material={MeshBasicMaterial} limit={260}>
-      <Cloud seed={1} segments={40} bounds={[22, 3, 30]} volume={18} position={[-92, 3, -30]} opacity={0.7} speed={0.05} growth={6} color={tint} />
-      <Cloud seed={2} segments={30} bounds={[18, 4, 24]} volume={16} position={[-82, 5, -100]} opacity={0.65} speed={0.05} growth={6} color={tint} />
-      {/* Karl the fog, low under the Golden Gate deck */}
-      <Cloud seed={5} segments={36} bounds={[26, 1.2, 44]} volume={12} position={[-80, 2.2, -104]} opacity={0.6} speed={0.04} growth={5} color={tint} />
-      <Cloud seed={4} segments={20} bounds={[40, 4, 40]} volume={20} position={[40, 46, -80]} opacity={0.45} speed={0.03} growth={6} color={tint} />
-    </Clouds>
-  );
-}
-

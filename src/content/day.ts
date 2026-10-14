@@ -127,7 +127,8 @@ export const chapters: readonly Chapter[] = [
     poster: "/concepts/04-ads.jpg",
     spot: [5.6, UNION_SQUARE_ROOF, 10.4],
     camera: frame([5.6, UNION_SQUARE_ROOF, 10.4], { yaw: 12, distance: 9, height: -1.2, look: 1.9, side: -0.05 }),
-    phone: frame([5.6, UNION_SQUARE_ROOF, 10.4], { yaw: 20, distance: 14, height: 0.6, look: 1.4, side: -0.3 }),
+    // from above, so the billboard stands over Cuso and his bubble, never behind them (framing.test.ts)
+    phone: frame([5.6, UNION_SQUARE_ROOF, 10.4], { yaw: 10, distance: 10, height: 7, look: 1.4, side: -0.3 }),
     dark: false,
   },
   {

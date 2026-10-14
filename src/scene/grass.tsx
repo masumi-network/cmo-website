@@ -32,6 +32,7 @@ import { CITY } from "./layout";
 import { LAWN_GLSL, PEAKS, lawnTexture, noise, onTrail, wildness } from "./lawn";
 import { Instances } from "./parts";
 import { PATHS } from "./routes";
+import { detail } from "./shared";
 
 /** Most triangles the blades may cost (full mode). */
 export const GRASS_BUDGET = 150_000;
@@ -335,9 +336,10 @@ export function Grass({ lite, grass, dry }: { lite: boolean; grass: Texture; dry
   useEffect(() => () => Object.values(geos).forEach((g) => g.dispose()), [geos]);
   return (
     <>
-      <mesh geometry={geometry} material={material} receiveShadow />
-      <Instances items={stones.rocks} geometry={geos.rock} material={mats.rock} place={placeRock} />
-      <Instances items={stones.shrubs} geometry={geos.shrub} material={mats.shrub} place={placeShrub} />
+      <mesh ref={detail} geometry={geometry} material={material} receiveShadow />
+      {/* lite: no shadows from rocks and brush (a phone shows them a few pixels tall) */}
+      <Instances items={stones.rocks} geometry={geos.rock} material={mats.rock} place={placeRock} shadows={!lite} detail />
+      <Instances items={stones.shrubs} geometry={geos.shrub} material={mats.shrub} place={placeShrub} shadows={!lite} detail />
     </>
   );
 }

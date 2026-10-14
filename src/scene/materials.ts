@@ -61,8 +61,8 @@ const VALUE_NOISE = /* glsl */ `
 /**
  * Row houses (house-models.ts): painted wood in each house's colours. Vertex
  * attributes `aSlot` (which paint, SLOTS order), `aWin` (window id, 0 = not
- * glass) and `aPane` (where on its pane, for glass); instance attribute
- * `aPalette`. `palette` is linear RGB per palette and slot. Body walls get
+ * glass) and `aPane` (where on its pane, for glass); per house `aPalette`
+ * and `aOrigin` (houses.tsx merges them by district). `palette` is linear RGB per palette and slot. Body walls get
  * lap siding, `scales` fish-scale shingles, roofs shingles; the 06:00
  * apartment's `stucco` a soft mottle and its `gravel` roof stones.
  * Glass: a dark room behind it (some with a blind part way down, some with
@@ -76,17 +76,18 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
   const n = SLOTS.length;
   return patch(new MeshStandardMaterial({ roughness: 0.82 }), "house", {
     uniforms: { uSiding: { value: siding }, uShingles: { value: shingles }, uPalette: { value: palette }, ...glassUniforms },
-    vertHead: "attribute float aSlot;\nattribute float aWin;\nattribute vec2 aPane;\nattribute float aPalette;\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;",
+    vertHead: "attribute float aSlot;\nattribute float aWin;\nattribute vec2 aPane;\nattribute float aPalette;\nattribute vec2 aOrigin;\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;",
     vert: /* glsl */ `
       vSlot = aSlot;
       vWin = aWin;
       vPane = aPane;
       vPalette = aPalette;
       // One value per house (front and body share their origin), so a window lights up as a whole.
+      // Merged houses carry their front-wall origin (houses.tsx); other plain meshes have none (seed 0).
       #ifdef USE_INSTANCING
         vSeed = fract(sin(dot(instanceMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
       #else
-        vSeed = 0.0;
+        vSeed = fract(sin(dot(aOrigin, vec2(12.9898, 78.233))) * 43758.5453);
       #endif`,
     fragHead: `uniform sampler2D uSiding;\nuniform sampler2D uShingles;\nuniform vec3 uPalette[${palette.length / 3}];\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;\nfloat fLit = 0.0;\nfloat fGlassy = 0.0;\nfloat fCloth = 0.0;\n${VALUE_NOISE}\n${GLASS_ENV_GLSL}`,
     color: /* glsl */ `
@@ -205,12 +206,14 @@ export function towerMaterial(facade: Texture, tile: { w: number; h: number }, g
 export function downtownMaterial(stone: Texture) {
   return patch(new MeshStandardMaterial({ vertexColors: true }), "downtown", {
     uniforms: { uStone: { value: stone }, ...glassUniforms },
-    vertHead: "attribute vec2 aUv;\nattribute vec3 aInfo;\nvarying vec2 vTUv;\nvarying vec3 vInfo;",
+    // vInfo is flat: interpolating a constant is not exact on every GPU (SwiftShader), and the window
+    // hashes amplify the tiniest error into per-pixel speckle.
+    vertHead: "attribute vec2 aUv;\nattribute vec3 aInfo;\nvarying vec2 vTUv;\nflat varying vec3 vInfo;",
     vert: "vTUv = aUv;\nvInfo = aInfo;",
     fragHead: /* glsl */ `
       uniform sampler2D uStone;
       varying vec2 vTUv;
-      varying vec3 vInfo;
+      flat varying vec3 vInfo;
       float fLit = 0.0;
       vec3 fLitC = vec3(1.0, 0.8, 0.52);
       float fRough = 0.85;
@@ -227,7 +230,9 @@ export function downtownMaterial(stone: Texture) {
     color: /* glsl */ `
       float fPart = floor(vInfo.x + 0.5);
       vec3 fTint = diffuseColor.rgb;
-      float fFace = dot(floor(vFNormal.xz * 1.5 + 0.5), vec2(3.0, 7.0));
+      // Which way the wall faces (-1, 0 or 1 per axis), well clear of floor()'s steps: at an exact step
+      // (a normal of -1 scaled by 1.5, plus 0.5) interpolation error flips it per pixel, and every hash below speckles.
+      float fFace = dot(floor(vFNormal.xz + 0.5), vec2(3.0, 7.0));
       vec2 fCell = floor(vTUv);
       vec2 fKey = vec2(fFace * 17.0 + vInfo.y * 113.0, fFace * 5.0 + vInfo.y * 31.0);
       float fRnd = fHash(fCell + fKey);
@@ -284,7 +289,8 @@ export function downtownMaterial(stone: Texture) {
         vec2 fG = vTUv * (fSteel ? vec2(3.0, 4.0) : vec2(1.0, 2.0));
         float fBar = max(fLine(fG.x, fSteel ? 0.05 : 0.07), fLine(fG.y, fSteel ? 0.05 : 0.045));
         float fDrop = 1.0 - (0.15 + 0.35 * fract(fRnd * 7.31));
-        float fBlind = step(fSteel ? 2.0 : 0.75, fRnd) * smoothstep(fDrop - 0.01, fDrop + 0.01, fP.y) * (1.0 - fBar);
+        float fAa = fwidth(vTUv.y) + 0.005;
+        float fBlind = step(fSteel ? 2.0 : 0.75, fRnd) * smoothstep(fDrop - fAa, fDrop + fAa, fP.y) * (1.0 - fBar);
         vec3 fRoom = fTint * (0.5 + 0.3 * fRnd) * (0.75 + 0.5 * fP.y);
         vec3 fFrame = fSteel ? vec3(0.035, 0.04, 0.045) : vec3(0.07, 0.055, 0.04);
         diffuseColor.rgb = mix(mix(fRoom, vec3(0.4, 0.38, 0.34), fBlind), fFrame, fBar);

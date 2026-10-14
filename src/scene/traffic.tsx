@@ -29,7 +29,7 @@ import {
 import type { Vec3 } from "@/content/day";
 import { MARIN_ROAD, heightAt, surfaceAt } from "@/lib/terrain";
 import { DECKS, ROADS, ROAD_WIDTH } from "./roads";
-import { rig, useNightGlow } from "./shared";
+import { DETAIL, rig, useNightGlow } from "./shared";
 
 // ---------------------------------------------------------------------------
 // Layout and driving (pure, tested in tests/unit/traffic.test.ts)
@@ -484,7 +484,7 @@ const blob = new Matrix4();
 const c = new Color();
 
 /** A few Teslas circling blocks and crossing the bridges, following the hills and the decks. They stop for Cuso. */
-export function Cars() {
+export function Cars({ lite = false }: { lite?: boolean }) {
   const cars = useMemo(() => makeTraffic(), []);
   const driven = useMemo(() => Float32Array.from(cars, (car) => car.offset), [cars]);
   const rolled = useMemo(() => new Float64Array(cars.length), [cars]);
@@ -532,7 +532,8 @@ export function Cars() {
       const { length, width } = MODELS[car.type];
       shadows.current?.setMatrixAt(i, blob.multiplyMatrices(o.matrix, m4.makeScale(width * 1.1, 1, length * 1.08)));
     }
-    for (const mesh of [...meshes.current, shadows.current]) if (mesh) mesh.instanceMatrix.needsUpdate = true;
+    for (const mesh of meshes.current) if (mesh) mesh.instanceMatrix.needsUpdate = true;
+    if (shadows.current) shadows.current.instanceMatrix.needsUpdate = true;
   });
 
   return (
@@ -542,14 +543,16 @@ export function Cars() {
           key={piece.key}
           ref={(mesh) => {
             meshes.current[k] = mesh;
+            mesh?.layers.set(DETAIL); // no cars in reflections
           }}
           args={[piece.geometry, material[piece.part], count(piece.type) * Math.max(1, piece.spots.length)]}
-          castShadow={piece.part === "paint" || piece.part === "glass"}
+          // the body's shadow covers the glass; lite keeps only the soft blob under each car
+          castShadow={!lite && piece.part === "paint"}
           receiveShadow={piece.part === "paint"}
           frustumCulled={false}
         />
       ))}
-      <instancedMesh ref={shadows} args={[shadow.geometry, shadow.material, cars.length]} frustumCulled={false} renderOrder={-1} />
+      <instancedMesh ref={shadows} args={[shadow.geometry, shadow.material, cars.length]} frustumCulled={false} renderOrder={-1} layers={DETAIL} />
     </>
   );
 }

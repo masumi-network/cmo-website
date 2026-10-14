@@ -16,7 +16,7 @@ import { Vector3, type Camera, type Group, type Mesh, type Object3D } from "thre
 import { SPEED, STRIDE, pose } from "./gait";
 import { SCALE, rigCuso } from "./rig";
 import { DAY_LENGTH, PATHS, dayDistance, sampleDay } from "./routes";
-import { damp, rig } from "./shared";
+import { damp, overlays, rig } from "./shared";
 
 export const CUSO_URL = "/models/cuso.glb";
 const FEET = 0.1524 * SCALE;
@@ -150,21 +150,28 @@ function Bubble() {
   const box = useRef<HTMLDivElement>(null);
   // Turns with him, so the bubble stays on his tip side.
   const turn = useRef<Group>(null);
+  const measured = useRef({ key: "", at: 0, w: 0, h: 0, wide: false });
   // Like drei's default, but never under the top bar or a card: when one is
   // in the way, the bubble drops down below it, beside his head.
   const place = (el: Object3D, camera: Camera, size: { width: number; height: number }) => {
     anchor.setFromMatrixPosition(el.matrixWorld).project(camera);
     const x = ((anchor.x + 1) * size.width) / 2;
-    // Narrow phones: a long line wraps instead of running off the screen.
-    if (box.current) Object.assign(box.current.style, { whiteSpace: "normal", width: "max-content", maxWidth: `${size.width - 32}px` });
-    const w = box.current?.offsetWidth ?? 0;
-    const h = box.current?.offsetHeight ?? 0;
-    const shift = window.matchMedia("(min-width: 768px)").matches ? w : w / 2; // matches the bubble's translate
+    // Measured only when the line or the screen width changes (or every 0.5 s): reading a size forces a layout.
+    const m = measured.current;
+    const key = `${text}|${size.width}`;
+    const now = performance.now();
+    if (box.current && (key !== m.key || now - m.at > 500)) {
+      // Narrow phones: a long line wraps instead of running off the screen.
+      Object.assign(box.current.style, { whiteSpace: "normal", width: "max-content", maxWidth: `${size.width - 32}px` });
+      Object.assign(m, { key, at: now, w: box.current.offsetWidth, h: box.current.offsetHeight, wide: window.matchMedia("(min-width: 768px)").matches });
+    }
+    const { w, h } = m;
+    const shift = m.wide ? w : w / 2; // matches the bubble's translate
     let left = Math.min(Math.max(x - shift, 16), size.width - w - 16); // keep it on screen
-    const bar = document.querySelector("header")?.getBoundingClientRect().bottom ?? 0;
+    const { header, cards } = overlays();
+    const bar = header?.bottom ?? 0;
     let y = Math.max(((1 - anchor.y) * size.height) / 2, bar + 12 + h);
-    for (const card of document.querySelectorAll("[data-card]")) {
-      const r = card.getBoundingClientRect();
+    for (const r of cards) {
       if (!(r.width > 0 && r.left < left + w && r.right > left && r.top < y && r.bottom > y - h)) continue;
       // Below the card, or (short screens, no room below) beside it.
       if (r.bottom + 12 + h <= size.height - 16 || r.right + 12 + w > size.width - 16) y = r.bottom + 12 + h;

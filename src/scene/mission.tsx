@@ -25,7 +25,7 @@ import { box, cyl, drawn, merged, placed, useLandmarkTextures, useMat } from "./
 import { facadeNight } from "./facade";
 import { houseMaterial, glassMaterial } from "./materials";
 import { useGlow, type V3 } from "./parts";
-import { rig, useNightGlow } from "./shared";
+import { rig, useInterior, useNightGlow } from "./shared";
 import { useSign } from "./textures";
 
 /** Where each post hangs on the side wall (4 x 3), and which one is new. */
@@ -816,6 +816,7 @@ const WASH = { y0: 0.3, y1: LAMP_Y - 0.15 };
 
 /** 09:00 Mission building and its wall of posts. A new post appears when you approve. */
 export function MuralWall() {
+  const interior = useInterior();
   const approved = useCity((s) => s.approved);
   const { posts, siding } = useLandmarkTextures();
   const fresh = useRef<Group>(null);
@@ -863,7 +864,7 @@ export function MuralWall() {
       <mesh geometry={parts.shell} material={m.house} castShadow receiveShadow />
       <mesh geometry={parts.props} material={m.props} castShadow receiveShadow />
       <mesh geometry={parts.bulbs} material={bulb} />
-      <mesh geometry={parts.interior} material={inside} receiveShadow />
+      <mesh ref={interior} geometry={parts.interior} material={inside} receiveShadow />
       <mesh geometry={parts.glass} material={shopGlass} />
       <mesh position={[X0 + sa, sy, Z1 + 0.065]} material={signMat}>
         <planeGeometry args={MISSION.sign.size} />

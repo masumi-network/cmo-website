@@ -31,7 +31,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { CapsuleGeometry, CircleGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, Matrix4, MeshStandardMaterial, PlaneGeometry, Quaternion, SphereGeometry, TorusGeometry, Vector3, type BufferGeometry, type InstancedMesh, type Texture } from "three";
-import { dayNow, rig, useNightGlow } from "./shared";
+import { dayNow, rig, useInterior, useNightGlow } from "./shared";
 import { CableCar, Rails } from "./cable-car";
 import { type V3 } from "./parts";
 import { PALETTES, SLOT, builder, palette, type Builder, type Frame, type L3, type P2 } from "./house-models";
@@ -1021,6 +1021,7 @@ function clockFace() {
 
 /** 18:00 Ferry Building and the California St cable car. */
 export function FerryBuilding() {
+  const interior = useInterior();
   // No lap siding or shingles here: the siding texture fills both slots.
   const { siding } = useLandmarkTextures();
   const m = useMemo(() => {
@@ -1041,7 +1042,7 @@ export function FerryBuilding() {
     <group>
       <mesh geometry={g.shell} material={m.hall} castShadow receiveShadow />
       {/* the marketplace: its light is baked in the material, so it casts no shadows */}
-      <mesh geometry={g.market} material={market} receiveShadow />
+      <mesh ref={interior} geometry={g.market} material={market} receiveShadow />
       <mesh geometry={g.glass} material={m.glass} />
       <mesh geometry={g.tower} material={m.tower} castShadow receiveShadow />
       <mesh geometry={g.clocks} material={m.clock} />

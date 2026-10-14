@@ -20,7 +20,7 @@ import { PALETTES, SLOT, builder, palette, type Frame, type Rect } from "./house
 import { box, cyl, drawn, merged, placed, placer, useLandmarkTextures } from "./landmark-kit";
 import { glassMaterial, houseMaterial } from "./materials";
 import { Instances, useBrand, type V3 } from "./parts";
-import { useNightGlow } from "./shared";
+import { useInterior, useNightGlow } from "./shared";
 import { Lamps } from "./street";
 import { useSign } from "./textures";
 
@@ -1215,6 +1215,7 @@ const LAMP = [SHOP.lamp];
 
 /** 07:00 Hayes Valley shop. The sign shows the visitor's brand. */
 export function Shopfront() {
+  const interior = useInterior();
   const { siding } = useLandmarkTextures();
   const brand = useBrand();
   const sign = useSign(brand, { bg: "#efe6d0", fg: "#1f3b2f", panel: SHOP_SIGN });
@@ -1242,7 +1243,7 @@ export function Shopfront() {
       <group position={[local.x, local.ground, local.z]}>
         <mesh geometry={parts.front} material={m.painted} castShadow receiveShadow />
         {/* the cafe: its light is baked in the shader, so it casts no shadows (its leaf cards would cast squares) */}
-        <mesh geometry={parts.interior} material={m.painted} receiveShadow />
+        <mesh ref={interior} geometry={parts.interior} material={m.painted} receiveShadow />
         <mesh geometry={parts.glass} material={m.glass} />
         {/* the visitor's brand on the fascia */}
         <mesh position={[...SHOP.sign]} material={signMat}>

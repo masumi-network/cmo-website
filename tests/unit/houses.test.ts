@@ -1,7 +1,7 @@
 import { Object3D, type BufferGeometry } from "three";
 import { describe, expect, it } from "vitest";
 import { BODY_DEPTH, FOOT, H, PALETTES, RELIEF_DEPTH, SLOT, SLOTS, VARIANTS, W, bodyGeometry, frontGeometry, palette } from "@/scene/house-models";
-import { neighbours, paletteOf, placeBody, placeFront, reliefDepth, variantOf } from "@/scene/houses";
+import { CELL, houseDistricts, neighbours, paletteOf, placeBody, placeFront, reliefDepth, variantOf } from "@/scene/houses";
 import { CITY, HOUSE_GAP } from "@/scene/layout";
 import { FOOTING } from "@/scene/materials";
 
@@ -156,6 +156,23 @@ describe("row house models", () => {
     expect(pairs).toBeGreaterThanOrEqual(100); // most houses stand in rows
     // and no colour takes over a neighbourhood: each scheme on at most a fifth of the houses
     for (let k = 0; k < PALETTES.length; k++) expect(p.filter((x) => x === k).length).toBeLessThan(CITY.houses.length / 5);
+  });
+
+  it("merges the houses by district without losing a triangle, each vertex knowing its house", () => {
+    const districts = houseDistricts(CITY.houses);
+    const total = CITY.houses.reduce((sum, h, i) => sum + tris(fronts[variantOf(h, i)]) + tris(h.roof === "gable" ? bodies.gable : bodies.flat), 0);
+    expect(districts.reduce((sum, g) => sum + tris(g), 0)).toBe(total);
+    // few enough draw calls, small enough to cull: a district is about CELL across (plus the houses on its edge)
+    expect(districts.length).toBeLessThan(30);
+    for (const g of districts) {
+      const box = bounds(g);
+      expect(box.max.x - box.min.x).toBeLessThan(CELL + 12);
+      expect(box.max.z - box.min.z).toBeLessThan(CELL + 12);
+      const { aPalette, aOrigin, normal } = g.attributes;
+      expect(aPalette.count).toBe(g.attributes.position.count);
+      expect(aOrigin.count).toBe(g.attributes.position.count);
+      for (let i = 0; i < normal.count; i++) expect(Number.isFinite(normal.getX(i) + normal.getY(i) + normal.getZ(i))).toBe(true);
+    }
   });
 
   it("keeps the whole city of houses within its triangle budget", () => {

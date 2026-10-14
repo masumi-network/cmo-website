@@ -12,7 +12,7 @@ import { dayNow, rig, updateNightGlow } from "./shared";
 const sunDir = new Vector3();
 const DEG = Math.PI / 180;
 
-export function Atmosphere() {
+export function Atmosphere({ lite }: { lite: boolean }) {
   const sun = useRef<DirectionalLight>(null);
   const hemi = useRef<HemisphereLight>(null);
   const fog = useMemo(() => new Fog("#f2d2b2", 40, 260), []);
@@ -115,7 +115,8 @@ export function Atmosphere() {
       <directionalLight
         ref={sun}
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        // lite: a quarter of the texels (phones draw far fewer pixels anyway)
+        shadow-mapSize={lite ? [1024, 1024] : [2048, 2048]}
         shadow-bias={-0.0008}
         shadow-normalBias={0.1}
         shadow-camera-near={1}
