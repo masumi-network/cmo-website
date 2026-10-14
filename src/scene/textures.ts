@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo } from "react";
 import { CanvasTexture, NoColorSpace, SRGBColorSpace } from "three";
-import { CROSSWALKS, EDGE, LANE_MARKS, LAND_BOUNDS, PARKS, STREET, X_STREETS, Z_STREETS } from "./grid";
+import { CROSSWALKS, EDGE, LANE_MARKS, crosswalkBars, LAND_BOUNDS, PARKS, STREET, X_STREETS, Z_STREETS } from "./grid";
 
 function canvasTexture(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) {
   const canvas = document.createElement("canvas");
@@ -93,15 +93,7 @@ export function groundMask() {
       ctx.lineTo(X(x1), Z(z1));
       ctx.stroke();
     }
-    for (const c of CROSSWALKS) {
-      // five bars along the street, as wide as the gaps, clear of the gutters; 0.1 in from the crosswalk's ends
-      const [a0, b0, b1] = c.along === "z" ? [c.x0, c.z0, c.z1] : [c.z0, c.x0, c.x1];
-      for (let k = 0; k < 5; k++) {
-        const a = a0 + 0.42 + k * 0.48;
-        if (c.along === "z") rect(a, a + 0.24, b0 + 0.1, b1 - 0.1);
-        else rect(b0 + 0.1, b1 - 0.1, a, a + 0.24);
-      }
-    }
+    for (const c of CROSSWALKS) for (const [x0, x1, z0, z1] of crosswalkBars(c)) rect(x0, x1, z0, z1);
   });
 }
 

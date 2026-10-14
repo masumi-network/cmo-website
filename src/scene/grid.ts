@@ -31,6 +31,15 @@ export const WALK_Z = [-6, 4, 14];
 /** Cuso keeps to the south (z) or east (x) side of a walking street, clear of the cable cars. */
 export const WALK_OFFSET = 1.6;
 
+/**
+ * Cable car rails down the middle of a street, [x0, x1, z]: the Union Square
+ * line (cable-line.ts). No centre line runs between them, and crosswalk bars
+ * keep off the steel.
+ */
+export const CABLE_RAILS: [number, number, number][] = [[-8.3, 10.5, 14]];
+/** Rail gauge (cable-car.tsx draws the car to it). */
+export const GAUGE = 0.84;
+
 /** Half a street plus one sidewalk: where the kerb meets a block. */
 export const EDGE = STREET / 2 + SIDEWALK;
 
@@ -149,6 +158,30 @@ export const LANE_MARKS: [number, number, number, number][] = (() => {
     return stops.slice(1).map((b, i) => [stops[i] + gap, b - gap] as const).filter(([a, b]) => b - a > 0.5);
   };
   for (const x of X_STREETS) for (const [z0, z1] of runs(Z_STREETS, minZ, maxZ)) if (!inParkBox(x, (z0 + z1) / 2, STREET / 2)) out.push([x, z0, x, z1]);
-  for (const z of Z_STREETS) for (const [x0, x1] of runs(X_STREETS, minX, maxX)) if (!inParkBox((x0 + x1) / 2, z, STREET / 2)) out.push([x0, z, x1, z]);
+  for (const z of Z_STREETS) {
+    for (const [x0, x1] of runs(X_STREETS, minX, maxX)) {
+      if (inParkBox((x0 + x1) / 2, z, STREET / 2)) continue;
+      // a cable line takes the middle of the street: the centre line stops short of its rails
+      const rails = CABLE_RAILS.filter(([r0, r1, rz]) => rz === z && r0 - gap < x1 && r1 + gap > x0);
+      const cut = [x0, ...rails.flatMap(([r0, r1]) => [r0 - gap, r1 + gap]), x1];
+      for (let i = 0; i < cut.length; i += 2) if (cut[i + 1] - cut[i] > 0.5) out.push([cut[i], z, cut[i + 1], z]);
+    }
+  }
   return out;
 })();
+
+/**
+ * A crosswalk's zebra bars as rectangles [x0, x1, z0, z1]: five bars along the
+ * street, as wide as the gaps, clear of the gutters, 0.1 in from its ends.
+ * Across a cable line they keep the same width but a pitch centred on the
+ * cable slot, so the slot and both rails lie in gaps.
+ */
+export function crosswalkBars(c: Crosswalk): [number, number, number, number][] {
+  const [a0, a1, b0, b1] = c.along === "z" ? [c.x0, c.x1, c.z0, c.z1] : [c.z0, c.z1, c.x0, c.x1];
+  const rail = c.along === "x" ? CABLE_RAILS.find(([r0, r1, rz]) => rz > a0 && rz < a1 && r0 < b1 && r1 > b0) : undefined;
+  const W = 0.24;
+  const starts = rail
+    ? [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5].map((k) => rail[2] + k * (GAUGE / 2) - W / 2) // pitch: half the gauge
+    : [0, 1, 2, 3, 4].map((k) => a0 + 0.42 + k * 0.48);
+  return starts.map((a): [number, number, number, number] => (c.along === "z" ? [a, a + W, b0 + 0.1, b1 - 0.1] : [b0 + 0.1, b1 - 0.1, a, a + W]));
+}

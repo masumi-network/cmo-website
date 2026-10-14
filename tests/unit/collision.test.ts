@@ -10,7 +10,8 @@ import { chapters } from "@/content/day";
 import { heightAt, surfaceAt } from "@/lib/terrain";
 import { CAR } from "@/scene/cable-car";
 import { FERRY, FERRY_CAR } from "@/scene/ferry";
-import { UNION, UNION_CAR } from "@/scene/union-square";
+import { UNION } from "@/scene/union-square";
+import { ACCEL, BRAKE, LINE, crossings, cusoMayGo, holdsAtUnion, startCar, stepCar, type CableCar } from "@/scene/cable-line";
 import { FLAG, PYRAMID, SPIRE, WINGS, pyramidHalf } from "@/scene/pyramid";
 import { ROOFTOP } from "@/scene/rooftop";
 import { reliefDepth } from "@/scene/houses";
@@ -20,7 +21,7 @@ import { MISSION } from "@/scene/mission";
 import { HULL } from "@/scene/rig";
 import { SHOP } from "@/scene/shop";
 import { HYDRANT, LAMP, SIGN } from "@/scene/street";
-import { DAY_LENGTH, FACE, dayDistance, sampleDay } from "@/scene/routes";
+import { DAY_LENGTH, FACE, dayDistance, sampleDay, walkOn } from "@/scene/routes";
 
 /** An axis-aligned box. `slope`: each side moves in by this much per unit up (the pyramid). */
 type Solid = { name: string; x0: number; x1: number; y0: number; y1: number; z0: number; z1: number; slope?: number };
@@ -96,7 +97,7 @@ function landmarkSolids(): Solid[] {
   }
 
   // 12:00 Union Square: building (with its facade relief), cornices, parapet (not on the south edge),
-  // stair bulkhead, billboard, the monument in the square, cable car.
+  // stair bulkhead, billboard, the monument in the square. Its cable car runs: see the last tests.
   {
     const g = heightAt(7, 9);
     const u = UNION;
@@ -112,8 +113,6 @@ function landmarkSolids(): Solid[] {
     out.push(...ring("Union Square parapet", u, g + u.roof, g + u.roof + u.parapet, 0.05, u.wall + 0.01, [0, 2, 3]));
     const bb = u.billboard;
     out.push(solid("Union Square billboard", bb.x0, bb.x1, g + u.roof, g + bb.top, bb.z0, bb.z1));
-    const [cx, cy, cz] = UNION_CAR.p;
-    out.push(...cableCar("Union Square cable car", cx, y0(g + cy, cx, cz), cz));
   }
 
   // 15:00 Transamerica Pyramid: tapered body, wings, spire and flag.
@@ -162,14 +161,14 @@ const SOLIDS = [...citySolids, ...landmarkSolids()];
 
 const EPS = 1e-3; // touching (feet on a roof, back against a wall) is fine
 
-/** The first solid Cuso's body overlaps at `pos`, facing `heading`, or null. */
-function hit(pos: readonly number[], heading: number): string | null {
+/** The first solid (of `solids`) Cuso's body overlaps at `pos`, facing `heading`, or null. */
+function hit(pos: readonly number[], heading: number, solids = SOLIDS): string | null {
   const [px, py, pz] = pos;
   const c = Math.cos(heading);
   const s = Math.sin(heading);
   // his own x and z axes in the world
   const axes = [[1, 0], [0, 1], [c, -s], [s, c]];
-  for (const sol of SOLIDS) {
+  for (const sol of solids) {
     if (px < sol.x0 - 1 || px > sol.x1 + 1 || pz < sol.z0 - 1 || pz > sol.z1 + 1) continue;
     for (const [b0, b1, lx0, lx1, lz0, lz1] of HULL) {
       if (py + b1 <= sol.y0 + EPS || py + b0 >= sol.y1 - EPS) continue;
@@ -252,5 +251,110 @@ describe("Cuso's body never goes through anything", () => {
     const sideways = Math.abs(rx * dz - rz * dx);
     const widest = Math.max(...HULL.map(([, , x0, x1]) => Math.max(-x0, x1)));
     expect(sideways - SPIRE.half).toBeGreaterThan(widest + 0.1);
+  });
+});
+
+// The Union Square cable car runs its line along the z 14 street, which Cuso
+// crosses. It yields to him, and he waits at the kerb while it is across his
+// way, so the two never meet. These tests check that with his real body
+// against the car's solids, wherever the car is when he gets there.
+describe("the Union Square cable car never meets Cuso", () => {
+  const [W, , E] = [LINE.stops[0], 0, LINE.stops[LINE.stops.length - 1]];
+  const carAt = (s: number) => cableCar("Union Square cable car", s, y0(0, s, LINE.z), LINE.z);
+  /** Day distances near the line: anywhere his body could reach the car. */
+  const nearLine: number[] = [];
+  for (let d = 0; d <= DAY_LENGTH; d += STEP) if (Math.abs(sampleDay(d).pos[2] - LINE.z) < 3.5 && sampleDay(d).pos[0] > W - 4 && sampleDay(d).pos[0] < E + 4) nearLine.push(d);
+  const inWindow = (d: number) => crossings().windows.some((w) => d > w.a && d < w.b);
+  /** He touches the car at day distance d, going either way along his route. */
+  const touches = (d: number, s: number) => {
+    const { pos } = sampleDay(d);
+    if (Math.abs(pos[0] - s) > 4) return false;
+    const solids = carAt(s);
+    return [1, -1].some((dir) => hit(pos, facing(d, dir as 1 | -1, 0), solids) !== null);
+  };
+
+  it("meets him nowhere outside the crossing windows it knows, wherever on its run it is", { timeout: 60_000 }, () => {
+    expect(nearLine.length).toBeGreaterThan(100);
+    const misses: string[] = [];
+    for (const d of nearLine) {
+      if (inWindow(d)) continue;
+      for (let s = W; s <= E + 1e-9; s += 0.1) if (touches(d, s)) misses.push(`${at(d)} with the car at ${s.toFixed(1)}`);
+    }
+    expect(misses.slice(0, 5)).toEqual([]);
+  });
+
+  it("yields: for every point on his routes and every way the car can come at him there, it stops short", { timeout: 120_000 }, () => {
+    const { spans, windows } = crossings();
+    const misses = new Set<string>();
+    // only near his crossings can the car touch him at all (the test above)
+    const near = nearLine.filter((d, i) => i % 5 === 0 && windows.some((w) => d > w.a - 4 && d < w.b + 4));
+    expect(near.length).toBeGreaterThan(50);
+    for (const d of near) {
+      const { pos } = sampleDay(d);
+      const headings = [facing(d, 1, 0), facing(d, -1, 0)];
+      const touchesHere = (s: number) => Math.abs(pos[0] - s) < 4 && headings.some((h) => hit(pos, h, carAt(s)) !== null);
+      // the crossings he is at or near: the car cannot be inside one unless it got there first (then he waits)
+      const close = [...new Set(windows.filter((w) => d > w.a - 4 && d < w.b + 4).map((w) => w.span))];
+      for (let s = W; s <= E + 1e-9; s += 0.5) {
+        if (touchesHere(s) || close.some((k) => s > spans[k].s0 && s < spans[k].s1)) continue;
+        for (const dir of [1, -1] as const) {
+          for (const v of [0, 0.8, 1.6]) {
+            // coming at him, it has room to brake before his crossing (or it would have stopped already)
+            const entry = close.map((k) => (dir > 0 ? spans[k].s0 - s : s - spans[k].s1)).filter((e) => e >= 0);
+            if (entry.some((e) => e < (v * v) / (2 * BRAKE) + 0.05)) continue;
+            let next = -1;
+            LINE.stops.forEach((x, i) => {
+              if ((x - s) * dir > 1e-6 && (next < 0 || (x - LINE.stops[next]) * dir < 0)) next = i;
+            });
+            if (next < 0) continue;
+            const car: CableCar = { ...startCar(), s, v, dir, at: -1, next };
+            for (let t = 0; t < 10; t += 1 / 20) {
+              stepCar(car, 1 / 20, { d, target: d }, false);
+              if (touchesHere(car.s)) {
+                misses.add(`${at(d)}: car from ${s.toFixed(1)} going ${dir > 0 ? "east" : "west"} at ${v}`);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+    expect([...misses].slice(0, 5)).toEqual([]);
+  });
+
+  it("over a whole scroll from any chapter to any other, wherever the car is on its run: he waits at the kerb at worst, never inside it", { timeout: 120_000 }, () => {
+    const misses = new Set<string>();
+    let waited = 0;
+    let [speedUp, slowDown] = [0, 0]; // it yields smoothly too
+    for (let from = 0; from < chapters.length; from++) {
+      for (let to = 0; to < chapters.length; to++) {
+        if (to === from) continue;
+        const start = dayDistance(from, 0);
+        const target = dayDistance(to, 0);
+        // How long he takes with no cable car in the way.
+        let free = 0;
+        for (let d = start; Math.abs(target - d) > 1e-6 && free < 120; free += 1 / 20) d = walkOn(d, target, 1 / 20);
+        for (let phase = 0; phase < 64; phase += 2) {
+          const car = startCar();
+          for (let t = 0; t < phase; t += 1 / 20) stepCar(car, 1 / 20, { d: start, target: start }, holdsAtUnion(from, "story"));
+          let d = start;
+          let t = 0;
+          for (; t < free + 12 && Math.abs(target - d) > 1e-6; t += 1 / 20) {
+            // Each reads where the other was last frame (whichever of them draws first).
+            const before: CableCar = { ...car };
+            stepCar(car, 1 / 20, { d, target }, holdsAtUnion(to, "story"));
+            [speedUp, slowDown] = [Math.max(speedUp, (car.v - before.v) * 20), Math.max(slowDown, (before.v - car.v) * 20)];
+            d = cusoMayGo(d, walkOn(d, target, 1 / 20), before);
+            if (touches(d, car.s)) misses.add(`${chapters[from].id} to ${chapters[to].id}, car ${phase} s in: at ${at(d)} with the car at ${car.s.toFixed(2)}`);
+          }
+          expect(Math.abs(target - d), `${chapters[from].id} to ${chapters[to].id}, car ${phase} s in: he gets there`).toBeLessThan(1e-6);
+          waited = Math.max(waited, t - free);
+        }
+      }
+    }
+    expect([...misses].slice(0, 5)).toEqual([]);
+    expect(waited).toBeLessThan(8); // at worst a short wait at the kerb
+    expect(speedUp).toBeLessThanOrEqual(ACCEL + 1e-6);
+    expect(slowDown).toBeLessThanOrEqual(BRAKE * 1.25);
   });
 });

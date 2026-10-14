@@ -13,15 +13,14 @@ import { chapters } from "@/content/day";
 import { useCity } from "@/lib/store";
 import { travel } from "@/lib/time";
 import { Vector3, type Camera, type Group, type Mesh, type Object3D } from "three";
-import { SPEED, STRIDE, pose } from "./gait";
+import { STRIDE, pose } from "./gait";
+import { cusoMayGo, unionCar } from "./cable-line";
 import { SCALE, rigCuso } from "./rig";
-import { DAY_LENGTH, PATHS, dayDistance, sampleDay } from "./routes";
+import { PATHS, TELEPORT, dayDistance, sampleDay, walkOn } from "./routes";
 import { damp, overlays, rig } from "./shared";
 
 export const CUSO_URL = "/models/cuso.glb";
 const FEET = 0.1524 * SCALE;
-/** Further than this behind the scroll, he blinks there instead of walking. */
-const TELEPORT = 70;
 
 function angleDamp(from: number, to: number, k: number) {
   const d = Math.atan2(Math.sin(to - from), Math.cos(to - from));
@@ -60,18 +59,16 @@ export function Cuso() {
     const tr = travel(state.progress, chapters.length);
     const target = dayDistance(tr.from, tr.from === tr.to ? 0 : tr.t);
     if (m.d < 0) m.d = target;
-    let gap = target - m.d;
-    if (Math.abs(gap) > TELEPORT) {
-      m.d = target;
-      m.popAt = time;
-      gap = 0;
-    }
-    const here = sampleDay(m.d);
-    const speed = Math.min(SPEED[here.mode], Math.abs(gap) * 3 + 0.6);
-    const step = Math.sign(gap) * Math.min(Math.abs(gap), speed * dt);
-    m.d = Math.min(DAY_LENGTH, Math.max(0, m.d + step));
+    const gap = target - m.d;
+    const blinked = Math.abs(gap) > TELEPORT;
+    if (blinked) m.popAt = time;
+    // He waits at the kerb while the Union Square cable car is across his way.
+    const free = walkOn(m.d, target, dt);
+    const next = cusoMayGo(m.d, free, unionCar);
+    const step = blinked ? 0 : next - m.d;
+    m.d = next;
     const now = sampleDay(m.d);
-    const moving = Math.abs(gap) > 0.02;
+    const moving = !blinked && next === free && Math.abs(gap) > 0.02;
 
     // Feet follow the distance walked, so they never slide.
     if (now.mode === "walk") m.phase += (Math.abs(step) / STRIDE) * Math.PI * 2;

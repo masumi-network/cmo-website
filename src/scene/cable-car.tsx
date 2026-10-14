@@ -15,8 +15,11 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { surfaceAt } from "@/lib/terrain";
 import { useBrand, useGlow, type V3 } from "./parts";
-import { useNightGlow } from "./shared";
+import { detail, useNightGlow } from "./shared";
 import { useSign } from "./textures";
+import { GAUGE } from "./grid";
+
+export { GAUGE };
 
 // Car layout in local units: x along the rails, y up, z across. The car's
 // origin is on the street between the rails.
@@ -36,7 +39,6 @@ const ROOF = 2.42; // roof half-length (overhangs the dash)
 const ROOF_W = 0.93; // roof half-width (overhangs the sides)
 const STEP = 0.34; // running board top
 const STEP_OUT = 1.02; // running board outer edge
-export const GAUGE = 0.84;
 
 /** Size of the car, for placement. `step` is a spot on the running board (+x end, +z side). */
 export const CAR = {
@@ -305,7 +307,8 @@ function ground(x: number, z: number) {
   return { y: (a + b) / 2, tilt: Math.atan2(b - a, 2.6) };
 }
 
-export function CableCar({ p }: { p: V3 }) {
+/** The car itself, its origin on the street between the rails. `moving`: kept out of reflections (they would show it where it was). */
+export function CarModel({ moving = false }: { moving?: boolean }) {
   const m = paints();
   const parts = (carParts ??= carGeometry());
   const panel = useSign(useBrand(), { bg: "#f3e8cf", fg: "#6b2a1f", width: 1536, panel: ROUTE_BOARD });
@@ -316,15 +319,25 @@ export function CableCar({ p }: { p: V3 }) {
   const boardMat = useMemo(() => new MeshStandardMaterial({ map: panel, roughness: 0.5, emissive: "#ffffff", emissiveMap: panel, emissiveIntensity: 0 }), [panel]);
   useNightGlow(boardMat, 0.35); // the route board is lit at night, so the brand still reads
   useEffect(() => () => boardMat.dispose(), [boardMat]);
+  const layer = moving ? detail : undefined;
+  return (
+    <>
+      {SOLID.map((k) => (
+        <mesh key={k} ref={layer} geometry={parts[k]} material={m[k]} castShadow receiveShadow />
+      ))}
+      <mesh ref={layer} geometry={parts.glass} material={glass} />
+      <mesh ref={layer} geometry={parts.lamp} material={lamp} />
+      <mesh ref={layer} geometry={parts.board} material={boardMat} receiveShadow />
+    </>
+  );
+}
+
+/** A car standing at p on the street, pitched with it. */
+export function CableCar({ p }: { p: V3 }) {
   const rest = ground(p[0], p[2]);
   return (
     <group position={[p[0], p[1] + rest.y, p[2]]} rotation-z={rest.tilt}>
-      {SOLID.map((k) => (
-        <mesh key={k} geometry={parts[k]} material={m[k]} castShadow receiveShadow />
-      ))}
-      <mesh geometry={parts.glass} material={glass} />
-      <mesh geometry={parts.lamp} material={lamp} />
-      <mesh geometry={parts.board} material={boardMat} receiveShadow />
+      <CarModel />
     </group>
   );
 }

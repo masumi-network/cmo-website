@@ -8,15 +8,20 @@
 // billboard on a steel truss, with a catwalk and gooseneck lamps, shows the
 // visitor's ad. West of it, a corner of the square with the Dewey Monument.
 // Behind the display windows, lit showcases; behind the corner doors, a
-// lobby. The cable car waits below. Six draw calls: building, steel, lamp
+// lobby. The cable car runs its line below (cable-line.ts). Six draw calls: building, steel, lamp
 // glow, ad, showcases, shop glass.
 
 import { useFrame } from "@react-three/fiber";
-import { useMemo } from "react";
-import { AdditiveBlending, BoxGeometry, BufferGeometry, CircleGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, LatheGeometry, Matrix4, MeshBasicMaterial, MeshStandardMaterial, OctahedronGeometry, PlaneGeometry, Quaternion, SphereGeometry, TorusGeometry, Vector2, Vector3 } from "three";
+import { useMemo, useRef } from "react";
+import { AdditiveBlending, BoxGeometry, BufferGeometry, type Group, CircleGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, LatheGeometry, Matrix4, MeshBasicMaterial, MeshStandardMaterial, OctahedronGeometry, PlaneGeometry, Quaternion, SphereGeometry, TorusGeometry, Vector2, Vector3 } from "three";
 import { heightAt } from "@/lib/terrain";
-import { rig, useInterior, useNightGlow } from "./shared";
-import { CableCar, Rails } from "./cable-car";
+import { damp, rig, useInterior, useNightGlow } from "./shared";
+import { CarModel, Rails } from "./cable-car";
+import { LINE, carGround, holdsAtUnion, stepCar, unionCar, type CusoAt } from "./cable-line";
+import { chapters } from "@/content/day";
+import { useCity } from "@/lib/store";
+import { travel } from "@/lib/time";
+import { LEG_START, dayDistance } from "./routes";
 import { PALETTES, SLOT, builder, moulding, palette, sides, type Box2, type Builder, type Frame, type L3, type P2, type Rect, type Span } from "./house-models";
 import { box, cyl, merged, placed, useLandmarkTextures } from "./landmark-kit";
 import { houseMaterial, glassMaterial } from "./materials";
@@ -50,7 +55,7 @@ export const UNION = {
   /** The Dewey Monument in the square, west of the building: its base is `base` square. */
   monument: { x: 1.5, z: 9, base: 1.5, top: 4.75 },
 };
-/** The cable car parked below Union Square, between the two places Cuso crosses its rails (x -1.4 and 5.6). */
+/** The cable car's Union Square stop, between the two places Cuso crosses its rails (x -1.4 and 5.6): where the 12:00 shot has it. */
 export const UNION_CAR = { p: [2.1, 0, 14] as V3 };
 
 /** The billboard's ad face in world units [width, height]; its canvas follows the same shape. */
@@ -639,6 +644,7 @@ export function UnionSquare() {
   const adMat = useMemo(() => new MeshStandardMaterial({ map: ad, roughness: 0.6, emissive: "#ffffff", emissiveMap: ad, emissiveIntensity: 0.15, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), [ad]);
   useNightGlow(adMat, 0.75, 0.15);
   return (
+    <>
     <group position-y={heightAt(7, 9)}>
       <mesh geometry={building} material={paint} castShadow receiveShadow />
       <mesh geometry={steelGeometry} material={steel} castShadow receiveShadow />
@@ -648,9 +654,40 @@ export function UnionSquare() {
       <mesh position={[BOARD.x, BOARD.y, FACE_Z]} material={adMat}>
         <planeGeometry args={AD_PANEL} />
       </mesh>
-      {/* shuttles west of the Bay Bridge ramp */}
-      <Rails x0={-2.5} x1={8} z={14} />
-      <CableCar p={UNION_CAR.p} />
+    </group>
+    {/* its cable line runs along the street below, west of the Bay Bridge ramp */}
+    <Rails x0={LINE.rails[0]} x1={LINE.rails[1]} z={LINE.z} />
+    <RunningCar />
+    </>
+  );
+}
+
+const cuso: CusoAt = { d: 0, target: 0 };
+const pose = { y: 0, tilt: 0 };
+
+/** The Union Square cable car on its run (cable-line.ts): one moving group. */
+function RunningCar() {
+  const ref = useRef<Group>(null);
+  const nod = useRef(0);
+  useFrame((_, dt) => {
+    const g = ref.current;
+    if (!g) return;
+    const { progress, mode } = useCity.getState();
+    const tr = travel(progress, chapters.length);
+    cuso.d = LEG_START[rig.travel.leg] + rig.travel.s;
+    cuso.target = dayDistance(tr.from, tr.from === tr.to ? 0 : tr.t);
+    const v = unionCar.v;
+    stepCar(unionCar, dt, cuso, holdsAtUnion(progress, mode));
+    // the body sits back a touch as the grip takes the cable and nods as the brakes bite
+    const a = dt > 0 ? (unionCar.v - v) / Math.min(dt, 0.1) : 0;
+    nod.current += (a - nod.current) * damp(5, dt);
+    carGround(unionCar.s, pose);
+    g.position.set(unionCar.s, pose.y, LINE.z);
+    g.rotation.z = pose.tilt + nod.current * 0.012 * unionCar.dir;
+  });
+  return (
+    <group ref={ref} position={[UNION_CAR.p[0], 0, UNION_CAR.p[2]]}>
+      <CarModel moving />
     </group>
   );
 }

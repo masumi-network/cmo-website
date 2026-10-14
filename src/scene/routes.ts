@@ -9,6 +9,7 @@
 
 import { chapters, type ChapterId, type Vec3 } from "@/content/day";
 import { surfaceAt } from "@/lib/terrain";
+import { SPEED } from "./gait";
 import { STREET, WALK_OFFSET, WALK_X, WALK_Z, X_STREETS, Z_STREETS, streetDrop } from "./grid";
 
 export type Mode = "walk" | "dash" | "jump";
@@ -230,4 +231,19 @@ export function sampleDay(distance: number): Sample & { leg: number; t: number }
   while (leg < PATHS.length - 1 && LEG_START[leg + 1] <= d) leg++;
   const t = (d - LEG_START[leg]) / PATHS[leg].length;
   return { ...samplePath(PATHS[leg], t), leg, t };
+}
+
+/** Further than this behind the scroll, he blinks there instead of walking. */
+export const TELEPORT = 70;
+
+/**
+ * Where he is `dt` seconds on from day distance `d` on his way to `target`:
+ * at the pace of the stretch he is on (walk, dash, jump), slowing as he
+ * arrives; straight there if he is more than TELEPORT behind.
+ */
+export function walkOn(d: number, target: number, dt: number) {
+  const gap = target - d;
+  if (Math.abs(gap) > TELEPORT) return target;
+  const speed = Math.min(SPEED[sampleDay(d).mode], Math.abs(gap) * 3 + 0.6);
+  return Math.min(DAY_LENGTH, Math.max(0, d + Math.sign(gap) * Math.min(Math.abs(gap), speed * dt)));
 }
