@@ -9,9 +9,10 @@ export type Mode = "story" | "explore";
 /**
  * A jump to a chapter (the rail, an Explore pin, Ask Cuso): which chapter,
  * when (seconds, performance.now() / 1000), the hour the light showed then,
- * and `cut` (reduced motion: no flight, he is already there).
+ * how long the light takes to the new hour (`time`, navigate.ts jumpTime) and
+ * `cut` (reduced motion: no flight, he is already there).
  */
-export type Jump = { index: number; at: number; hour: number; cut: boolean };
+export type Jump = { index: number; at: number; hour: number; time: number; cut: boolean };
 
 type CityState = {
   /** Scroll position in sections (2.5 = halfway through section 2). */
@@ -33,7 +34,7 @@ type CityState = {
   agree: () => void;
   say: (reply: string) => void;
   /** Land on chapter `index` now (see Jump). */
-  jumpTo: (index: number, hour: number, cut: boolean) => void;
+  jumpTo: (index: number, hour: number, time: number, cut: boolean) => void;
 };
 
 export const initialCity = {
@@ -55,5 +56,5 @@ export const useCity = create<CityState>((set) => ({
   setApproved: (approved) => set((s) => ({ approved, cheer: approved ? s.cheer + 1 : s.cheer, reply: approved ? "Done. It goes out at 9." : "" })),
   agree: () => set((s) => ({ agreed: true, cheer: s.cheer + 1, reply: "Great. Sleep well. I got this." })),
   say: (reply) => set({ reply }),
-  jumpTo: (index, hour, cut) => set({ progress: index, jump: { index, at: performance.now() / 1000, hour, cut } }),
+  jumpTo: (index, hour, time, cut) => set({ progress: index, jump: { index, at: performance.now() / 1000, hour, time, cut } }),
 }));

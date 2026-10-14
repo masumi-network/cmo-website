@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
 import { Vector3 } from "three";
 import { chapters } from "@/content/day";
 import { heightAt } from "@/lib/terrain";
-import { BOOM, PORTRAIT_FOV, boomNeed, fitBand, boomPose, follow, newBoom, newTrail, orbitLerp, stepBoom, trail } from "@/scene/camera-rig";
-import { FERRY, PYRAMID, insideBuilding, sightClear } from "@/scene/layout";
+import { ARM, BOOM, PORTRAIT_FOV, armPose, boomNeed, fitBand, boomPose, follow, newArm, newBoom, newTrail, orbitLerp, stepBoom, trail } from "@/scene/camera-rig";
+import { FERRY, PYRAMID, insideBuilding, sightClear, sightHit } from "@/scene/layout";
 import { rig } from "@/scene/shared";
 
 const v = (p: readonly number[]) => new Vector3(p[0], p[1], p[2]);
@@ -37,6 +37,27 @@ describe("line of sight", () => {
       }
     }
     expect(blocked).toBeGreaterThan(50);
+  });
+
+  it("finds where the line first meets a building: outside before it, 1 when clear", () => {
+    let seed = 11;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    let hit = 0;
+    for (let n = 0; n < 400; n++) {
+      const a = new Vector3(-20 + rnd() * 60, 0.5 + rnd() * 20, -25 + rnd() * 50);
+      const b = new Vector3(-20 + rnd() * 60, 0.5 + rnd() * 20, -25 + rnd() * 50);
+      if (insideBuilding(a.x, a.y, a.z)) continue;
+      const t = sightHit(a, b);
+      expect(t === 1).toBe(sightClear(a, b));
+      if (t === 1) continue;
+      hit++;
+      // just short of it the line is clear; just past it, inside
+      const before = a.clone().lerp(b, Math.max(0, t - 0.01));
+      expect(sightClear(a, before), `${a.toArray()} → ${b.toArray()}`).toBe(true);
+      const past = a.clone().lerp(b, Math.min(1, t + 0.01));
+      expect(sightClear(a, past)).toBe(false);
+    }
+    expect(hit).toBeGreaterThan(50);
   });
 
   it("ignores the building the eye is in (mid-jump up a wall)", () => {
@@ -227,5 +248,44 @@ describe("following the shot", () => {
     for (let i = 0; i < 4; i++) stepBoom(b, 0, 2);
     expect(b.x).toBe(0);
     expect(b.v).toBe(0);
+  });
+});
+
+describe("the arm", () => {
+  // Cuso on the street, the camera's pose inside the Union Square building (a lead cam over a roof edge, a boom out of lift)
+  const eye = new Vector3(7, heightAt(7, 4) + 1.4, 4);
+  const inside = new Vector3(7, heightAt(7, 9) + 5, 9);
+  const out = new Vector3(3, heightAt(7, 4) + 4.4, 4);
+
+  it("pulls the camera in towards him, in front of the wall, in the same frame", () => {
+    expect(insideBuilding(inside.x, inside.y, inside.z)).toBe(true);
+    const p = armPose(inside.clone(), eye, newArm(), 1 / 60);
+    expect(insideBuilding(p.x, p.y, p.z)).toBe(false);
+    expect(sightClear(eye, p)).toBe(true);
+    // on the line from his eye to where it wanted to be: same view, closer
+    const want = inside.clone().sub(eye).normalize();
+    expect(p.clone().sub(eye).normalize().dot(want)).toBeCloseTo(1, 6);
+    expect(p.distanceTo(eye)).toBeGreaterThan(1);
+  });
+
+  it("leaves a clear camera where it is", () => {
+    expect(armPose(out.clone(), eye, newArm(), 1 / 60).distanceTo(out)).toBe(0);
+  });
+
+  it.each([30, 60, 120])("eases back out once the wall is gone, with no jump, at %i fps", (fps) => {
+    const dt = 1 / fps;
+    const arm = newArm();
+    armPose(inside.clone(), eye, arm, dt);
+    expect(arm.x).toBeLessThan(0.6);
+    let prev = arm.x;
+    let worst = 0;
+    let p = new Vector3();
+    for (let t = 0; t < 6; t += dt) {
+      p = armPose(out.clone(), eye, arm, dt);
+      worst = Math.max(worst, arm.x - prev);
+      prev = arm.x;
+    }
+    expect(worst).toBeLessThan(ARM.out * dt); // a spring, never a step
+    expect(p.distanceTo(out)).toBeLessThan(1e-6);
   });
 });

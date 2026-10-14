@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { BoxGeometry, BufferGeometry, DirectionalLight, Group, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Scene, ShaderMaterial, Texture, Vector3 } from "three";
+import { BoxGeometry, BufferGeometry, Color, DirectionalLight, Float32BufferAttribute, InstancedBufferAttribute, InstancedMesh, Group, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Scene, ShaderMaterial, Texture, Vector3 } from "three";
+import { SLOTS } from "@/scene/house-models";
 import { splitScene } from "@/scene/plates";
+import { CAFE_MAT } from "@/scene/shop";
 import { traceInfo } from "@/scene/trace-info";
 import { TRACE_LAYER, buildTwins } from "@/scene/traced";
 
@@ -129,6 +131,76 @@ describe("traced twins", () => {
     for (const part of group.children as Mesh[]) {
       expect(part.material).toBe(rock);
       expect(part.geometry.index!.count).toBe(6); // one side: two triangles
+    }
+  });
+
+  it("paints an instanced house in its own instance's palette (the shop's shell traced blue, not cream)", () => {
+    const n = SLOTS.length;
+    const palette = new Float32Array(2 * n * 3);
+    palette.fill(0.2, 0, n * 3); // palette 0: dark
+    palette.fill(0.8, n * 3); // palette 1: light
+    const material = new MeshStandardMaterial();
+    traceInfo.set(material, { kind: "house", siding: new Texture(), shingles: new Texture(), palette });
+    const geometry = new BoxGeometry();
+    geometry.setAttribute("aSlot", new Float32BufferAttribute(new Float32Array(geometry.attributes.position.count).fill(SLOTS.indexOf("trim")), 1));
+    geometry.setAttribute("aPalette", new InstancedBufferAttribute(new Float32Array([1]), 1));
+    const shell = new InstancedMesh(geometry, material, 1);
+    const scene = new Scene();
+    scene.add(shell);
+
+    const { group } = buildTwins(scene);
+    const col = (group.children[0] as Mesh).geometry.attributes.color;
+    for (let i = 0; i < col.count; i++) expect(col.getX(i)).toBeCloseTo(0.8);
+  });
+
+  it("stands the shop's painted parts in with their vertex colours, glowing only where the shader lets them", () => {
+    const material = new MeshStandardMaterial({ vertexColors: true, emissive: "#ffc98c", emissiveIntensity: 0.45 });
+    traceInfo.set(material, { kind: "painted", atlas: { value: null } });
+    const part = (glow: number, mat: number, hex: string) => {
+      const g = new BoxGeometry();
+      const count = g.attributes.position.count;
+      const c = new Color(hex);
+      g.setAttribute("color", new Float32BufferAttribute(Array.from({ length: count }, () => [c.r, c.g, c.b]).flat(), 3));
+      g.setAttribute("aGlow", new Float32BufferAttribute(new Float32Array(count).fill(glow), 1));
+      g.setAttribute("aMat", new Float32BufferAttribute(new Float32Array(count).fill(mat), 1));
+      return g;
+    };
+    const frame = new Mesh(part(0, CAFE_MAT.plain, "#2f5141"), material);
+    const handle = new Mesh(part(0, CAFE_MAT.chrome, "#d9dcde"), material);
+    const bulb = new Mesh(part(3, CAFE_MAT.plain, "#fff1d8"), material);
+    const scene = new Scene();
+    scene.add(frame, handle, bulb);
+
+    const { group, originals } = buildTwins(scene);
+    expect(originals).toEqual([frame, handle, bulb]);
+    const twins = group.children as Mesh[];
+    const of = (m: (t: MeshStandardMaterial) => boolean) => twins.find((t) => m(t.material as MeshStandardMaterial))!;
+    // the green frame keeps its colour and does not glow (it traced flat tan before)
+    const green = of((t) => t.metalness === 0 && t.emissiveIntensity === 0);
+    expect(green.geometry.attributes.color.getX(0)).toBeCloseTo(new Color("#2f5141").r);
+    expect(of((t) => t.metalness === 1).geometry.attributes.position.count).toBe(36);
+    // the bulb glows: the material's emissive, times its glow, times its paint
+    const lit = of((t) => t.emissiveIntensity > 0).material as MeshStandardMaterial;
+    expect(lit.emissiveIntensity).toBeCloseTo(0.45 * 3);
+    expect(lit.emissive.r).toBeCloseTo(new Color("#ffc98c").r * new Color("#fff1d8").r);
+  });
+
+  it("turns a line into a tube whose sides face out (inward ones traced the red suspenders dark brown)", () => {
+    const g = new BufferGeometry();
+    g.setAttribute("position", new Float32BufferAttribute([2, 0, 0, 2, 5, 1], 3));
+    const scene = new Scene();
+    scene.add(new LineSegments(g, new LineBasicMaterial({ color: "#c0362c" })));
+
+    const tube = buildTwins(scene).group.children[0] as Mesh;
+    const pos = tube.geometry.attributes.position;
+    const nrm = tube.geometry.attributes.normal;
+    const axis = new Vector3(0, 5, 1).normalize();
+    const p = new Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      // from the axis to the vertex, and the normal: the same way
+      p.fromBufferAttribute(pos, i).sub(new Vector3(2, 0, 0));
+      p.addScaledVector(axis, -p.dot(axis));
+      expect(p.dot(new Vector3().fromBufferAttribute(nrm, i))).toBeGreaterThan(0);
     }
   });
 

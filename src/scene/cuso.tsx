@@ -74,7 +74,10 @@ export function Cuso() {
     }
     const gap = target - m.d;
     const blinked = Math.abs(gap) > TELEPORT;
-    if (blinked) m.popAt = time;
+    if (blinked) {
+      m.popAt = time;
+      rig.blinks++;
+    }
     // He waits at the kerb while the Union Square cable car is across his way.
     const free = walkOn(m.d, target, dt);
     const next = cusoMayGo(m.d, free, unionCar);

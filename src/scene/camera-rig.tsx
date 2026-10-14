@@ -11,7 +11,8 @@ import { chapters, overview } from "@/content/day";
 import { jumpEase } from "@/lib/navigate";
 import { usePan } from "@/lib/pan";
 import { useCity } from "@/lib/store";
-import { insideBuilding, roofAt, sightClear } from "./layout";
+import { type Plan, flightPlan, flightPoint, flightTime } from "./flight";
+import { insideBuilding, sightClear, sightHit } from "./layout";
 import { damp, dayNow, overlays, rig, setLerp } from "./shared";
 import { newSettle, settle } from "@/lib/plates";
 
@@ -138,6 +139,32 @@ export function stepBoom(b: Boom, need: number, dt: number) {
 }
 
 /**
+ * The arm: the boom frames Cuso, the arm is the guarantee. If a building
+ * still stands between his eye and the camera (the boom lags a dash, cannot
+ * lift over a tall block, or the camera trails a blink), the camera comes in
+ * along that line to just short of the wall, in the same frame, and eases
+ * back out once clear. `x` is how much of the line it may use (0..1).
+ */
+export const ARM = {
+  /** Spring rate (1/s) back out. */
+  out: 3,
+  /** Room it keeps short of the wall's air (units). */
+  gap: 0.05,
+};
+export const newArm = () => ({ x: 1, v: 0 });
+
+/** `cam` drawn in towards `eye` as far as the arm `a` allows this frame. Writes and returns `cam`. */
+export function armPose(cam: Vector3, eye: Vector3, a: { x: number; v: number }, dt: number) {
+  const hit = sightHit(eye, cam);
+  const reach = hit < 1 ? Math.max(0, hit - ARM.gap / Math.max(cam.distanceTo(eye), 1e-6)) : 1;
+  if (reach < a.x) {
+    a.x = reach;
+    a.v = 0;
+  } else spring(a, reach, ARM.out, dt);
+  return a.x < 1 ? cam.lerpVectors(eye, cam, a.x) : cam;
+}
+
+/**
  * One step of a critically damped spring (exact for any dt, so a slow frame
  * is a big step, not a stall): `s.x` heads for `goal` at rate `w`, `s.v` its
  * speed. Close enough, it stops dead (Explore's pins must stand still).
@@ -168,49 +195,14 @@ export function follow(p: Vector3, v: Vector3, goal: Vector3, w: number, dt: num
 }
 
 type Pose = { pos: Vector3; tgt: Vector3 };
-/** How a flight goes: `lift`, how high its arc goes mid-way; `hold`, the part of it spent rising before it sets off (and coming down at the end). */
-export type Plan = { lift: number; hold: number };
-/** A rail jump's camera flight, from where the camera was (or from a flight still under way: a second click). Planned on its first frame. */
-export type Flight = { t0: number; from: Pose | { flight: Flight; to: Pose }; at: Pose; plan: Plan | null };
+/** A rail jump's camera flight, from where the camera was (or from a flight still under way: a second click). Planned and timed on its first frame. */
+export type Flight = { t0: number; from: Pose | { flight: Flight; to: Pose }; at: Pose; plan: Plan | null; time: number };
 const clonePose = (p: Pose): Pose => ({ pos: p.pos.clone(), tgt: p.tgt.clone() });
-/** The arc lifts a fifth of the way it flies, at most this, unless a building is in the way. */
-const FLIGHT_LIFT = 16;
-/** Room it keeps over the roofs it flies across. */
-const OVER_ROOFS = 3;
-const smootherstep = (x: number) => {
-  const t = Math.min(1, Math.max(0, x));
-  return t * t * t * (t * (t * 6 - 15) + 10);
-};
-
-/** Where a flight from `a` to `b` is at u (0..1, eased): across by `hold`-delayed progress, up by the arc. */
-function flightPoint(out: Vector3, a: Vector3, b: Vector3, u: number, { lift, hold }: Plan) {
-  out.lerpVectors(a, b, smootherstep((u - hold) / (1 - 2 * hold)));
-  out.y = a.y + (b.y - a.y) * u + lift * Math.sin(Math.PI * u);
-  return out;
-}
-
-/**
- * The calmest flight from `a` to `b` that passes over every roof between: a
- * gentle arc if it can, else a higher one, else one that rises first (a tall
- * tower right beside the start).
- */
-export function flightPlan(a: Vector3, b: Vector3): Plan {
-  const gentle = Math.min(FLIGHT_LIFT, a.distanceTo(b) * 0.2);
-  for (const hold of [0, 0.12, 0.24]) {
-    const plan = { lift: gentle, hold };
-    for (let u = 0.02; u < 0.99; u += 0.02) {
-      const p = flightPoint(lifted, a, b, u, { lift: 0, hold });
-      plan.lift = Math.max(plan.lift, (roofAt(p.x, p.z, 3) + OVER_ROOFS - p.y) / Math.sin(Math.PI * u));
-    }
-    if (plan.lift <= 40) return plan;
-  }
-  return { lift: 40, hold: 0.24 };
-}
 
 /** Start a flight at `t0` from pose `from`, or on from `flight` (still on its way to `to`). */
 export function startFlight(from: Pose | Flight, t0: number, to?: Pose): Flight {
   const at = { pos: new Vector3(), tgt: new Vector3() };
-  return { t0, from: "t0" in from ? { flight: from, to: clonePose(to ?? from.at) } : clonePose(from), at, plan: null };
+  return { t0, time: 0, from: "t0" in from ? { flight: from, to: clonePose(to ?? from.at) } : clonePose(from), at, plan: null };
 }
 
 /** Where the flight is at `now` on its way to the live shot `to` (eased, with a gentle lift). Writes `out`, returns how far (0..1). */
@@ -220,11 +212,15 @@ export function flyAt(f: Flight, now: number, to: Pose, out: Pose): number {
     const old = f.from;
     flyAt(old.flight, now, old.to, f.at);
     start = f.at;
-    if (jumpEase(old.flight.t0, now) >= 1) f.from = clonePose(old.to);
+    if (now - old.flight.t0 >= old.flight.time) f.from = clonePose(old.to);
   } else start = f.from;
-  const u = jumpEase(f.t0, now);
-  f.plan ??= flightPlan(start.pos, to.pos);
-  flightPoint(out.pos, start.pos, to.pos, u, f.plan);
+  if (!f.plan) {
+    f.plan = flightPlan(start.pos, to.pos);
+    f.time = flightTime(start.pos, to.pos, f.plan);
+  }
+  const t = Math.min(1, Math.max(0, (now - f.t0) / f.time));
+  const u = jumpEase(f.t0, now, f.time);
+  flightPoint(out.pos, start.pos, to.pos, t, f.plan);
   // the aim rises with it: it glides over the roofs looking ahead, not down at the street
   out.tgt.lerpVectors(start.tgt, to.tgt, u).y += f.plan.lift * Math.sin(Math.PI * u) * 0.85;
   return u;
@@ -388,8 +384,10 @@ export function CameraRig() {
     eyeT: newTrail(),
     slide: 0,
     boom: newBoom(),
+    arm: newArm(),
     flight: null as Flight | null,
     jumpAt: -1,
+    blinks: 0,
     /** The chapter a rail jump landed on: its shot holds (no lead cam) until the page scrolls away. */
     held: -1,
     /** Photo-real mode: gliding onto a plate's view at rest (lib/plates.ts). */
@@ -426,6 +424,15 @@ export function CameraRig() {
       }
       r.flight = jump.cut || !r.base ? null : r.flight ? startFlight(r.flight, jump.at, live) : startFlight({ pos: r.base, tgt: r.look }, jump.at);
       if (jump.cut) r.base = null;
+    }
+    // He blinked ahead: fly after him over the roofs, like a rail jump (eased, the camera crossed the blocks between).
+    if (rig.blinks !== r.blinks) {
+      r.blinks = rig.blinks;
+      if (r.base && !r.flight && day.mode !== "explore") {
+        r.base.copy(camera.position);
+        Object.assign(r.boom, newBoom());
+        r.flight = startFlight({ pos: r.base, tgt: r.look }, now);
+      }
     }
     if (r.held >= 0 && (Math.abs(progress - r.held) > 0.01 || day.mode === "explore")) r.held = -1;
 
@@ -522,6 +529,8 @@ export function CameraRig() {
     }
     stepBoom(r.boom, need, dt);
     boomPose(camera.position, eye, r.base, r.boom.x);
+    // mid-flight he is at the far end: the flight keeps over the roofs itself
+    if (day.mode !== "explore" && !PIN && rig.placed && !r.flight) armPose(camera.position, eye, r.arm, dt);
     // swung in close, it looks at him (the shot's aim is past him: he would drop out of the bottom)
     rig.target.lerpVectors(r.look, tmp.copy(eye).setY(eye.y - 0.4), Math.min(1, Math.max(0, r.boom.x) * 2));
     camera.lookAt(rig.target);

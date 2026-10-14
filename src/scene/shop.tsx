@@ -23,6 +23,7 @@ import { Instances, useBrand, type V3 } from "./parts";
 import { LIVE, useInterior, useNightGlow } from "./shared";
 import { Lamps } from "./street";
 import { useSign } from "./textures";
+import { traceInfo } from "./trace-info";
 
 /** The sign face in world units [width, height]; its canvas follows the same shape. */
 export const SHOP_SIGN = [6.8, 0.8] as const;
@@ -926,6 +927,7 @@ const glslList = (list: number[][]) => list.map((v) => `vec${v.length}(${v.map((
 function paintedMaterial(atlas: { value: Texture | null }) {
   const M = CAFE_MAT;
   const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.7, emissive: "#ffc98c", emissiveIntensity: 0 });
+  traceInfo.set(m, { kind: "painted", atlas });
   m.customProgramCacheKey = () => "shop-painted";
   m.onBeforeCompile = (s) => {
     s.uniforms.uNight = facadeNight;

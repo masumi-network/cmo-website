@@ -5,23 +5,24 @@
 // textures get UVs projected the same way the shaders do it. Twins are in world
 // space (instances expanded), on a layer only the tracer sees.
 
-import { BufferGeometry, Color, Float32BufferAttribute, Group, Matrix3, Matrix4, Mesh, MeshStandardMaterial, type LineBasicMaterial, type LineSegments, type Material, type Texture, Vector2, Vector3, type InstancedMesh, type Object3D } from "three";
+import { BufferGeometry, Color, Float32BufferAttribute, Group, Matrix3, Matrix4, Mesh, MeshStandardMaterial, type LineBasicMaterial, type LineSegments, type Material, type Texture, Vector2, Vector3, type InstancedBufferAttribute, type InstancedMesh, type Object3D } from "three";
 import { SLOT, SLOTS } from "./house-models";
+import { CAFE_MAT } from "./shop";
 import { traceInfo, type TraceInfo } from "./trace-info";
 
 /** A layer no WebGL camera renders: the tracer ignores layers, so twins show only there. */
 export const TRACE_LAYER = 31;
 
-type Tri = { p: Vector3[]; n: Vector3[]; i: number[]; face: Vector3 };
+type Tri = { p: Vector3[]; n: Vector3[]; i: number[]; face: Vector3; k: number };
 type Out = { uv?: [number, number][]; color: Color | Color[] };
 type Bucket = { material: MeshStandardMaterial; pos: number[]; nrm: number[]; uv: number[]; col: number[] };
 
-const tri: Tri = { p: [new Vector3(), new Vector3(), new Vector3()], n: [new Vector3(), new Vector3(), new Vector3()], i: [0, 0, 0], face: new Vector3() };
+const tri: Tri = { p: [new Vector3(), new Vector3(), new Vector3()], n: [new Vector3(), new Vector3(), new Vector3()], i: [0, 0, 0], face: new Vector3(), k: 0 };
 const m4 = new Matrix4();
 const n3 = new Matrix3();
 const im = new Matrix4();
 
-/** Calls `fn` for every triangle of the mesh in world space, once per instance. */
+/** Calls `fn` for every triangle of the mesh in world space, once per instance (`k`). */
 function eachTriangle(mesh: Mesh, fn: (t: Tri) => void) {
   const g = mesh.geometry;
   const pos = g.attributes.position;
@@ -33,6 +34,7 @@ function eachTriangle(mesh: Mesh, fn: (t: Tri) => void) {
     m4.copy(mesh.matrixWorld);
     if ((mesh as InstancedMesh).isInstancedMesh) m4.multiply(((mesh as InstancedMesh).getMatrixAt(k, im), im));
     n3.getNormalMatrix(m4);
+    tri.k = k;
     for (let f = 0; f + 2 < count; f += 3) {
       for (let v = 0; v < 3; v++) {
         const i = index ? index.getX(f + v) : f + v;
@@ -46,6 +48,23 @@ function eachTriangle(mesh: Mesh, fn: (t: Tri) => void) {
     }
   }
 }
+
+/** The painted shader's surfaces (shop.tsx CAFE_MAT) as roughness and metalness. */
+const SURFACES: Partial<Record<number, Partial<MeshStandardMaterial>>> = {
+  [CAFE_MAT.wood]: { roughness: 0.38 },
+  [CAFE_MAT.floor]: { roughness: 0.35 },
+  [CAFE_MAT.tile]: { roughness: 0.15 },
+  [CAFE_MAT.tin]: { roughness: 0.4, metalness: 0.25 },
+  [CAFE_MAT.marble]: { roughness: 0.18 },
+  [CAFE_MAT.glaze]: { roughness: 0.16 },
+  [CAFE_MAT.chrome]: { roughness: 0.12, metalness: 1 },
+  [CAFE_MAT.leather]: { roughness: 0.42 },
+  [CAFE_MAT.plaster]: { roughness: 0.92 },
+  [CAFE_MAT.metal]: { roughness: 0.35, metalness: 0.6 },
+  [CAFE_MAT.boards]: { roughness: 0.5 },
+  [CAFE_MAT.leaf]: { roughness: 0.45 },
+  [CAFE_MAT.art]: { roughness: 0.85 },
+};
 
 const t2 = new Vector2();
 /** Distance along a wall, horizontally, whichever way the wall faces (as the shaders' `fAlong`). */
@@ -91,7 +110,8 @@ function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>): Mesh[
     const c = new Color();
     eachTriangle(mesh, (t) => {
       const s = Math.round(slot?.getX(t.i[0]) ?? 0);
-      const o = (Math.round(pal?.getX(t.i[0]) ?? 0) * n + s) * 3;
+      // per vertex where houses.tsx merged a district, per instance on <Instances> (the shop's shell)
+      const o = (Math.round(pal?.getX((pal as InstancedBufferAttribute).isInstancedBufferAttribute ? t.k : t.i[0]) ?? 0) * n + s) * 3;
       c.setRGB(info.palette[o], info.palette[o + 1], info.palette[o + 2]);
       const upright = Math.abs(t.face.y) < 0.5;
       if (s === SLOT.body && upright) {
@@ -121,6 +141,25 @@ function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>): Mesh[
     eachTriangle(mesh, (t) => {
       const up = Math.abs(t.face.y) < 0.5;
       put("map", plain({ map: info.map }), t, { color: c, uv: t.p.map((p) => (up ? [along(p, t.face) / 2.4, p.y / 2.4] : [p.x / 2.4, p.z / 2.4])) });
+    });
+  } else if (info.kind === "painted") {
+    // the shader's grain, tiles and baked room light stay out; the paint, the gloss and the lamps come in
+    const g = mesh.geometry.attributes;
+    const atlas = info.atlas.value;
+    eachTriangle(mesh, (t) => {
+      const mat = Math.round(g.aMat?.getX(t.i[0]) ?? 0);
+      const glow = g.aGlow?.getX(t.i[0]) ?? 0;
+      const color = t.i.map((i) => new Color().fromBufferAttribute(g.color, i));
+      const uv = t.i.map((i): [number, number] => (g.uv ? [g.uv.getX(i), g.uv.getY(i)] : [0, 0]));
+      if (glow > 1.5) {
+        // lamp shades and bulbs: the shader's emissive times glow times paint
+        const e = base.emissive.clone().multiply(color[0]);
+        put(`glow:${glow}:${e.getHexString()}`, plain({ emissive: e, emissiveIntensity: base.emissiveIntensity * glow }), t, { color });
+        return;
+      }
+      const surface = SURFACES[mat] ?? {};
+      const map = (mat === CAFE_MAT.art || mat === CAFE_MAT.leaf) && atlas ? { map: atlas, alphaTest: mat === CAFE_MAT.leaf ? 0.5 : 0 } : {};
+      put(`mat:${mat}`, plain({ ...surface, ...map, emissiveIntensity: 0 }), t, { color, uv });
     });
   } else if (info.kind === "water") {
     eachTriangle(mesh, (t) => {
@@ -191,7 +230,8 @@ function lineTwin(line: LineSegments, width: number): Mesh {
     v.crossVectors(d, u).normalize();
     for (let k = 0; k < 4; k++) {
       const [a0, a1, b0, b1] = [corner(a, k), corner(a, (k + 1) % 4), corner(b, k), corner(b, (k + 1) % 4)];
-      out.push(...a0.toArray(), ...b0.toArray(), ...a1.toArray(), ...a1.toArray(), ...b0.toArray(), ...b1.toArray());
+      // wound so each side faces out
+      out.push(...a0.toArray(), ...a1.toArray(), ...b0.toArray(), ...a1.toArray(), ...b1.toArray(), ...b0.toArray());
     }
   }
   const g = new BufferGeometry();

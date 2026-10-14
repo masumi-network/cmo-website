@@ -23,6 +23,8 @@ export const rig = {
   heading: 0,
   /** Where Cuso really is on the day (he walks at his own pace behind the scroll). */
   travel: { leg: 0, t: 0, s: 0, length: 1, moving: false },
+  /** Counts his blinks (too far behind the scroll, he pops ahead): the camera flies after him over the roofs. */
+  blinks: 0,
   /** 0 = day, 1 = night. */
   night: 0,
   /** Photo-real mode: plates ready at the chapter(s) the day is at (plates.tsx offers them). */

@@ -44,7 +44,8 @@ async function open(page, query, chapter) {
   });
   await page.goto(`${base}/?${query}`);
   await page.waitForSelector('[data-scene="ready"]', { timeout: 180_000 });
-  await page.evaluate((i) => window.scrollTo(0, (document.body.scrollHeight / 8) * i), chapter);
+  // one section per chapter (navigate.ts sectionHeight): the page is taller than 8 of them (waitlist, footer)
+  await page.evaluate((i) => window.scrollTo(0, document.querySelector("main > section").offsetHeight * i), chapter);
   await page.addStyleTag({ content: HIDE });
   await page.evaluate(
     () =>

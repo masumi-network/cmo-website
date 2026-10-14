@@ -1,11 +1,11 @@
-// Rail jumps (the time rail, Explore pins, Ask Cuso): a short camera flight to
+// Rail jumps (the time rail, Explore pins, Ask Cuso): a camera flight to
 // the chapter's shot while Cuso pops in a few steps short of his spot and
 // walks or hops the rest. Scrolling still walks the whole route.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Vector3 } from "three";
 import { chapters } from "@/content/day";
-import { JUMP_TIME, goToChapter, jumpEase, shownHour, sweepHour } from "@/lib/navigate";
+import { goToChapter, jumpEase, jumpTime, shownHour, sweepHour } from "@/lib/navigate";
 import { initialCity, useCity } from "@/lib/store";
 import { lightingAt } from "@/lib/time";
 import { crossings } from "@/scene/cable-line";
@@ -63,14 +63,32 @@ describe("where Cuso starts on a rail jump", () => {
 });
 
 describe("the jump's timing and light", () => {
-  it("eases from 0 to 1 over JUMP_TIME, with no speed at either end", () => {
-    expect(JUMP_TIME).toBeGreaterThanOrEqual(1);
-    expect(JUMP_TIME).toBeLessThanOrEqual(1.5);
-    expect(jumpEase(10, 10)).toBe(0);
-    expect(jumpEase(10, 10 + JUMP_TIME)).toBe(1);
-    expect(jumpEase(10, 99)).toBe(1);
-    expect(jumpEase(10, 10.01)).toBeLessThan(0.001);
-    expect(1 - jumpEase(10, 10 + JUMP_TIME - 0.01)).toBeLessThan(0.001);
+  it("takes longer the farther it goes: under 2 s to a neighbour, 3.6 s at most across the city", () => {
+    const shot = (i: number) => new Vector3(...chapters[i].camera.position);
+    let worst = 0;
+    for (let i = 0; i < chapters.length; i++) {
+      for (let j = 0; j < chapters.length; j++) {
+        if (i === j) continue;
+        const t = jumpTime(i, j);
+        expect(t).toBeGreaterThanOrEqual(1.6);
+        expect(t).toBeLessThanOrEqual(3.6);
+        // never a rush: the camera averages under 25 units a second
+        worst = Math.max(worst, shot(i).distanceTo(shot(j)) / t);
+      }
+    }
+    expect(worst).toBeLessThan(25);
+    expect(jumpTime(1, 2)).toBeLessThan(2); // Hayes Valley to the Mission, next door, nothing tall between
+    expect(jumpTime(6, 7)).toBeGreaterThan(2.5); // Embarcadero to Russian Hill, across town
+    expect(jumpTime(2, 3)).toBeCloseTo(jumpTime(3, 2), 6);
+  });
+
+  it("eases from 0 to 1 over its time, with no speed at either end", () => {
+    expect(jumpEase(10, 10, 2)).toBe(0);
+    expect(jumpEase(10, 12, 2)).toBe(1);
+    expect(jumpEase(10, 99, 2)).toBe(1);
+    expect(jumpEase(10, 10.01, 2)).toBeLessThan(0.001);
+    expect(1 - jumpEase(10, 11.99, 2)).toBeLessThan(0.001);
+    expect(jumpEase(10, 11, 2)).toBeCloseTo(0.5);
   });
 
   it("cross-fades the light the short way round the clock", () => {
@@ -90,10 +108,10 @@ describe("the jump's timing and light", () => {
 
   it("shows the hour the light was at when the jump began, easing to the new one", () => {
     const at = 100;
-    const s = { progress: 4, jump: { index: 4, at, hour: 12, cut: false } };
+    const s = { progress: 4, jump: { index: 4, at, hour: 12, cut: false, time: 2.4 } };
     expect(shownHour(s, at)).toBeCloseTo(12);
-    expect(shownHour(s, at + JUMP_TIME)).toBeCloseTo(15);
-    expect(shownHour(s, at + JUMP_TIME / 2)).toBeCloseTo(13.5);
+    expect(shownHour(s, at + 2.4)).toBeCloseTo(15);
+    expect(shownHour(s, at + 1.2)).toBeCloseTo(13.5);
     expect(shownHour({ ...s, jump: null }, at)).toBeCloseTo(15);
   });
 });
@@ -111,7 +129,7 @@ describe("goToChapter", () => {
     reduced(false);
     goToChapter(3);
     expect(useCity.getState().progress).toBe(3);
-    expect(useCity.getState().jump).toMatchObject({ index: 3, cut: false });
+    expect(useCity.getState().jump).toMatchObject({ index: 3, cut: false, time: jumpTime(0, 3) });
     expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ behavior: "instant" }));
   });
 
@@ -132,9 +150,9 @@ describe("the camera flight", () => {
     const out = pose(0, 0, 0);
     flyAt(f, 0, to, out);
     expect(out.pos.distanceTo(new Vector3(0, 5, 0))).toBeLessThan(1e-6);
-    flyAt(f, JUMP_TIME / 2, to, out);
+    flyAt(f, f.time / 2, to, out);
     expect(out.pos.y).toBeGreaterThan(6);
-    flyAt(f, JUMP_TIME, to, out);
+    flyAt(f, f.time, to, out);
     expect(out.pos.distanceTo(to.pos)).toBeLessThan(1e-6);
     expect(out.tgt.distanceTo(to.tgt)).toBeLessThan(1e-6);
   });
@@ -149,7 +167,7 @@ describe("the camera flight", () => {
       let to = a;
       const out = pose(0, 0, 0);
       const path: Vector3[] = [];
-      for (let t = 0; t < 3; t += dt) {
+      for (let t = 0; t < 5; t += dt) {
         if (to === a && t >= 0.6) {
           // another click at 0.6 s: fly on from wherever the first flight is
           f = startFlight(f, t, a);
@@ -174,6 +192,33 @@ describe("the camera flight", () => {
     expect(w120).toBeLessThan(2000);
   });
 
+  it("never rushes: from any chapter's shot to any other the camera stays under 60 units a second", () => {
+    // it peaked at over 200 when every jump took 1.3 s, on two eases stacked
+    const shot = (i: number, phone: boolean) => {
+      const c = phone ? chapters[i].phone : chapters[i].camera;
+      return { pos: new Vector3(...c.position), tgt: new Vector3(...c.target) };
+    };
+    const out = pose(0, 0, 0);
+    const dt = 1 / 120;
+    let worst = 0;
+    for (const phone of [false, true]) {
+      for (let i = 0; i < chapters.length; i++) {
+        for (let j = 0; j < chapters.length; j++) {
+          if (i === j) continue;
+          const f = startFlight(shot(i, phone), 0);
+          flyAt(f, 0, shot(j, phone), out);
+          let prev = shot(i, phone).pos;
+          for (let t = dt; t <= f.time + 1e-9; t += dt) {
+            flyAt(f, t, shot(j, phone), out);
+            worst = Math.max(worst, out.pos.distanceTo(prev) / dt);
+            prev = out.pos.clone();
+          }
+        }
+      }
+    }
+    expect(worst).toBeLessThan(60);
+  });
+
   it("arcs over the roofs: from any chapter's shot to any other it never enters a building", () => {
     const shot = (i: number, phone: boolean) => {
       const c = phone ? chapters[i].phone : chapters[i].camera;
@@ -186,7 +231,8 @@ describe("the camera flight", () => {
           if (i === j) continue;
           const f = startFlight(shot(i, phone), 0);
           const to = shot(j, phone);
-          for (let t = 0; t <= JUMP_TIME; t += 1 / 120) {
+          flyAt(f, 0, to, out);
+          for (let t = 0; t <= f.time; t += 1 / 120) {
             flyAt(f, t, to, out);
             expect(insideBuilding(out.pos.x, out.pos.y, out.pos.z), `${chapters[i].id} → ${chapters[j].id}${phone ? " (phone)" : ""} at ${t.toFixed(2)} s`).toBe(false);
           }

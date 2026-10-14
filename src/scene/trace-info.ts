@@ -11,6 +11,8 @@ export type TraceInfo =
   | { kind: "concrete"; map: Texture; color: Color }
   | { kind: "water"; ripples: Texture; deep: Color }
   /** Its colour is baked from its own shader (bake-ground.ts): the mask decides it per pixel. */
-  | { kind: "ground"; mask: Texture };
+  | { kind: "ground"; mask: Texture }
+  /** The shop (shop.tsx): vertex colours, `aMat` picks the surface, `aGlow` above 1.5 lights lamps; the canvas (`atlas`) for pictures and leaves. */
+  | { kind: "painted"; atlas: { value: Texture | null } };
 
 export const traceInfo = new WeakMap<Material, TraceInfo>();
