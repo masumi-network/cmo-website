@@ -91,13 +91,23 @@ function ridges(x: number, z: number) {
   }
   return h / 1.7;
 }
-/** North shore of the strait; it bends north where the bridge lands (x -80). */
-const marinShore = (x: number) => -128 - 25 * Math.exp(-(((x + 80) / 24) ** 2));
+/**
+ * North shore of the strait; it bends north where the bridge lands (x -80).
+ * Away from the bridge it runs in coves and small points: a straight shore
+ * read from the bay as the hills' mesh cut off at the water.
+ */
+const awayFromBridge = (x: number) => 1 - Math.exp(-(((x + 80) / 20) ** 2));
+const marinShore = (x: number) => {
+  const coves = (valueNoise(x / 17, 11.3) - 0.5) * 12 + (valueNoise(x / 6, 4.2) - 0.5) * 4;
+  return -128 - 25 * Math.exp(-(((x + 80) / 24) ** 2)) + awayFromBridge(x) * Math.min(coves, 5);
+};
+/** How far inland the hills take to rise from the strait: bluffs here, gentle slopes there (as built at the bridge). */
+const riseWidth = (x: number) => 34 * (1 + 0.7 * awayFromBridge(x) * (valueNoise(x / 26, 7.7) - 0.5));
 
 function rawHeadland(x: number, z: number) {
   const shore = marinShore(x);
   if (z > shore) return -1.5;
-  const t = Math.min(1, (shore - z) / 34);
+  const t = Math.min(1, (shore - z) / riseWidth(x));
   const rise = t * t * (3 - 2 * t);
   return -1.5 + rise * (5 + 20 * ridges(x, z));
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { HILLS, MAST_TOP, ROUTES, WATER_Y, bakeShore, bayGeometries, boatAt, shoreDistance, sailTrim, track, yerbaBuenaHeight } from "@/scene/bay";
 import { BAY_ANCHORS, ISLAND, ROADS, piers } from "@/scene/roads";
 import { insideLand } from "@/scene/layout";
+import { headlandHeight } from "@/lib/terrain";
 
 const shore = bakeShore();
 const tracks = ROUTES.map(track);
@@ -46,6 +47,22 @@ describe("shore distance (the water shader's foam and shallows)", () => {
     expect(shoreDistance(shore, 143, -7)).toBeLessThan(0);
     expect(shoreDistance(shore, 141.5, 4)).toBeLessThan(0); // the causeway
     expect(shoreDistance(shore, 120, -7)).toBeGreaterThan(8);
+  });
+
+  it("meets the Marin hills along the strait in coves and points, not a ruler line, and still lands the bridge", () => {
+    // Seen from the bay, a straight shore read as the hills' mesh cut off at the water.
+    const [x0, x1, z0, z1] = [-210, 70, -290, -118]; // the hills' mesh (city.tsx)
+    const shoreAt = (x: number) => {
+      for (let z = z1; z > z0; z -= 0.25) if (headlandHeight(x, z) > WATER_Y) return z;
+      return NaN;
+    };
+    for (let from = -200; from <= 30; from += 20) {
+      if (Math.abs(from + 20 + 80) < 30) continue; // the cove where the bridge lands bends anyway
+      const zs = Array.from({ length: 41 }, (_, i) => shoreAt(from + i));
+      expect(Math.max(...zs) - Math.min(...zs), `${from}..${from + 40}`).toBeGreaterThan(3);
+    }
+    expect(shoreAt(-80)).toBeCloseTo(-153.25, 0);
+    for (let x = x0; x <= x1; x += 0.5) expect(headlandHeight(x, z1), `${x},${z1}`).toBeLessThan(WATER_Y);
   });
 
   it("measures distance in world units", () => {
