@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { BoxGeometry, BufferGeometry, Color, DirectionalLight, Float32BufferAttribute, InstancedBufferAttribute, InstancedMesh, Group, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, PointLight, Scene, SphereGeometry, ShaderMaterial, Texture, Vector3 } from "three";
+import { BatchedMesh, BoxGeometry, BufferGeometry, Color, DoubleSide, DirectionalLight, Float32BufferAttribute, InstancedBufferAttribute, InstancedMesh, Group, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PointLight, Scene, SphereGeometry, ShaderMaterial, Texture, Vector3 } from "three";
 import { SLOTS } from "@/scene/house-models";
-import { splitScene } from "@/scene/plates";
+import { liveSpheres, splitScene } from "@/scene/plates";
 import { CAFE_MAT } from "@/scene/shop";
 import { traceInfo } from "@/scene/trace-info";
 import { FACADE_CELLS } from "@/scene/facade-maps";
-import { TRACE_LAYER, buildTwins, lightHousings } from "@/scene/traced";
+import { TRACE_LAYER, buildTwins, farCasters, lightHousings } from "@/scene/traced";
 import { PART } from "@/scene/towers";
 
 /** A scene like the city's: static blocks, a light, the sky dome, the fog bank, lines, glass, and live objects nested inside groups. */
@@ -51,6 +51,43 @@ describe("the scene at rest on a plate", () => {
     const { scene, fogBank, sun } = city();
     const { live, catchers, hidden } = splitScene(scene);
     for (const kept of [fogBank, sun]) expect([...live, ...catchers, ...hidden]).not.toContain(kept);
+  });
+});
+
+describe("live shadows on the plate", () => {
+  it("knows where each live object is (its bounding sphere, per instance), so their shadows stay close to them", () => {
+    const cuso = new Mesh(new SphereGeometry(1), new MeshStandardMaterial());
+    cuso.position.set(-14, 12, -13);
+    const cars = new InstancedMesh(new BoxGeometry(2, 1, 4), new MeshStandardMaterial(), 2);
+    cars.setMatrixAt(0, new Matrix4().makeTranslation(5, 0, 0));
+    cars.setMatrixAt(1, new Matrix4().makeTranslation(-5, 0, 3));
+    const group = new Group();
+    group.add(cuso, cars);
+    group.updateMatrixWorld(true);
+    const spheres = liveSpheres([group], 32);
+    expect(spheres.map((v) => [v.x, v.y, v.z].map((n) => Math.round(n)))).toEqual([[-14, 12, -13], [5, 0, 0], [-5, 0, 3]]);
+    expect(spheres[0].w).toBeCloseTo(1);
+    // as many as the shader holds, the nearest to the camera first
+    expect(liveSpheres([group], 2, new Vector3(-14, 15, -10)).map((v) => Math.round(v.x))).toEqual([-14, -5]);
+  });
+});
+
+describe("shadows in the trace", () => {
+  it("casts only from what today's sun shadow covers (the Bay Bridge streaked the city at dawn and the water at 15:00)", () => {
+    const sun = new DirectionalLight();
+    sun.castShadow = true;
+    sun.position.set(10, 30, 10);
+    sun.target.position.set(0, 0, 0);
+    Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 100 });
+    sun.shadow.camera.updateProjectionMatrix();
+    const scene = new Scene();
+    const near = new Mesh(new BoxGeometry(2, 2, 2), new MeshStandardMaterial());
+    const bridge = new Mesh(new BoxGeometry(2, 20, 2), new MeshStandardMaterial());
+    bridge.position.set(90, 10, 0);
+    const district = new Mesh(new BoxGeometry(400, 1, 400), new MeshStandardMaterial()); // reaches in: keeps casting
+    scene.add(sun, sun.target, near, bridge, district);
+    scene.updateMatrixWorld(true);
+    expect(farCasters(scene, sun)).toEqual([bridge]);
   });
 });
 
@@ -343,6 +380,42 @@ describe("traced twins", () => {
     // the shader moves its mirror image by slope x 0.6 / (depth + 8): a few pixels, not a tilt of degrees
     expect(water.normalScale.x).toBeLessThanOrEqual(0.03);
     expect(water.roughness).toBeLessThan(0.1);
+  });
+
+  it("expands batched trees into plain meshes: each instance's model, place and tint (the tracer lost the trunks)", () => {
+    const material = new MeshStandardMaterial({ map: new Texture(), vertexColors: true, alphaTest: 0.5, side: DoubleSide, roughness: 0.8 });
+    traceInfo.set(material, { kind: "batched" });
+    const small = new BoxGeometry(1, 1, 1);
+    const tall = new BoxGeometry(1, 4, 1);
+    for (const g of [small, tall]) g.setAttribute("color", new Float32BufferAttribute(new Array(g.attributes.position.count * 3).fill(0.5), 3));
+    const trees = new BatchedMesh(3, 100, 200, material);
+    const [a, b] = [trees.addGeometry(small), trees.addGeometry(tall)];
+    const place = (geometry: number, x: number, tint: number) => {
+      const i = trees.addInstance(geometry);
+      trees.setMatrixAt(i, new Matrix4().makeTranslation(x, 0, 0));
+      trees.setColorAt(i, new Color(tint, tint, tint));
+      return i;
+    };
+    place(a, 0, 1);
+    place(b, 10, 0.5);
+    trees.setVisibleAt(place(b, 20, 1), false); // hidden instances stay out
+    const scene = new Scene();
+    scene.add(trees);
+
+    const { group, originals } = buildTwins(scene);
+    expect(originals).toEqual([trees]);
+    const twin = group.children[0] as Mesh;
+    const m = twin.material as MeshStandardMaterial;
+    expect([m.map, m.alphaTest, m.side, m.vertexColors]).toEqual([material.map, 0.5, DoubleSide, true]);
+    const pos = twin.geometry.attributes.position;
+    expect(pos.count).toBe(small.index!.count + tall.index!.count);
+    const xs = Array.from({ length: pos.count }, (_, i) => pos.getX(i));
+    expect(Math.max(...xs)).toBeCloseTo(10.5);
+    // vertex colour times the instance's tint
+    const col = twin.geometry.attributes.color;
+    expect(col.getX(0)).toBeCloseTo(0.5);
+    expect(col.getX(pos.count - 1)).toBeCloseTo(0.25);
+    expect(twin.geometry.attributes.uv).toBeTruthy();
   });
 
   it("leaves plain meshes alone: the tracer reads them as they are", () => {

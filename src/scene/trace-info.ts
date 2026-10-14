@@ -17,6 +17,8 @@ export type TraceInfo =
   | { kind: "painted"; atlas: { value: Texture | null } }
   /** Downtown towers (materials.ts downtownMaterial): vertex tint, `aUv` wall grid, `aInfo` (part, seed, flood); `night` is the shader's uNight. */
   | { kind: "downtown"; stone: Texture; night: { value: number } }
+  /** A batched mesh (the trees) traced as plain world-space twins: through its batched path the tracer lost the trunks. */
+  | { kind: "batched" }
   /** Landmark stone (towerMaterial): a facade tile in world units on walls, darker tops. */
   | { kind: "tower"; facade: Texture; tile: { w: number; h: number }; glassy: boolean };
 

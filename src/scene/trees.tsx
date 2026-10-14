@@ -10,7 +10,8 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
 import { BatchedMesh, Color, DoubleSide, MeshDepthMaterial, MeshStandardMaterial, Object3D, Vector3, type BufferGeometry, type Material } from "three";
-import { barkAtlas, leafAtlas } from "./tree-textures";
+import { barkAtlas, fullerLeaves, leafAtlas } from "./tree-textures";
+import { traceInfo } from "./trace-info";
 import { KINDS, LOD_DISTANCE, hasPit, kindOf, pitGeometry, pitPose, treeModels, treePose, variantOf, type Kind, type Tree } from "./tree-models";
 
 /** Shared by bark, leaves and the leaves' shadow: sway with the gusts (wind from the ocean, west), flutter on top. */
@@ -31,6 +32,9 @@ vec3 treeWind(vec3 p, vec3 n, float flutter, mat4 tM) {
 }`;
 
 type Uniforms = { uTime: { value: number } };
+
+/** Baking a photo-real plate (dev lab, ?raytrace=plate): offline, so every tree draws its near model. */
+const BAKING = process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("raytrace") === "plate";
 
 /** Adds the wind to a material's vertex shader. Leaves flutter by their aLeaf.x; bark only sways. */
 function windy(shader: { uniforms: Record<string, unknown>; vertexShader: string }, uniforms: Uniforms, leaves: boolean) {
@@ -55,14 +59,17 @@ const KEEP_ALPHA = /* glsl */ `#include <map_fragment>
 #endif`;
 
 function materials(uniforms: Uniforms) {
-  const leafMap = leafAtlas();
+  // the bake's tracer reads the sprite at full size, without the raster's mip-boosted alpha: give it fuller leaves
+  const leafMap = BAKING ? fullerLeaves(leafAtlas()) : leafAtlas();
   const barkMap = barkAtlas();
   const bark = new MeshStandardMaterial({ map: barkMap, vertexColors: true, roughness: 0.95 });
   bark.customProgramCacheKey = () => "tree-bark";
+  traceInfo.set(bark, { kind: "batched" });
   bark.onBeforeCompile = (shader) => windy(shader, uniforms, false);
 
   const leaves = new MeshStandardMaterial({ map: leafMap, alphaTest: 0.5, side: DoubleSide, vertexColors: true, roughness: 0.8 });
   leaves.customProgramCacheKey = () => "tree-leaves";
+  traceInfo.set(leaves, { kind: "batched" });
   leaves.onBeforeCompile = (shader) => {
     windy(shader, uniforms, true);
     // Light through the leaf, sky fill, and how much the leaf faces up (in the world).
@@ -178,7 +185,7 @@ export function Trees({ trees, lite }: { trees: Tree[]; lite: boolean }) {
     if (lite) return;
     // Near model up close, far model past LOD_DISTANCE (a bigger tree switches a little later).
     for (const it of scene.items) {
-      const far = camera.position.distanceTo(crown.set(it.t.x, it.t.y + 1.5 * it.t.s, it.t.z)) > LOD_DISTANCE * Math.max(1, it.t.s);
+      const far = !BAKING && camera.position.distanceTo(crown.set(it.t.x, it.t.y + 1.5 * it.t.s, it.t.z)) > LOD_DISTANCE * Math.max(1, it.t.s);
       if (far === it.far) continue;
       it.far = far;
       const id = far ? it.ids.far : it.ids.near;

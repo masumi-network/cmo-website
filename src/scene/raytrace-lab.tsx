@@ -35,6 +35,7 @@ import {
   RenderTarget,
   Vector2,
   type BatchedMesh,
+  type DirectionalLight,
   type PerspectiveCamera,
   type Mesh,
   type Object3D,
@@ -47,7 +48,7 @@ import { dayNow } from "./shared";
 import { CHAINS, screenSpace, type Chain } from "./fx-lab";
 import { splitScene } from "./plates";
 import { bakeGround } from "./bake-ground";
-import { TRACE_LAYER, buildTwins, lightHousings } from "./traced";
+import { TRACE_LAYER, buildTwins, farCasters, lightHousings } from "./traced";
 
 type Stats = {
   buildMs: number;
@@ -411,6 +412,16 @@ export default function RaytraceLab() {
       const housings = lightHousings(scene) as (Mesh & { visibleToShadowRays?: boolean })[];
       for (const m of housings) m.visibleToShadowRays = false;
       cleanup.push(() => housings.forEach((m) => delete m.visibleToShadowRays));
+      // the sun's shadows as today's frame has them: casters outside its shadow box (the Bay Bridge) are left out, at rest
+      let sun: DirectionalLight | undefined;
+      scene.traverse((o) => void ((o as DirectionalLight).isDirectionalLight && o.castShadow && (sun ??= o as DirectionalLight)));
+      let far: (Mesh & { visibleToShadowRays?: boolean })[] = [];
+      const shadowsAsToday = () => {
+        for (const m of far) delete m.visibleToShadowRays;
+        far = sun ? farCasters(scene, sun).filter((m) => !housings.includes(m)) : [];
+        for (const m of far) m.visibleToShadowRays = false;
+      };
+      cleanup.push(() => far.forEach((m) => delete m.visibleToShadowRays));
       stats.twinMs = performance.now() - tw0;
       cleanup.push(() => {
         scene.remove(twins.group);
@@ -485,6 +496,7 @@ export default function RaytraceLab() {
           const p0 = performance.now();
           // the night as it is now (lit windows, lamps): setScene below reads the materials again
           twins.refresh();
+          shadowsAsToday();
           // plates re-read too: level-of-detail models (trees) switch on and off with the camera
           if (params.get("pose") === "0") {
             // keep the poses read at load: only restart the samples

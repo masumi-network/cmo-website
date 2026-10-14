@@ -5,7 +5,7 @@
 // textures get UVs projected the same way the shaders do it. Twins are in world
 // space (instances expanded), on a layer only the tracer sees.
 
-import { Box3, BufferGeometry, Color, Float32BufferAttribute, Group, Matrix3, Matrix4, Mesh, MeshStandardMaterial, type LineBasicMaterial, type LineSegments, type Material, type Texture, Vector2, Vector3, type InstancedBufferAttribute, type InstancedMesh, type Object3D, type PointLight, type SpotLight } from "three";
+import { Box3, type BatchedMesh, BufferGeometry, Color, Float32BufferAttribute, Group, Matrix3, Matrix4, Mesh, MeshStandardMaterial, type LineBasicMaterial, type LineSegments, type Material, type Texture, Vector2, Vector3, type InstancedBufferAttribute, type InstancedMesh, type Object3D, type PointLight, type SpotLight, type DirectionalLight } from "three";
 import { SLOT, SLOTS } from "./house-models";
 import { FACADE_CELLS, type FacadeKind, facadeMaps } from "./facade-maps";
 import { CAFE_MAT } from "./shop";
@@ -91,6 +91,7 @@ const along = (p: Vector3, face: Vector3) => {
 
 /** Twins for one patched mesh: a mesh per bucket (texture or surface kind). `baked`: colour textures baked from shaders (bake-ground.ts). */
 function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>, follow: (() => void)[]): Mesh[] {
+  if (info.kind === "batched") return [batchedTwin(mesh as BatchedMesh)];
   if (info.kind === "ground") {
     // same geometry and uv as the original, its shader's colour baked into one texture
     const map = baked.get(mesh.material as Material);
@@ -256,6 +257,52 @@ function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>, follow
 }
 
 /**
+ * A batched mesh as one plain mesh in world space: each visible instance's
+ * model, placed, its vertex colour times the instance's tint, same material
+ * values (map, alpha test, sides). The tracer's batched path dropped the
+ * trees' trunks.
+ */
+function batchedTwin(mesh: BatchedMesh): Mesh {
+  const g = mesh.geometry;
+  const { position, normal, uv, color } = g.attributes;
+  const index = g.index;
+  const out = { p: [] as number[], n: [] as number[], u: [] as number[], c: [] as number[] };
+  const tint = new Color();
+  const v = new Vector3();
+  const range = { start: 0, count: 0 } as NonNullable<ReturnType<BatchedMesh["getGeometryRangeAt"]>>;
+  for (let i = 0; i < mesh.maxInstanceCount; i++) {
+    try {
+      if (!mesh.getVisibleAt(i)) continue;
+    } catch {
+      continue; // an id never used, or removed
+    }
+    mesh.getGeometryRangeAt(mesh.getGeometryIdAt(i), range);
+    m4.multiplyMatrices(mesh.matrixWorld, (mesh.getMatrixAt(i, im), im));
+    n3.getNormalMatrix(m4);
+    mesh.getColorAt(i, tint);
+    for (let k = range.start; k < range.start + range.count; k++) {
+      const vi = index ? index.getX(k) : k;
+      out.p.push(...v.fromBufferAttribute(position, vi).applyMatrix4(m4).toArray());
+      out.n.push(...(normal ? v.fromBufferAttribute(normal, vi).applyMatrix3(n3).normalize().toArray() : [0, 1, 0]));
+      out.u.push(uv ? uv.getX(vi) : 0, uv ? uv.getY(vi) : 0);
+      const [r, gg, b] = color ? [color.getX(vi), color.getY(vi), color.getZ(vi)] : [1, 1, 1];
+      out.c.push(r * tint.r, gg * tint.g, b * tint.b);
+    }
+  }
+  const twin = new BufferGeometry();
+  twin.setAttribute("position", new Float32BufferAttribute(out.p, 3));
+  twin.setAttribute("normal", new Float32BufferAttribute(out.n, 3));
+  twin.setAttribute("uv", new Float32BufferAttribute(out.u, 2));
+  twin.setAttribute("color", new Float32BufferAttribute(out.c, 3));
+  const base = mesh.material as MeshStandardMaterial;
+  const material = new MeshStandardMaterial({ map: base.map, alphaTest: base.alphaTest, side: base.side, vertexColors: true, roughness: base.roughness, metalness: base.metalness });
+  const m = new Mesh(twin, material);
+  m.layers.set(TRACE_LAYER);
+  m.matrixAutoUpdate = false;
+  return m;
+}
+
+/**
  * A multi-material mesh as one mesh per visible group (the tracer takes one
  * material per mesh, and draws an invisible one: the cliffs' hidden cap became
  * a mirror over the streets). Placed where the original is.
@@ -381,3 +428,25 @@ export function lightHousings(scene: Object3D): Mesh[] {
   });
   return out;
 }
+
+const caster = new Box3();
+/**
+ * Meshes wholly outside the sun's shadow box (the raster's, which follows the
+ * view): today's frame never shows their shadows, so the trace leaves them out
+ * too (the lab sets the tracer's `visibleToShadowRays` false on them). Without
+ * it the Bay Bridge streaked the city at dawn and laid a lattice on the water
+ * at 15:00, far outside today's shadows.
+ */
+export function farCasters(scene: Object3D, sun: DirectionalLight): Mesh[] {
+  sun.shadow.updateMatrices(sun);
+  const box = sun.shadow.getFrustum();
+  const out: Mesh[] = [];
+  scene.traverseVisible((o) => {
+    const mesh = o as Mesh;
+    if (!mesh.isMesh) return;
+    caster.makeEmpty().expandByObject(mesh, false);
+    if (!caster.isEmpty() && !box.intersectsBox(caster)) out.push(mesh);
+  });
+  return out;
+}
+

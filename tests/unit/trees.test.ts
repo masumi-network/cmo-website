@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { heightAt } from "@/lib/terrain";
 import { PARKS, groundAt } from "@/scene/grid";
 import { CITY } from "@/scene/layout";
+import { fillGaps } from "@/scene/tree-textures";
 import {
   CROWN_RADIUS,
   CROWN_TOP,
@@ -169,5 +170,28 @@ describe("trees", () => {
         expect(far, `${k}: far is cheaper`).toBeLessThan(near * 0.55);
       }
     }
+  });
+});
+
+describe("fuller leaves for the photo-real bake", () => {
+  it("fills the gaps between leaves with leaf colour, not black, so crowns trace full (the tracer has no mip-boosted alpha)", () => {
+    // 9 x 9: opaque green on every other pixel, clear (transparent black) between
+    const w = 9;
+    const data = new Uint8ClampedArray(w * w * 4);
+    for (let i = 0; i < w * w; i++) if (i % 2 === 0) data.set([40, 120, 50, 255], i * 4);
+    fillGaps(data, w, w, 1);
+    const at = (x: number, y: number) => Array.from(data.slice((y * w + x) * 4, (y * w + x) * 4 + 4));
+    const gap = at(4, 3); // was clear
+    expect(gap[3]).toBeGreaterThan(128); // past the leaves' alpha test
+    expect(gap[1]).toBeGreaterThan(100); // green, not black
+    expect(at(4, 4)).toEqual([40, 120, 50, 255]); // leaves keep their own colour
+  });
+
+  it("leaves wide empty space empty", () => {
+    const w = 20;
+    const data = new Uint8ClampedArray(w * w * 4);
+    data.set([40, 120, 50, 255], 0); // one leaf pixel in a corner
+    fillGaps(data, w, w, 2);
+    expect(data[(10 * w + 10) * 4 + 3]).toBe(0);
   });
 });
