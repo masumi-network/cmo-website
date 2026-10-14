@@ -39,9 +39,50 @@ export function parseManifest(json: unknown): PlateManifest | null {
 
 export const plateFor = (m: PlateManifest, chapter: number) => m.plates.find((p) => p.chapter === chapter) ?? null;
 
-/** Desktop only, and off unless asked for: `?photoreal`, or NEXT_PUBLIC_PHOTOREAL=1. */
-export function photorealOn({ lite, search, env }: { lite: boolean; search: string; env?: string }) {
-  return !lite && (new URLSearchParams(search).has("photoreal") || env === "1");
+export type PhotorealChoice = "on" | "off";
+
+/**
+ * Never on phones or in lite mode. Otherwise, first that applies: `?photoreal`
+ * (or `?photoreal=0`) for development, NEXT_PUBLIC_PHOTOREAL=1, the visitor's
+ * setting, and else on by itself where the GPU has a WebGPU adapter.
+ */
+export function photorealOn({ lite, search, env, webgpu, choice }: { lite: boolean; search: string; env?: string; webgpu: boolean; choice: PhotorealChoice | null }) {
+  if (lite) return false;
+  const flag = new URLSearchParams(search).get("photoreal");
+  if (flag !== null) return flag !== "0";
+  if (env === "1") return true;
+  return choice ? choice === "on" : webgpu;
+}
+
+type Gpu = { requestAdapter: () => Promise<unknown> };
+
+/** A real WebGPU adapter: the sign of a capable desktop GPU (a software fallback does not count). */
+export async function webgpuCapable(gpu: Gpu | undefined) {
+  try {
+    const adapter = (await gpu?.requestAdapter()) as { info?: { isFallbackAdapter?: boolean } } | null | undefined;
+    return !!adapter && !adapter.info?.isFallbackAdapter;
+  } catch {
+    return false;
+  }
+}
+
+/** Where the settings switch is remembered. */
+export const PHOTOREAL_KEY = "cmo.photoreal";
+
+/** The visitor's setting, or null if they never picked (or storage is blocked). */
+export function readPhotorealChoice(): PhotorealChoice | null {
+  try {
+    const v = localStorage.getItem(PHOTOREAL_KEY);
+    return v === "on" || v === "off" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function savePhotorealChoice(choice: PhotorealChoice) {
+  try {
+    localStorage.setItem(PHOTOREAL_KEY, choice);
+  } catch {} // private window: the switch still works for this visit
 }
 
 const toSrgb = (c: number) => (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055);

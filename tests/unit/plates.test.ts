@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Quaternion, Vector3 } from "three";
-import { PLATE_RANGE, cropScale, decodePlate, encodePlate, newSettle, parseManifest, photorealOn, plateFor, poseNear, settle, type PlateEntry } from "@/lib/plates";
+import { PLATE_RANGE, cropScale, decodePlate, encodePlate, newSettle, parseManifest, PHOTOREAL_KEY, photorealOn, readPhotorealChoice, savePhotorealChoice, webgpuCapable, plateFor, poseNear, settle, type PlateEntry } from "@/lib/plates";
 
 const entry = (o: Partial<PlateEntry> = {}): PlateEntry => ({
   chapter: 0,
@@ -15,14 +15,63 @@ const entry = (o: Partial<PlateEntry> = {}): PlateEntry => ({
 });
 
 describe("photo-real flag", () => {
-  it("is off by default", () => {
-    expect(photorealOn({ lite: false, search: "" })).toBe(false);
+  const desktop = { lite: false, search: "", webgpu: true, choice: null };
+
+  it("turns on by itself on desktops with a WebGPU adapter", () => {
+    expect(photorealOn(desktop)).toBe(true);
+    expect(photorealOn({ ...desktop, webgpu: false })).toBe(false);
   });
 
-  it("turns on with ?photoreal or the env switch, on desktops only", () => {
-    expect(photorealOn({ lite: false, search: "?photoreal" })).toBe(true);
-    expect(photorealOn({ lite: false, search: "", env: "1" })).toBe(true);
-    expect(photorealOn({ lite: true, search: "?photoreal", env: "1" })).toBe(false);
+  it("never runs on phones or in lite mode, whatever asks for it", () => {
+    for (const ask of [{ search: "?photoreal" }, { env: "1" }, { choice: "on" as const }, {}]) expect(photorealOn({ ...desktop, ...ask, lite: true })).toBe(false);
+  });
+
+  it("follows the visitor's setting over the automatic choice", () => {
+    expect(photorealOn({ ...desktop, choice: "off" })).toBe(false);
+    expect(photorealOn({ ...desktop, webgpu: false, choice: "on" })).toBe(true);
+  });
+
+  it("lets ?photoreal (and ?photoreal=0) override everything for development, then the env switch", () => {
+    expect(photorealOn({ ...desktop, webgpu: false, choice: "off", search: "?photoreal" })).toBe(true);
+    expect(photorealOn({ ...desktop, choice: "on", search: "?photoreal=0" })).toBe(false);
+    expect(photorealOn({ ...desktop, webgpu: false, choice: "off", env: "1" })).toBe(true);
+  });
+});
+
+describe("WebGPU check", () => {
+  const gpu = (adapter: unknown) => ({ requestAdapter: async () => adapter });
+
+  it("is capable with a real adapter", async () => {
+    expect(await webgpuCapable(gpu({ info: { isFallbackAdapter: false } }))).toBe(true);
+  });
+
+  it("is not capable without WebGPU, without an adapter, with a software one, or when asking fails", async () => {
+    expect(await webgpuCapable(undefined)).toBe(false);
+    expect(await webgpuCapable(gpu(null))).toBe(false);
+    expect(await webgpuCapable(gpu({ info: { isFallbackAdapter: true } }))).toBe(false);
+    expect(await webgpuCapable({ requestAdapter: () => Promise.reject(new Error("no")) })).toBe(false);
+  });
+});
+
+describe("photo-real setting", () => {
+  afterEach(() => localStorage.clear());
+
+  it("is unset until the visitor picks, then remembered", () => {
+    expect(readPhotorealChoice()).toBeNull();
+    savePhotorealChoice("off");
+    expect(readPhotorealChoice()).toBe("off");
+    savePhotorealChoice("on");
+    expect(readPhotorealChoice()).toBe("on");
+  });
+
+  it("ignores anything else in storage, and storage that throws", () => {
+    localStorage.setItem(PHOTOREAL_KEY, "maybe");
+    expect(readPhotorealChoice()).toBeNull();
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    expect(readPhotorealChoice()).toBeNull();
+    get.mockRestore();
   });
 });
 

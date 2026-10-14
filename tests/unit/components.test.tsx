@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalCard, WeeklyNote } from "@/components/cards";
 import { AskBar } from "@/components/ask-bar";
 import { BrandForm } from "@/components/brand-form";
+import { Hud } from "@/components/hud";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { chapterIndex } from "@/content/day";
 import { initialCity, useCity } from "@/lib/store";
@@ -157,5 +158,22 @@ describe("BrandForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Learn my brand" }));
     expect(screen.getByRole("alert")).toHaveTextContent("That doesn't look like a website.");
     expect(useCity.getState().website).toBe(initialCity.website);
+  });
+});
+
+describe("Hud settings", () => {
+  it("shows the photo-real switch as it is and flips it", async () => {
+    const onPhotoreal = vi.fn();
+    render(<Hud onGo={vi.fn()} photoreal={true} onPhotoreal={onPhotoreal} />);
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const toggle = screen.getByRole("switch", { name: "Photo-real light" });
+    expect(toggle).toBeChecked();
+    await userEvent.click(toggle);
+    expect(onPhotoreal).toHaveBeenCalledWith(false);
+  });
+
+  it("has no settings where photo-real can't run (phones, lite, no 3D)", () => {
+    render(<Hud onGo={vi.fn()} photoreal={null} onPhotoreal={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
   });
 });

@@ -114,6 +114,24 @@ function catcherMaterial() {
   return m;
 }
 
+type Saved = { mesh: Mesh; material: Material | Material[]; castShadow: boolean; receiveShadow: boolean; renderOrder: number };
+
+type Phase = { phase: "off" | "fade" | "rest"; saved: Saved[]; shown: Object3D[]; sky: Mesh | null; proxies: Mesh[] };
+
+/** Back to the city as usual: the plate hidden, the city's own materials, shadows and hidden parts restored. */
+function leave(s: Phase, quad: Mesh) {
+  s.phase = "off";
+  quad.visible = false;
+  for (const o of s.saved) Object.assign(o.mesh, { material: o.material, castShadow: o.castShadow, receiveShadow: o.receiveShadow, renderOrder: o.renderOrder });
+  for (const o of s.shown) o.visible = true;
+  if (s.sky) starsOnly(s.sky, false);
+  for (const p of s.proxies) p.removeFromParent();
+  s.proxies = [];
+  s.sky = null;
+  s.saved = [];
+  s.shown = [];
+}
+
 /** A full-screen triangle at the far plane showing the middle of the plate, its colour scaled back up to linear. */
 function plateQuad() {
   const geometry = new BufferGeometry();
@@ -145,8 +163,6 @@ function plateQuad() {
   quad.visible = false;
   return { quad, material };
 }
-
-type Saved = { mesh: Mesh; material: Material | Material[]; castShadow: boolean; receiveShadow: boolean; renderOrder: number };
 
 export function Plates() {
   const { gl, scene, camera, size } = useThree();
@@ -181,12 +197,15 @@ export function Plates() {
 
   useEffect(
     () => () => {
+      // turned off in settings, maybe at rest: the city as it was
+      leave(state.current, quad);
+      delete gl.domElement.dataset.plate;
       for (const t of state.current.textures.values()) if (t !== "loading") t.dispose();
       quad.geometry.dispose();
       material.dispose();
       catcher.dispose();
     },
-    [quad, material, catcher],
+    [quad, material, catcher, gl],
   );
 
   useFrame(({ clock }) => {
@@ -273,18 +292,7 @@ export function Plates() {
         if (s.sky) starsOnly(s.sky, true);
       }
     }
-    if (!resting && s.phase !== "off") {
-      s.phase = "off";
-      quad.visible = false;
-      for (const o of s.saved) Object.assign(o.mesh, { material: o.material, castShadow: o.castShadow, receiveShadow: o.receiveShadow, renderOrder: o.renderOrder });
-      for (const o of s.shown) o.visible = true;
-      if (s.sky) starsOnly(s.sky, false);
-      for (const p of s.proxies) p.removeFromParent();
-      s.proxies = [];
-      s.sky = null;
-      s.saved = [];
-      s.shown = [];
-    }
+    if (!resting && s.phase !== "off") leave(s, quad);
     // for tests and scripts: off, fade or rest
     if (gl.domElement.dataset.plate !== s.phase) gl.domElement.dataset.plate = s.phase;
   });

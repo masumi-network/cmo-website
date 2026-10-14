@@ -1,9 +1,12 @@
 # F12 · Photo-real mode (v0)
 
-Last updated: 2026-10-14 · Status: v0, behind a flag · Launch: ok (off by default)
+Last updated: 2026-10-14 · Status: v0, on by itself on capable desktops · Launch: ok
 
 ## What it is
-- On desktop, `?photoreal` (or `NEXT_PUBLIC_PHOTOREAL=1`) shows each chapter's rest view as a pre-traced plate: the static city path-traced once, at build time, with Cuso, cars, boats and the visitor's brand drawn live on top. Phones and lite mode never get it.
+- On desktop, each chapter's rest view shows as a pre-traced plate: the static city path-traced once, at build time, with Cuso, cars, boats and the visitor's brand drawn live on top. Phones and lite mode never get it.
+- When it is on (`photorealOn` in lib/plates.ts), first that applies: `?photoreal` (or `?photoreal=0`) for development, `NEXT_PUBLIC_PHOTOREAL=1`, the visitor's setting, and else on by itself where the GPU has a WebGPU adapter (`webgpuCapable`: a software fallback adapter does not count). Plates draw in WebGL; the adapter is only the sign of a capable desktop.
+- The settings button in the top bar (desktop, 3D, not lite) holds one switch, "Photo-real light". It is remembered in `localStorage` (`cmo.photoreal`, `on` or `off`); blocked storage means it works for the visit only. Turning it off at rest restores the city at once (`leave` in plates.tsx); turning it on at rest shows the plate in about a second.
+- The adapter check is async, so on a capable desktop the mode turns on a moment after load, before the camera first rests.
 - While scrolling, the city renders as today. Screen-space effects were measured and left out: too slow for what they add (below).
 - Team research page: https://claude.ai/code/artifact/02617856-3933-4608-98f4-9c6aa0bfe0ca
 

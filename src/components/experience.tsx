@@ -10,13 +10,13 @@ import { Chapters } from "@/components/chapters";
 import { Hud } from "@/components/hud";
 import { chapters } from "@/content/day";
 import { goToChapter, sectionHeight } from "@/lib/navigate";
-import { photorealOn } from "@/lib/plates";
+import { photorealOn, readPhotorealChoice, savePhotorealChoice, webgpuCapable, type PhotorealChoice } from "@/lib/plates";
 import { useCity } from "@/lib/store";
 import { activeIndex } from "@/lib/time";
 
 const Scene = dynamic(() => import("@/scene/scene"), { ssr: false });
 
-type Support = { webgl: boolean; lite: boolean; photoreal: boolean } | null;
+type Support = { webgl: boolean; lite: boolean; choice: PhotorealChoice | null } | null;
 
 let support: Support = null;
 function detect(): Support {
@@ -31,7 +31,7 @@ function detect(): Support {
   support = {
     webgl: !!gl && !reduced && !params.has("static"),
     lite,
-    photoreal: photorealOn({ lite, search: window.location.search, env: process.env.NEXT_PUBLIC_PHOTOREAL }),
+    choice: readPhotorealChoice(),
   };
   gl?.getExtension("WEBGL_lose_context")?.loseContext(); // only asked; the scene makes its own
   return support;
@@ -127,6 +127,23 @@ export function Experience() {
   const onReady = useCallback(() => setReady(true), []);
   const onGo = useCallback((index: number) => goToChapter(index), []);
 
+  // Photo-real (F12): on by itself once the GPU shows a WebGPU adapter, unless the visitor turned it off.
+  const [webgpu, setWebgpu] = useState(false);
+  const [picked, setPicked] = useState<PhotorealChoice | null>(null);
+  const can3d = !!env?.webgl && !env.lite;
+  useEffect(() => {
+    if (!can3d) return;
+    let live = true;
+    void webgpuCapable((navigator as Navigator & { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu).then((ok) => live && setWebgpu(ok));
+    return () => void (live = false);
+  }, [can3d]);
+  const photoreal = can3d && photorealOn({ lite: false, search: window.location.search, env: process.env.NEXT_PUBLIC_PHOTOREAL, webgpu, choice: picked ?? env?.choice ?? null });
+  const onPhotoreal = useCallback((on: boolean) => {
+    const choice = on ? "on" : "off";
+    savePhotorealChoice(choice);
+    setPicked(choice);
+  }, []);
+
   useEffect(() => {
     let frame = 0;
     const update = () => {
@@ -160,11 +177,11 @@ export function Experience() {
             className={cn("fixed inset-x-0 top-0 h-lvh transition-opacity duration-1000", ready ? "opacity-100" : "opacity-0")}
             onTransitionEnd={(e) => ready && e.target === e.currentTarget && setCovered(true)}
           >
-            <Scene onReady={onReady} onGo={onGo} lite={env.lite} photoreal={env.photoreal} />
+            <Scene onReady={onReady} onGo={onGo} lite={env.lite} photoreal={photoreal} />
           </div>
         )}
       </div>
-      <Hud onGo={onGo} />
+      <Hud onGo={onGo} photoreal={can3d ? photoreal : null} onPhotoreal={onPhotoreal} />
       <main inert={mode === "explore"} className={cn("relative z-10 transition-opacity duration-500", mode === "explore" && "opacity-0")}>
         <Chapters onGo={onGo} />
       </main>
