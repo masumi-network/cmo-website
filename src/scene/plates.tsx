@@ -11,11 +11,13 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import {
+  AdditiveBlending,
   BufferGeometry,
   CustomBlending,
   Float32BufferAttribute,
   Mesh,
   MultiplyBlending,
+  NormalBlending,
   OneMinusSrcAlphaFactor,
   ShaderMaterial,
   ShadowMaterial,
@@ -23,12 +25,9 @@ import {
   SrcAlphaFactor,
   TextureLoader,
   WebGLRenderTarget,
-  Matrix4,
-  Sphere,
-  Vector3,
-  Vector4,
-  type DirectionalLight,
-  type InstancedMesh,
+  InstancedMesh,
+  MeshBasicMaterial,
+  type BatchedMesh,
   type Material,
   type Object3D,
   type Scene,
@@ -42,59 +41,23 @@ const FADE = 0.4;
 /** How dark a live object's shadow is on the plate. */
 const SHADOW = 0.45;
 /**
- * How far (beyond its bounding sphere) a live object's shadow may fall on the
- * plate. The catcher's shadow map holds the live casters only, so nothing
- * static stops a shadow: at dawn Cuso's, from his roof, ran 20 m across the
- * street and down the facade below him. A point whose ray to the sun passes
- * through a live object farther than this is not shadowed by it (a long throw).
- * Live shadows fall only on what faces up: a low sun threw cars' and Cuso's
- * shadows up the facades. Contact shadows (under him, cars, boats) stay.
- */
-const REACH = 2.5;
-/** Live objects the catcher knows about (a uniform array). */
-const CASTERS = 64;
-
-const sphere = new Sphere();
-const sunAt = new Vector3();
-const sunTo = new Vector3();
-const instance = new Matrix4();
-/** Where the live objects are, as world bounding spheres (one per instance): the `max` nearest to `from` (if given). */
-export function liveSpheres(live: Object3D[], max: number, from?: Vector3): Vector4[] {
-  const out: Vector4[] = [];
-  const add = (geometry: BufferGeometry, matrix: Matrix4) => {
-    if (!geometry.boundingSphere) geometry.computeBoundingSphere();
-    sphere.copy(geometry.boundingSphere!).applyMatrix4(matrix);
-    out.push(new Vector4(sphere.center.x, sphere.center.y, sphere.center.z, sphere.radius));
-  };
-  for (const root of live) {
-    root.traverseVisible((o) => {
-      const mesh = o as Mesh;
-      if (!mesh.isMesh) return;
-      if ((mesh as InstancedMesh).isInstancedMesh) {
-        const many = mesh as InstancedMesh;
-        for (let i = 0; i < many.count; i++) add(mesh.geometry, instance.multiplyMatrices(mesh.matrixWorld, (many.getMatrixAt(i, instance), instance)));
-      } else add(mesh.geometry, mesh.matrixWorld);
-    });
-  }
-  if (from) out.sort((a, b) => Math.hypot(a.x - from.x, a.y - from.y, a.z - from.z) - a.w - (Math.hypot(b.x - from.x, b.y - from.y, b.z - from.z) - b.w));
-  return out.slice(0, max);
-}
-
-/**
  * The scene, as plates need it:
  * - `live`: drawn as usual (marked LIVE),
  * - `catchers`: the static city's meshes, drawn as shadow catchers at rest,
- * - `hidden`: what the plate already shows (the sky dome, lines, transparent bits),
+ * - `hidden`: what the plate already shows (lines, transparent bits),
+ * - `sky`: the sky dome; at rest it draws only its stars, over the plate's sky,
  * - everything else (custom shader effects such as the fog bank) stays as it is.
  */
 export function splitScene(scene: Scene) {
   const live: Object3D[] = [];
   const catchers: Mesh[] = [];
   const hidden: Object3D[] = [];
+  let sky: Mesh | null = null;
   const walk = (o: Object3D) => {
     if (o.userData.live) return void live.push(o);
     const mesh = o as Mesh;
-    if (o.name === "sky" || (o as { isLine?: boolean }).isLine || (o as { isPoints?: boolean }).isPoints) return void hidden.push(o);
+    if (o.name === "sky") return void (sky = mesh);
+    if ((o as { isLine?: boolean }).isLine || (o as { isPoints?: boolean }).isPoints) return void hidden.push(o);
     if (mesh.isMesh) {
       const materials = [mesh.material].flat();
       if (materials.some((m) => (m as ShaderMaterial).isShaderMaterial)) return; // drawn live: the plate leaves them out
@@ -104,37 +67,49 @@ export function splitScene(scene: Scene) {
     for (const c of o.children) walk(c);
   };
   walk(scene);
-  return { live, catchers, hidden };
+  return { live, catchers, hidden, sky: sky as Mesh | null };
 }
 
-/** Multiplies the plate by its shadow (live casters only, within REACH of one) and writes the city's depth. */
+const depthOnly = new MeshBasicMaterial({ colorWrite: false });
+/**
+ * A depth-only twin of a catcher, drawn (as its child) before every shadow:
+ * the catchers multiply into the plate one mesh at a time, so a street drawn
+ * before the wall in front of it had already darkened the wall with a car's
+ * shadow. Instanced meshes share their instances; batched ones (the trees) get none.
+ */
+export function depthProxy(mesh: Mesh): Mesh | null {
+  if ((mesh as BatchedMesh).isBatchedMesh) return null;
+  let proxy: Mesh;
+  if ((mesh as InstancedMesh).isInstancedMesh) {
+    const many = mesh as InstancedMesh;
+    const copy = new InstancedMesh(mesh.geometry, depthOnly, many.count);
+    copy.instanceMatrix = many.instanceMatrix;
+    proxy = copy;
+  } else proxy = new Mesh(mesh.geometry, depthOnly);
+  proxy.renderOrder = -15;
+  proxy.frustumCulled = mesh.frustumCulled;
+  proxy.layers.mask = mesh.layers.mask;
+  return proxy;
+}
+
+/** The sky dome (atmosphere.tsx) draws only its stars, added over what is there, or the whole sky again. */
+function starsOnly(sky: Mesh, on: boolean) {
+  const m = sky.material as ShaderMaterial;
+  m.uniforms.starsOnly.value = on ? 1 : 0;
+  m.blending = on ? AdditiveBlending : NormalBlending;
+  sky.renderOrder = on ? 10 : -1;
+}
+
+/** Multiplies the plate by its shadow (live casters only) and writes the city's depth. */
 function catcherMaterial() {
   const m = new ShadowMaterial({ opacity: SHADOW });
   Object.assign(m, { transparent: false, premultipliedAlpha: true, blending: MultiplyBlending, depthWrite: true, fog: false });
-  const casters = { uCasters: { value: Array.from({ length: CASTERS }, () => new Vector4()) }, uCount: { value: 0 }, uSun: { value: new Vector3(0, 1, 0) } };
-  m.userData.casters = casters;
   m.customProgramCacheKey = () => "plate-catcher";
   m.onBeforeCompile = (s) => {
-    Object.assign(s.uniforms, casters);
-    s.vertexShader = s.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vCatch;\nvarying float vUp;")
-      .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\nvCatch = worldPosition.xyz;\nvUp = inverseTransformDirection(transformedNormal, viewMatrix).y;");
-    s.fragmentShader = s.fragmentShader
-      .replace("#include <common>", `#include <common>\nvarying vec3 vCatch;\nvarying float vUp;\nuniform vec4 uCasters[${CASTERS}];\nuniform int uCount;\nuniform vec3 uSun;`)
-      .replace(
-        "gl_FragColor = vec4( color, opacity * ( 1.0 - getShadowMask() ) );",
-        `// a long throw: the ray to the sun passes through a live object that is farther than REACH
-        bool far = false;
-        for (int i = 0; i < ${CASTERS}; i++) {
-          if (i >= uCount) break;
-          vec3 c = uCasters[i].xyz - vCatch;
-          float along = dot(c, uSun);
-          if (along > 0.0 && length(c - uSun * along) < uCasters[i].w && length(c) - uCasters[i].w > ${REACH.toFixed(2)}) far = true;
-        }
-        // and only on what faces up (roofs, streets, water): on walls a low sun threw cars' and Cuso's shadows up the facades
-        float mask = mix(1.0, far ? 1.0 : getShadowMask(), smoothstep(0.35, 0.6, vUp));
-        gl_FragColor = vec4( vec3( 1.0 - opacity * ( 1.0 - mask ) ), 1.0 );`,
-      );
+    s.fragmentShader = s.fragmentShader.replace(
+      "gl_FragColor = vec4( color, opacity * ( 1.0 - getShadowMask() ) );",
+      "gl_FragColor = vec4( vec3( 1.0 - opacity * ( 1.0 - getShadowMask() ) ), 1.0 );",
+    );
   };
   return m;
 }
@@ -184,8 +159,8 @@ export function Plates() {
     since: 0,
     saved: [] as Saved[],
     shown: [] as Object3D[],
-    live: [] as Object3D[],
-    sun: null as DirectionalLight | null,
+    sky: null as Mesh | null,
+    proxies: [] as Mesh[],
     warm: false,
   });
 
@@ -284,13 +259,18 @@ export function Plates() {
           mesh.material = Array.isArray(mesh.material) ? mesh.material.map(() => catcher) : catcher;
           mesh.castShadow = false;
           mesh.receiveShadow = true;
+          const proxy = depthProxy(mesh);
+          if (proxy) {
+            mesh.add(proxy);
+            s.proxies.push(proxy);
+          }
         }
         const split = splitScene(scene);
-        s.live = split.live;
-        s.sun = null;
-        scene.traverse((o) => void ((o as DirectionalLight).isDirectionalLight && o.castShadow && (s.sun ??= o as DirectionalLight)));
         s.shown = split.hidden.filter((o) => o.visible);
         for (const o of s.shown) o.visible = false;
+        // the stars, as the sky dome draws them, added over the plate wherever it shows sky (the city's depth hides the rest)
+        s.sky = split.sky;
+        if (s.sky) starsOnly(s.sky, true);
       }
     }
     if (!resting && s.phase !== "off") {
@@ -298,16 +278,12 @@ export function Plates() {
       quad.visible = false;
       for (const o of s.saved) Object.assign(o.mesh, { material: o.material, castShadow: o.castShadow, receiveShadow: o.receiveShadow, renderOrder: o.renderOrder });
       for (const o of s.shown) o.visible = true;
+      if (s.sky) starsOnly(s.sky, false);
+      for (const p of s.proxies) p.removeFromParent();
+      s.proxies = [];
+      s.sky = null;
       s.saved = [];
       s.shown = [];
-    }
-    if (s.phase === "rest") {
-      // where the live objects are now: their shadows stay within REACH of them
-      const spheres = liveSpheres(s.live, CASTERS, camera.position);
-      const { uCasters, uCount, uSun } = catcher.userData.casters as { uCasters: { value: Vector4[] }; uCount: { value: number }; uSun: { value: Vector3 } };
-      spheres.forEach((v, i) => uCasters.value[i].copy(v));
-      uCount.value = spheres.length;
-      if (s.sun) uSun.value.subVectors(s.sun.getWorldPosition(sunAt), s.sun.target.getWorldPosition(sunTo)).normalize();
     }
     // for tests and scripts: off, fade or rest
     if (gl.domElement.dataset.plate !== s.phase) gl.domElement.dataset.plate = s.phase;

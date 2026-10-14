@@ -35,7 +35,7 @@ import {
   RenderTarget,
   Vector2,
   type BatchedMesh,
-  type DirectionalLight,
+  DirectionalLight,
   type PerspectiveCamera,
   type Mesh,
   type Object3D,
@@ -48,7 +48,7 @@ import { dayNow } from "./shared";
 import { CHAINS, screenSpace, type Chain } from "./fx-lab";
 import { splitScene } from "./plates";
 import { bakeGround } from "./bake-ground";
-import { TRACE_LAYER, buildTwins, farCasters, lightHousings } from "./traced";
+import { TRACE_LAYER, buildTwins, farCasters, lightHousings, studioFill } from "./traced";
 
 type Stats = {
   buildMs: number;
@@ -447,6 +447,19 @@ export default function RaytraceLab() {
       }
       let hour = dayNow().hour;
       sky = skyTexture(hour);
+      // the raster's studio light at night (studioFill): two fill lights round the view, for the tracer only
+      const fills = studioFill(0).map(() => new DirectionalLight("#ffffff", 0));
+      for (const f of fills) scene.add(f, f.target);
+      const fillAt = (h: number) =>
+        studioFill(lightingAt(h).night).forEach(({ direction, intensity }, i) => {
+          fills[i].intensity = intensity;
+          fills[i].target.position.copy(camera.position);
+          fills[i].position.copy(camera.position).addScaledVector(direction, 80);
+          fills[i].updateMatrixWorld();
+          fills[i].target.updateMatrixWorld();
+        });
+      fillAt(hour);
+      cleanup.push(() => fills.forEach((f) => scene.remove(f, f.target)));
       const t0 = performance.now();
       asTraced(scene, sky, staticHidden, () => tracer!.setScene(scene, camera));
       stats.buildMs = performance.now() - t0;
@@ -471,8 +484,9 @@ export default function RaytraceLab() {
           hour = h;
           sky?.dispose();
           sky = skyTexture(hour);
-          // and the twins' lit windows and lamps
+          // and the twins' lit windows and lamps, and the night's fill
           twins.refresh();
+          fillAt(hour);
           asTraced(scene, sky, staticHidden, () => {
             tracer!.updateEnvironment();
             tracer!.updateLights();

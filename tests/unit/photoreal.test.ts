@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { BatchedMesh, BoxGeometry, BufferGeometry, Color, DoubleSide, DirectionalLight, Float32BufferAttribute, InstancedBufferAttribute, InstancedMesh, Group, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PointLight, Scene, SphereGeometry, ShaderMaterial, Texture, Vector3 } from "three";
 import { SLOTS } from "@/scene/house-models";
-import { liveSpheres, splitScene } from "@/scene/plates";
+import { depthProxy, splitScene } from "@/scene/plates";
 import { CAFE_MAT } from "@/scene/shop";
 import { traceInfo } from "@/scene/trace-info";
 import { FACADE_CELLS } from "@/scene/facade-maps";
-import { TRACE_LAYER, buildTwins, farCasters, lightHousings } from "@/scene/traced";
+import { TRACE_LAYER, buildTwins, farCasters, lightHousings, studioFill } from "@/scene/traced";
 import { PART } from "@/scene/towers";
 
 /** A scene like the city's: static blocks, a light, the sky dome, the fog bank, lines, glass, and live objects nested inside groups. */
@@ -42,9 +42,16 @@ describe("the scene at rest on a plate", () => {
     expect(splitScene(scene).catchers).toEqual([block, house]);
   });
 
-  it("hides what the plate already shows: the sky dome, lines, transparent bits", () => {
-    const { scene, sky, cables, glow } = city();
-    expect(splitScene(scene).hidden).toEqual([sky, cables, glow]);
+  it("hides what the plate already shows: lines, transparent bits", () => {
+    const { scene, cables, glow } = city();
+    expect(splitScene(scene).hidden).toEqual([cables, glow]);
+  });
+
+  it("keeps the sky dome apart: at rest it draws only its stars over the plate's sky", () => {
+    const { scene, sky } = city();
+    const split = splitScene(scene);
+    expect(split.sky).toBe(sky);
+    expect(split.hidden).not.toContain(sky);
   });
 
   it("keeps custom shader effects (the fog bank) and the lights as they are", () => {
@@ -54,21 +61,18 @@ describe("the scene at rest on a plate", () => {
   });
 });
 
-describe("live shadows on the plate", () => {
-  it("knows where each live object is (its bounding sphere, per instance), so their shadows stay close to them", () => {
-    const cuso = new Mesh(new SphereGeometry(1), new MeshStandardMaterial());
-    cuso.position.set(-14, 12, -13);
-    const cars = new InstancedMesh(new BoxGeometry(2, 1, 4), new MeshStandardMaterial(), 2);
-    cars.setMatrixAt(0, new Matrix4().makeTranslation(5, 0, 0));
-    cars.setMatrixAt(1, new Matrix4().makeTranslation(-5, 0, 3));
-    const group = new Group();
-    group.add(cuso, cars);
-    group.updateMatrixWorld(true);
-    const spheres = liveSpheres([group], 32);
-    expect(spheres.map((v) => [v.x, v.y, v.z].map((n) => Math.round(n)))).toEqual([[-14, 12, -13], [5, 0, 0], [-5, 0, 3]]);
-    expect(spheres[0].w).toBeCloseTo(1);
-    // as many as the shader holds, the nearest to the camera first
-    expect(liveSpheres([group], 2, new Vector3(-14, 15, -10)).map((v) => Math.round(v.x))).toEqual([-14, -5]);
+describe("the catchers' depth first", () => {
+  it("draws each catcher's depth before any shadow, so a street behind a wall cannot darken the wall (a car's shadow showed through)", () => {
+    const wall = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+    const proxy = depthProxy(wall)!;
+    expect(proxy.geometry).toBe(wall.geometry);
+    expect((proxy.material as MeshBasicMaterial).colorWrite).toBe(false);
+    expect(proxy.renderOrder).toBeLessThan(-10);
+    const many = new InstancedMesh(new BoxGeometry(), new MeshStandardMaterial(), 5);
+    const copy = depthProxy(many) as InstancedMesh;
+    expect(copy.isInstancedMesh).toBe(true);
+    expect(copy.instanceMatrix).toBe(many.instanceMatrix);
+    expect(copy.count).toBe(5);
   });
 });
 
@@ -367,6 +371,30 @@ describe("traced twins", () => {
       expect([uv.getX(i), uv.getY(i)]).toEqual([expect.closeTo(u / 4.8, 5), expect.closeTo(pos.getY(i) / 7.2, 5)]);
     }
     expect(twins.length).toBe(2); // walls, and the tops at 0.62
+  });
+
+  it("traces the towers' metal (vents, roof decks) dark and matte, as the raster shows it without an environment", () => {
+    const material = new MeshStandardMaterial({ vertexColors: true });
+    traceInfo.set(material, { kind: "downtown", stone: new Texture(), night: { value: 0 } });
+    const g = new BoxGeometry(2, 2, 2);
+    const n = g.attributes.position.count;
+    g.setAttribute("color", new Float32BufferAttribute(new Array(n * 3).fill(0.28), 3));
+    g.setAttribute("aUv", new Float32BufferAttribute(new Array(n * 2).fill(0), 2));
+    g.setAttribute("aInfo", new Float32BufferAttribute(Array.from({ length: n }, () => [PART.metal, 0.5, 0]).flat(), 3));
+    const scene = new Scene();
+    scene.add(new Mesh(g, material));
+    const twin = buildTwins(scene).group.children[0] as Mesh;
+    // it mirrored the bright sky in the trace and read light grey; the raster has no environment for it to mirror
+    expect((twin.material as MeshStandardMaterial).metalness).toBe(0);
+    expect(twin.geometry.attributes.color.getX(0)).toBeCloseTo(0.28 * 0.4);
+  });
+
+  it("fills the night like the raster's studio light, and leaves the day to the sky", () => {
+    expect(studioFill(0).every((f) => f.intensity === 0)).toBe(true);
+    const night = studioFill(1);
+    expect(night).toHaveLength(2);
+    expect(night[0].intensity).toBeGreaterThan(night[1].intensity);
+    for (const f of night) expect(f.direction.length()).toBeCloseTo(1);
   });
 
   it("ripples the water as gently as the shader's mirror does (strong ripples swept the bridge lights into zigzags)", () => {

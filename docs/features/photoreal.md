@@ -31,11 +31,11 @@ All eight chapters ship. Reviewed against today's frame:
 | 0 (06:00 rooftop, Golden Gate) | ships | |
 | 1 (07:00 shop) | ships | |
 | 2 (09:00 Mission mural) | ships | |
-| 3 (12:00 Union Square) | ships | re-baked: the smoother camera rests 1.2 m from where the old one did |
-| 4 (15:00 Pyramid) | ships | roofs read lighter than today (the tracer's sun on up-facing faces) |
+| 3 (12:00 Union Square) | ships | |
+| 4 (15:00 Pyramid) | ships | |
 | 5 (18:00 Ferry Building) | ships | lit windows a little paler than today's amber |
-| 6 (22:00 pier) | ships | the anchorage is darker than today (out of the lamp's 8 m reach); no stars |
-| 7 (06:00 tomorrow) | ships | now and then a faint live shadow on the bay-window ledges |
+| 6 (22:00 pier) | ships | |
+| 7 (06:00 tomorrow) | ships | a faint band of real dawn shadow from a downtown tower crosses one street; today's shadow box stops short of it |
 
 What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `raytrace-lab.tsx`):
 - Ground: its own shader drawn in uv space and read back as one colour texture (32 texels per unit), on the same geometry (the mask itself had traced as red, green and blue).
@@ -52,7 +52,11 @@ What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `ray
 - Water: the ripple texture holds wave slopes. The shader only nudges its mirror image by them (slope x 0.6 / (depth + 8)) and calms them with distance, so the twin's normal map is gentle (0.025): at 0.1 it tilted reflections by degrees and swept the bridge lights into zigzag bands (chapter 6), and the tracer reads normal maps without mipmaps. Chapter 0 was re-baked with it: a cleaner bridge reflection, closer to today.
 - Shadows as today: at rest the lab leaves casters wholly outside the raster's sun shadow box out of the trace's shadows (`farCasters`, `visibleToShadowRays`). The Bay Bridge had laid a lattice on the water at 15:00 and streaked the city at dawn.
 - Trees: the batched trees are traced as plain world-space twins (`batched`): through the tracer's batched path the trunks were lost. The bake draws every tree's near model and gives the leaves a filled sprite (`fillGaps` in tree-textures.ts): the raster keeps far crowns full by boosting mipmapped alpha, the tracer reads the full-size sprite and saw lace.
-- Live shadows on the plate (`plates.tsx` catcher): its shadow map holds live casters only, so nothing static stops a shadow. They fall only on up-facing surfaces, and not as long throws (the ray to the sun passes a live object more than 2.5 m away): at dawn Cuso's ran across the street and down the facade below him, and cars' climbed the walls.
+- Live shadows on the plate (`plates.tsx` catcher): the catchers multiply into the plate one mesh at a time, so a street drawn before the wall in front of it darkened the wall with a car's or Cuso's shadow (the dawn streak on the apartment). At rest each catcher gets a depth-only twin drawn first (`depthProxy`), so only the nearest surface catches. Rules on reach and facing were tried first and did nothing: the cause was draw order.
+- Downtown metal (vents, roof decks) traces dark and matte: the raster has no environment for it to mirror, and as metal it mirrored the bright sky (chapter 4's roofs read light).
+- Night fill (`studioFill`): the raster also lights everything with a studio environment, day and night. By day the traced sky stands in; at night the trace adds two fill lights by how much night it is (chapter 6's stone and decks had gone dark).
+- Stars: at rest the sky dome stays on and draws only its stars, added over the plate's sky (`starsOnly`); the city's depth hides them behind buildings.
+- A bake catches the camera wherever the rig eased to: check the plate's pose against today's rest view after baking (chapter 4 landed 0.4 m off once; a re-bake landed exactly).
 - Any change to the camera rig can move a rest view off its plate (chapter 3 did): re-run `CHECK=1` for all chapters after one.
 - Lamps: a point light sits inside its glass globe, which blocked every light ray in the trace (the raster's lights cast no shadows), so the pier lamp lit nothing. `lightHousings` finds the small meshes a light sits in and the lab sets the tracer's `visibleToShadowRays` false on them (an object flag; the material `castShadow` the docs mention is not read by the WebGPU tracer).
 - House windows: about half light up at night, warm, by window and house as the shader picks them (the GPU's 32-bit hash picks a similar share, not the same windows).

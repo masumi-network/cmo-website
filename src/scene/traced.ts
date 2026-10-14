@@ -221,7 +221,8 @@ function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>, follow
         const make = () => new MeshStandardMaterial({ vertexColors: true, map: maps.map, roughnessMap: maps.orm, metalnessMap: maps.orm, roughness: 1, metalness: 1, emissive: 0xffffff, emissiveMap: maps.lit });
         put(`facade:${kind}`, glowing(make, () => 1.4 * info.night.value), t, { color: tint, uv: t.i.map((i): [number, number] => [(g.aUv.getX(i) + ox) / FACADE_CELLS, (g.aUv.getY(i) + oy) / FACADE_CELLS]) });
       } else {
-        const [roughness, metalness, k] = part === PART.metal ? [0.4, 0.6, 1] : part === ALUMINIUM ? [0.5, 0.15, 1] : part === PART.roof ? [0.85, 0, 0.4] : [0.85, 0, 1];
+        // metal (vents, roof decks): the raster has no environment for it to mirror and shows it dark; traced as metal it mirrored the bright sky
+        const [roughness, metalness, k] = part === PART.metal ? [0.4, 0, 0.4] : part === ALUMINIUM ? [0.5, 0.15, 1] : part === PART.roof ? [0.85, 0, 0.4] : [0.85, 0, 1];
         put(`part:${part}`, plain({ roughness, metalness }), t, { color: tint.map((c) => c.multiplyScalar(k)) });
       }
     });
@@ -450,3 +451,17 @@ export function farCasters(scene: Object3D, sun: DirectionalLight): Mesh[] {
   return out;
 }
 
+/**
+ * The raster lights everything with a constant studio environment as well
+ * (scene.tsx: two light panels, at half strength), day and night. By day the
+ * traced sky stands in for it; at night the sky is nearly black and the
+ * stone and decks went dark (chapter 6). So the trace adds the panels as two
+ * fill lights, by how much night it is: from where they hang, about as strong
+ * as they light a surface facing them.
+ */
+export function studioFill(night: number) {
+  return [
+    { direction: new Vector3(0, 12, 12).normalize(), intensity: 0.9 * night },
+    { direction: new Vector3(-20, 6, -10).normalize(), intensity: 0.16 * night },
+  ];
+}
