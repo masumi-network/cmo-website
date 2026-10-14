@@ -1,11 +1,39 @@
-# F12 · Photo-real mode (planned)
+# F12 · Photo-real mode (v0)
 
-Last updated: 2026-10-14 · Status: planned · Spike done; plates look like the direction
+Last updated: 2026-10-14 · Status: v0, behind a flag · Launch: ok (off by default)
 
-## Idea
-- A photo-real city for desktops with WebGPU, behind a flag. The WebGL site stays the default; phones keep lite mode.
-- Same speed while scrolling: screen-space effects (SSGI, SSR, GTAO, TRAA) while the camera moves, a WebGPU path tracer ([three-gpu-pathtracer](https://github.com/gkjohnson/three-gpu-pathtracer)) only while it rests on a chapter.
+## What it is
+- On desktop, `?photoreal` (or `NEXT_PUBLIC_PHOTOREAL=1`) shows each chapter's rest view as a pre-traced plate: the static city path-traced once, at build time, with Cuso, cars, boats and the visitor's brand drawn live on top. Phones and lite mode never get it.
+- While scrolling, the city renders as today. Screen-space effects were measured and left out: too slow for what they add (below).
 - Team research page: https://claude.ai/code/artifact/02617856-3933-4608-98f4-9c6aa0bfe0ca
+
+## How it works (`src/scene/plates.tsx`, `src/lib/plates.ts`)
+- `public/plates/manifest.json` lists one plate per chapter: file, size, hour, and the camera pose it was traced from (zod-checked; a broken file means no plates).
+- A plate is 2:1 at 3456 x 1728. The vertical field of view is fixed, so any narrower screen shows its middle; a screen wider than 2:1 gets no plate.
+- Colour is linear, divided by `PLATE_RANGE` (2) and sRGB-encoded in an 8-bit WebP. The post chain (bloom, tilt-shift, tone mapping) treats it like the rest of the scene, so plate and live objects match.
+- The plate defines the rest view. `plates.tsx` offers the rig the ready plates for the chapter (`rig.plates`, both ends of the leg, since at a chapter the day can read as either). Once the rig's own camera has settled within 60 cm and 5 degrees of one (it never lands twice the same: it follows where Cuso stopped), it glides onto the plate's pose in 0.5 s (`settle` in lib/plates.ts) and lets go when it moves on. At the end of the glide `rig.rest` is set: the plate shows and the water mirror pauses. The pointer parallax is off in this mode.
+- Then the plate fades in over the city (0.4 s). At rest the static city is drawn only as a shadow catcher (`splitScene`): its depth hides live objects behind walls, and live objects' shadows multiply onto the plate (static casters off, the plate has their shadows). The sky dome, lines and transparent bits hide; custom shader effects (the fog bank) stay live.
+- Moving again restores the city at once. The canvas carries `data-plate` = `off`, `fade` or `rest` for tests.
+- Live objects are marked `userData={LIVE}` (shared.ts): Cuso, cars, boats and ferry, cable cars, the Union Square billboard, the shop sign and interior.
+
+## Baking plates
+- Needs the dev server and a real GPU: `BASE=http://localhost:3001 node scripts/plates.mjs <check-dir> [chapters]` (default all 8). About 70 s a chapter at 128 samples, then a check: `<i>-photoreal.png` next to `<i>-today.png`.
+- It runs the dev lab's plate mode (`?raytrace=plate&dpr=2`): traced twins of the patched materials, live objects hidden, OIDN denoiser, the scene's fog mixed in linear, then `encodePlate`.
+- `CHECK=1` skips the bake and only checks. A chapter whose camera does not settle in 60 s fails with a message instead of hanging.
+- The traced sky turns to the fog colour near the horizon (haze), so fogged far water and hills meet it without an edge (a hard line and a cut-off hill showed before).
+- Re-bake after changing the static city, its materials, a chapter's camera, or the lighting at its hour. The OIDN weights for the denoiser are gitignored in `public/lab/oidn/` (see Denoiser below).
+
+## Which chapters have plates (2026-10-14)
+Only chapter 0 (06:00, the Golden Gate from the rooftop) ships. The others were baked and reviewed, and need traceable twins (traced.ts) first:
+
+| Chapter | What breaks in the plate | Twin needed |
+| --- | --- | --- |
+| 1 (07:00 shop) | streets and sidewalks: green and red masks, mirror roads; shopfront flat tan | `ground`, `shop-painted` |
+| 2 (09:00 Mission) | mural wall black; ground masks; mirror street | `ground`, `mission`, mural |
+| 3 (12:00 Union Square) | ground masks in the street; the rest reads well | `ground` |
+| 4 to 7 | not reviewed (night chapters also need window glow and lamps as emitters) | `downtown`, towers, `ferry-market`, `coit`, `taqueria`, night emission |
+
+`ground` is in every street chapter: it is the next twin to build.
 
 ## Spike (2026-10-14)
 - Dev only: `?raytrace` (`src/scene/raytrace-lab.tsx`) path-traces the live city over the WebGL canvas. R hides the traced image, F freezes the WebGL city, P restarts. Options: `&scale=0.5` (half resolution), `&spp=8` (denoise sooner), `&denoise=0`, `&pose=0` (keep load-time poses).
@@ -80,28 +108,7 @@ GPU ms per frame, 1440x900 at one pixel per point, shadows on, WebGL city frozen
 - SSGI + TRAA gives softer edges and contact shading, not a photo-real step.
 - Verdict: while moving, plain raster. The photo-real step comes from tracing at rest.
 
-## Pre-traced chapter plates (2026-10-14)
-- `?raytrace=plate` traces the static city (live objects hidden) to 256 spp, denoises, and reads its depth. `node scripts/plates.mjs <dir> 0` saves `public/lab/plates/ch<i>-<w>x<h>.{png,f32,json}` (gitignored), then checks the composite.
-- `?raytrace=plates` shows the plate when the camera rests on its view, and draws only the live objects over it, depth-tested (`plate-lab.ts`).
-- Live objects are marked `userData.live`: Cuso (cuso.tsx), the cars (traffic.tsx), boats and ferry (bay.tsx).
-
-| Measure | Chapter 0 |
-| --- | --- |
-| Bake (256 spp + denoise, this Mac) | about 35 s |
-| Composite per frame (plate + live objects) | 0.7 to 2.8 ms GPU |
-| Colour (PNG) | 880 KB, WebP or AVIF would be far smaller |
-| Depth (raw float32) | 5 MB, needs 16-bit or half resolution |
-
-Result: the traced city with Cuso blinking and the boats sailing over it, at a fraction of today's frame cost.
-
-Gotchas:
-- The camera eases in and never lands on the same matrix twice. A plate needs a fixed rest camera: bake once the camera is still, match within about 2 cm, and draw the live objects from the plate's camera.
-- The pointer parallax (camera-rig.tsx, up to 0.35 units) moves the camera off the plate. Turn it off at rest, or shift the plate by its depth.
-- The plate's colour loads bottom row first, its depth readback top row first.
-- Every plate is one chapter, one hour, one screen size and one pixel ratio.
-
-Still missing:
-- Cuso's shadow on the plate: a shadow-catcher pass over the static depth.
-- Karl the fog bank (GLSL), and the post effects (tilt-shift, bloom, vignette).
-- Brand signs (F04) change per visitor: keep them live or out of plates.
-- Fading between the live city and the plate.
+## Pre-traced chapter plates: spike (2026-10-14)
+- First tried on the WebGPU canvas: plate colour plus a 5 MB float depth file, live objects drawn by WebGPU. It worked (0.7 to 2.8 ms GPU at rest) but lost Cuso's shader patches and the post effects.
+- The shipped version (above) composites in WebGL instead: no depth file (the city's own geometry gives depth and catches shadows), and the post chain applies to everything.
+- Gotchas found: the camera eases in and never lands twice the same (bake only once it is still, match with a tolerance, snap); the pointer parallax moves the camera off the plate; a bake must hide the HUD, speech bubbles and the dev badge.

@@ -18,7 +18,7 @@ import { STRIDE, pose } from "./gait";
 import { crossings, cusoMayGo, unionCar } from "./cable-line";
 import { SCALE, rigCuso } from "./rig";
 import { PATHS, TELEPORT, arrival, dayDistance, sampleDay, walkOn } from "./routes";
-import { damp, overlays, rig } from "./shared";
+import { damp, LIVE, overlays, rig } from "./shared";
 
 export const CUSO_URL = "/models/cuso.glb";
 const FEET = 0.1524 * SCALE;
@@ -146,8 +146,7 @@ export function Cuso() {
   });
 
   return (
-    // live: drawn over pre-traced plates, never in them (photo-real spike)
-    <group ref={outer} userData={{ live: true }}>
+    <group ref={outer} userData={LIVE}>
       <group ref={body}>
         <primitive object={scene} scale={SCALE} position-y={FEET} />
       </group>

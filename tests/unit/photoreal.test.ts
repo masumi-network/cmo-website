@@ -1,74 +1,52 @@
 import { describe, expect, it } from "vitest";
-import { BoxGeometry, DirectionalLight, Group, Mesh, MeshStandardMaterial, PerspectiveCamera, Scene, Texture, Vector3 } from "three";
-import { allButLive, liveRoots, matches, plateCamera } from "@/scene/plate-lab";
+import { BoxGeometry, BufferGeometry, DirectionalLight, Group, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, Scene, ShaderMaterial, Texture, Vector3 } from "three";
+import { splitScene } from "@/scene/plates";
 import { traceInfo } from "@/scene/trace-info";
 import { TRACE_LAYER, buildTwins } from "@/scene/traced";
 
-/** A scene like the city's: static blocks, a light, and live objects nested inside groups. */
+/** A scene like the city's: static blocks, a light, the sky dome, the fog bank, lines, glass, and live objects nested inside groups. */
 function city() {
   const scene = new Scene();
   const sun = new DirectionalLight();
-  const block = new Mesh(new BoxGeometry());
+  const block = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
   const district = new Group();
-  const house = new Mesh(new BoxGeometry());
+  const house = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
   const cars = new Group();
-  cars.userData.live = true;
-  cars.add(new Mesh(new BoxGeometry()));
+  cars.userData = { live: true };
+  const car = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+  cars.add(car);
   district.add(house, cars);
-  const cuso = new Group();
-  cuso.userData.live = true;
-  scene.add(sun, block, district, cuso);
-  return { scene, sun, block, district, house, cars, cuso };
+  const sky = new Mesh(new BoxGeometry(), new ShaderMaterial());
+  sky.name = "sky";
+  const fogBank = new Mesh(new BoxGeometry(), new ShaderMaterial({ transparent: true }));
+  const cables = new LineSegments(new BufferGeometry(), new LineBasicMaterial());
+  const glow = new Mesh(new BoxGeometry(), new MeshBasicMaterial({ transparent: true }));
+  scene.add(sun, block, district, sky, fogBank, cables, glow);
+  return { scene, sun, block, house, cars, car, sky, fogBank, cables, glow };
 }
 
-describe("live objects over plates", () => {
-  it("finds the live roots, however deep", () => {
-    const { scene, cars, cuso } = city();
-    expect(liveRoots(scene)).toEqual([cars, cuso]);
+describe("the scene at rest on a plate", () => {
+  it("draws live objects as usual and does not look inside them", () => {
+    const { scene, cars, car } = city();
+    const { live, catchers, hidden } = splitScene(scene);
+    expect(live).toEqual([cars]);
+    expect([...catchers, ...hidden]).not.toContain(car);
   });
 
-  it("hides whole static subtrees, never the live objects, their parents or the lights", () => {
-    const { scene, sun, block, district, house, cars, cuso } = city();
-    const hide = allButLive(scene);
-    expect(hide).toEqual([block, house]);
-    for (const kept of [sun, district, cars, cuso]) expect(hide).not.toContain(kept);
-  });
-});
-
-describe("plate camera", () => {
-  const camera = () => {
-    const c = new PerspectiveCamera(35, 1.6, 0.2, 1200);
-    c.position.set(4, 3, 9);
-    c.lookAt(0, 1, 0);
-    c.updateMatrixWorld();
-    return c;
-  };
-
-  it("matches the camera it was traced from", () => {
-    const c = camera();
-    expect(matches(c, plateCamera(c, 1440, 900))).toBe(true);
+  it("turns the static city into shadow catchers, however deep", () => {
+    const { scene, block, house } = city();
+    expect(splitScene(scene).catchers).toEqual([block, house]);
   });
 
-  it("still matches when the camera has eased to within a centimetre", () => {
-    const c = camera();
-    const plate = plateCamera(c, 1440, 900);
-    c.position.x += 0.01;
-    c.updateMatrixWorld();
-    expect(matches(c, plate)).toBe(true);
+  it("hides what the plate already shows: the sky dome, lines, transparent bits", () => {
+    const { scene, sky, cables, glow } = city();
+    expect(splitScene(scene).hidden).toEqual([sky, cables, glow]);
   });
 
-  it("does not match another view, lens or screen shape", () => {
-    const c = camera();
-    const plate = plateCamera(c, 1440, 900);
-    c.position.x += 0.25; // the unsettled camera the first bake caught
-    c.updateMatrixWorld();
-    expect(matches(c, plate)).toBe(false);
-    const wide = camera();
-    wide.fov = 50;
-    expect(matches(wide, plate)).toBe(false);
-    const tall = camera();
-    tall.aspect = 0.5;
-    expect(matches(tall, plate)).toBe(false);
+  it("keeps custom shader effects (the fog bank) and the lights as they are", () => {
+    const { scene, fogBank, sun } = city();
+    const { live, catchers, hidden } = splitScene(scene);
+    for (const kept of [fogBank, sun]) expect([...live, ...catchers, ...hidden]).not.toContain(kept);
   });
 });
 

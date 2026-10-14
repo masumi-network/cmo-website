@@ -16,6 +16,7 @@ import { BVHComputeData } from "three-mesh-bvh/webgpu";
 import { perspectiveDepthToViewZ, screenUV, smoothstep, step, texture, uniform } from "three/tsl";
 import {
   ACESFilmicToneMapping,
+  NoToneMapping,
   Color,
   DataTexture,
   EquirectangularReflectionMapping,
@@ -39,10 +40,11 @@ import {
   type Scene,
   type Texture,
 } from "three/webgpu";
+import { PLATE_RANGE, encodePlate, type PlateEntry } from "@/lib/plates";
 import { lightingAt } from "@/lib/time";
 import { dayNow } from "./shared";
 import { CHAINS, screenSpace, type Chain } from "./fx-lab";
-import { allButLive, liveRoots, loadPlate, matches, plateCamera, plateQuad, readDepth, type Plate } from "./plate-lab";
+import { splitScene } from "./plates";
 import { TRACE_LAYER, buildTwins } from "./traced";
 
 type Stats = {
@@ -71,8 +73,8 @@ declare global {
   interface Window {
     __rt?: Stats;
     __rtCamera?: () => number[];
-    /** plate mode: the static city's depth (base64 float32) and camera, for scripts/plates.mjs */
-    __plate?: { depth: string; camera: ReturnType<typeof plateCamera> };
+    /** plate mode: the plate (base64 WebP) and its manifest entry, for scripts/plates.mjs */
+    __plate?: { webp: string; entry: PlateEntry };
   }
 }
 
@@ -102,6 +104,8 @@ function skyTexture(hour: number): Texture {
   const top = new Color(L.skyTop);
   const horizon = new Color(L.skyHorizon);
   const sunColor = new Color(L.night > 0.5 ? "#c9d4ff" : L.sunColor);
+  // haze: near the horizon the sky turns to the fog colour, as fogged distant ground does, so the two meet without an edge
+  const fog = new Color(L.fog);
   const elevation = (L.elevation < 0 ? 38 : L.elevation) * DEG;
   const azimuth = L.azimuth * DEG;
   const sx = Math.cos(elevation) * Math.sin(azimuth);
@@ -125,9 +129,10 @@ function skyTexture(hour: number): Texture {
       // the glow only: the sun itself is the directional light
       const glow = Math.pow(Math.max(x * sx + y * sy + z * sz, 0), 12) * 0.25 * (1 - L.night * 0.6);
       const o = (j * W + i) * 4;
-      data[o] = horizon.r + (top.r - horizon.r) * k + sunColor.r * glow;
-      data[o + 1] = horizon.g + (top.g - horizon.g) * k + sunColor.g * glow;
-      data[o + 2] = horizon.b + (top.b - horizon.b) * k + sunColor.b * glow;
+      const haze = smooth(0.12, 0, y);
+      data[o] = (horizon.r + (top.r - horizon.r) * k) * (1 - haze) + fog.r * haze + sunColor.r * glow;
+      data[o + 1] = (horizon.g + (top.g - horizon.g) * k) * (1 - haze) + fog.g * haze + sunColor.g * glow;
+      data[o + 2] = (horizon.b + (top.b - horizon.b) * k) * (1 - haze) + fog.b * haze + sunColor.b * glow;
       data[o + 3] = 1;
     }
   }
@@ -297,71 +302,28 @@ function runEffects(renderer: WebGPURenderer, scene: Scene, camera: PerspectiveC
 }
 
 /**
- * plates mode: when the camera rests where a saved plate was traced, show the
- * plate and draw only the live objects over it (depth-tested, shadows on).
- * Elsewhere the overlay fades out and the WebGL city shows. Timed on the GPU.
+ * The denoised plate as the WebGL side needs it: linear colour with the
+ * scene's fog mixed in (as three's fog does, before tone mapping), divided by
+ * PLATE_RANGE and sRGB-encoded (lib/plates.ts), as WebP.
  */
-function runPlates(renderer: WebGPURenderer, scene: Scene, camera: PerspectiveCamera, stats: Stats, panel: HTMLElement, canvas: HTMLCanvasElement, stopped: () => boolean) {
-  renderer.shadowMap.enabled = true;
-  const hide = [...allButLive(scene), ...notInDepth(scene)];
-  const plates = new Map<string, Plate | null | "loading">();
-  const quads = new Map<Plate, QuadMesh>();
-  const sky = skyTexture(dayNow().hour);
-  const size = new Vector2();
-  const times: number[] = [];
-  canvas.style.transition = "opacity 250ms";
-  canvas.style.opacity = "0";
-  const tick = () => {
-    if (stopped()) return;
-    const day = dayNow();
-    renderer.getDrawingBufferSize(size);
-    const name = `ch${day.from}-${size.x}x${size.y}`;
-    if (!plates.has(name)) {
-      plates.set(name, "loading");
-      loadPlate(name).then((p) => plates.set(name, p), () => plates.set(name, null));
-    }
-    const plate = plates.get(name);
-    const show = !!plate && plate !== "loading" && matches(camera, plate.camera);
-    if (plate && plate !== "loading") {
-      const e = camera.matrixWorld.elements;
-      stats.plateOff = Math.max(...plate.camera.matrixWorld.map((v, i) => Math.abs(v - e[i])));
-    }
-    canvas.style.opacity = show ? "1" : "0";
-    if (show) {
-      let quad = quads.get(plate);
-      if (!quad) quads.set(plate, (quad = plateQuad(plate)));
-      quad.render(renderer);
-      const shown = hide.filter((o) => o.visible);
-      for (const o of shown) o.visible = false;
-      const { environment, background } = scene;
-      scene.environment = sky;
-      scene.background = null;
-      // draw the live objects from the plate's camera, so they sit exactly in it
-      const view = camera.matrixWorld.clone();
-      const auto = camera.matrixWorldAutoUpdate;
-      camera.matrixWorldAutoUpdate = false; // or render() rebuilds it from position and rotation
-      camera.matrixWorld.fromArray(plate.camera.matrixWorld);
-      camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
-      renderer.autoClear = false;
-      renderer.render(scene, camera);
-      renderer.autoClear = true;
-      camera.matrixWorldAutoUpdate = auto;
-      camera.matrixWorld.copy(view);
-      camera.matrixWorldInverse.copy(view).invert();
-      Object.assign(scene, { environment, background });
-      for (const o of shown) o.visible = true;
-      renderer.resolveTimestampsAsync("render").then((ms) => {
-        if (typeof ms !== "number" || !(ms > 0)) return;
-        times.push(ms);
-        if (times.length > 120) times.shift();
-        stats.fxMs = +[...times].sort((a, b) => a - b)[times.length >> 1].toFixed(2);
-        stats.fxFrames = (stats.fxFrames ?? 0) + 1;
-      });
-    }
-    panel.textContent = `plates  ${name}: ${plate === "loading" ? "loading" : plate ? (show ? `showing, ${stats.fxMs ?? "-"} ms GPU` : "camera off the plate") : "none"}\nR toggle  F freeze`;
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
+async function exportPlate(renderer: WebGPURenderer, tracer: WebGPUPathTracer, fog: ReturnType<typeof distanceFog>) {
+  const size = renderer.getDrawingBufferSize(new Vector2());
+  const target = new RenderTarget(size.x, size.y, { type: FloatType });
+  const toneMapping = renderer.toneMapping;
+  renderer.toneMapping = NoToneMapping;
+  renderer.setRenderTarget(target);
+  tracer.renderSample(); // done sampling: this only draws the denoised image
+  fog.draw();
+  renderer.setRenderTarget(null);
+  renderer.toneMapping = toneMapping;
+  const linear = (await renderer.readRenderTargetPixelsAsync(target, 0, 0, size.x, size.y)) as Float32Array;
+  target.dispose();
+  const canvas = new OffscreenCanvas(size.x, size.y);
+  canvas.getContext("2d")!.putImageData(new ImageData(encodePlate(linear, PLATE_RANGE), size.x, size.y), 0, 0);
+  const bytes = new Uint8Array(await (await canvas.convertToBlob({ type: "image/webp", quality: 0.9 })).arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return { webp: btoa(bin), width: size.x, height: size.y };
 }
 
 export default function RaytraceLab() {
@@ -389,7 +351,6 @@ export default function RaytraceLab() {
     const mode = params.get("raytrace") ?? "";
     const fxMode = mode === "fx";
     const plateMode = mode === "plate";
-    const platesMode = mode === "plates";
     let frozen = false;
     let posed = false;
     const onKey = (e: KeyboardEvent) => {
@@ -413,7 +374,7 @@ export default function RaytraceLab() {
       const adapter = await gpu.requestAdapter({ powerPreference: "high-performance" });
       if (!adapter) throw new Error("no WebGPU adapter");
       const { maxStorageBufferBindingSize, maxBufferSize } = adapter.limits;
-      renderer = new WebGPURenderer({ canvas, antialias: false, trackTimestamp: fxMode || platesMode, requiredLimits: { maxStorageBufferBindingSize, maxBufferSize } });
+      renderer = new WebGPURenderer({ canvas, antialias: false, trackTimestamp: fxMode, requiredLimits: { maxStorageBufferBindingSize, maxBufferSize } });
       await renderer.init();
       if (stop) return;
       renderer.setPixelRatio(Number(new URLSearchParams(window.location.search).get("dpr") ?? 1));
@@ -438,12 +399,8 @@ export default function RaytraceLab() {
         runEffects(renderer, scene, camera as PerspectiveCamera, twins.originals, stats, panel, () => stop);
         return;
       }
-      if (platesMode) {
-        runPlates(renderer, scene, camera as PerspectiveCamera, stats, panel, canvas, () => stop);
-        return;
-      }
       // A plate is the static city: the live objects (Cuso, cars, boats) are drawn over it later.
-      const live = plateMode ? liveRoots(scene) : [];
+      const live = plateMode ? splitScene(scene).live : [];
       const staticHidden = [...twins.originals, ...live];
       let exported = false;
 
@@ -517,17 +474,17 @@ export default function RaytraceLab() {
         }
         guided(scene, camera as PerspectiveCamera, sky!, guideHidden, () => tracer!.renderSample());
         if (denoiser?.complete && !stats.denoisedMs) stats.denoisedMs = Math.round(performance.now() - resetAt);
-        // plate: once clean, read the static city's depth for scripts/plates.mjs (the colour is a screenshot)
+        // plate: once clean, hand the linear, fogged image and the camera to scripts/plates.mjs
         if (plateMode && stats.denoisedMs && !exported) {
           exported = true;
-          let depth: ReturnType<typeof readDepth> | null = null;
-          guided(scene, camera as PerspectiveCamera, sky!, guideHidden, () => (depth = readDepth(renderer!, scene, camera)));
-          depth!.then(({ w, h, data }) => {
-            const bytes = new Uint8Array(data.buffer);
-            let bin = "";
-            for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-            window.__plate = { depth: btoa(bin), camera: plateCamera(camera as PerspectiveCamera, w, h) };
-          });
+          const day = dayNow();
+          const cam = camera as PerspectiveCamera;
+          exportPlate(renderer!, tracer, fog).then(({ webp, width, height }) => {
+            window.__plate = {
+              webp,
+              entry: { chapter: day.from, hour: day.hour, file: "", width, height, fov: cam.fov, position: cam.position.toArray(), quaternion: cam.quaternion.toArray() },
+            };
+          }, (e: unknown) => (stats.error = String(e)));
         }
         fog.draw();
         stats.sinceReset = now - resetAt;

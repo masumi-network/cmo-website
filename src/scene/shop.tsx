@@ -20,7 +20,7 @@ import { PALETTES, SLOT, builder, palette, type Frame, type Rect } from "./house
 import { box, cyl, drawn, merged, placed, placer, useLandmarkTextures } from "./landmark-kit";
 import { glassMaterial, houseMaterial } from "./materials";
 import { Instances, useBrand, type V3 } from "./parts";
-import { useInterior, useNightGlow } from "./shared";
+import { LIVE, useInterior, useNightGlow } from "./shared";
 import { Lamps } from "./street";
 import { useSign } from "./textures";
 
@@ -1243,10 +1243,10 @@ export function Shopfront() {
       <group position={[local.x, local.ground, local.z]}>
         <mesh geometry={parts.front} material={m.painted} castShadow receiveShadow />
         {/* the cafe: its light is baked in the shader, so it casts no shadows (its leaf cards would cast squares) */}
-        <mesh ref={interior} geometry={parts.interior} material={m.painted} receiveShadow />
+        <mesh ref={interior} geometry={parts.interior} material={m.painted} receiveShadow userData={LIVE} />
         <mesh geometry={parts.glass} material={m.glass} />
         {/* the visitor's brand on the fascia */}
-        <mesh position={[...SHOP.sign]} material={signMat}>
+        <mesh position={[...SHOP.sign]} material={signMat} userData={LIVE}>
           <planeGeometry args={SHOP_SIGN} />
         </mesh>
       </group>

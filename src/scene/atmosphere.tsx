@@ -145,7 +145,7 @@ export function Atmosphere({ lite }: { lite: boolean }) {
   return (
     <>
       <primitive object={fog} attach="fog" />
-      <mesh ref={domeRef} material={sky} renderOrder={-1} frustumCulled={false}>
+      <mesh ref={domeRef} name="sky" material={sky} renderOrder={-1} frustumCulled={false}>
         <sphereGeometry args={[480, 32, 16]} />
       </mesh>
       <hemisphereLight ref={hemi} />

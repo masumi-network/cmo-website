@@ -8,6 +8,7 @@ import { chapters, type Vec3 } from "@/content/day";
 import { shownHour } from "@/lib/navigate";
 import { travel } from "@/lib/time";
 import { useCity } from "@/lib/store";
+import type { PlateEntry } from "@/lib/plates";
 
 export const rig = {
   /** Where the camera looks. The sun's shadow box follows it. */
@@ -24,7 +25,17 @@ export const rig = {
   travel: { leg: 0, t: 0, s: 0, length: 1, moving: false },
   /** 0 = day, 1 = night. */
   night: 0,
+  /** Photo-real mode: plates ready at the chapter(s) the day is at (plates.tsx offers them). */
+  plates: [] as PlateEntry[],
+  /** The plate the camera has come to rest on (camera-rig.tsx decides from its eased pose, then snaps to it; the water mirror pauses). */
+  rest: null as PlateEntry | null,
 };
+
+/**
+ * userData for objects drawn live over photo-real plates and left out of them
+ * (F12, plates.tsx): they move, or show the visitor's brand.
+ */
+export const LIVE = Object.freeze({ live: true }); // shared by reference: never write to it
 
 /**
  * Layer for small details (grass, interiors, street furniture, cars): the

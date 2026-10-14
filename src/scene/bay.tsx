@@ -53,7 +53,7 @@ import { BAY_TOWERS, GG } from "./landmarks";
 import { LAND, insideLand } from "./layout";
 import { BAY_ANCHORS, ISLAND, ROADS, piers } from "./roads";
 import { useGlow } from "./parts";
-import { rig } from "./shared";
+import { LIVE, rig } from "./shared";
 import { traceInfo } from "./trace-info";
 
 /** The water surface. Pier, cliffs and bridges are built around it. */
@@ -963,7 +963,8 @@ export function Water({ lite }: { lite: boolean }) {
       if (hemi.current) uniforms.uSkyTop.value.copy(hemi.current.color);
     }
     // Not before `Ready` (scene.tsx) has compiled every shader: a mirror render would compile them one by one.
-    if (!mirror || !mesh.current || !scene.userData.shadersReady) return;
+    // At rest on a photo-real plate (plates.tsx) the water is in the plate: no mirror.
+    if (!mirror || !mesh.current || !scene.userData.shadersReady || rig.rest) return;
     gl.getDrawingBufferSize(_size);
     const w = Math.min(1024, Math.round(_size.x / 2));
     const h = Math.round((w * _size.y) / _size.x);
@@ -1069,8 +1070,7 @@ export function Bay() {
   return (
     <>
       <Alcatraz waterY={WATER_Y} unreflected={notReflected} />
-      {/* live: drawn over pre-traced plates, never in them (photo-real spike) */}
-      <group userData={{ live: true }}>
+      <group userData={LIVE}>
         <instancedMesh ref={hulls} args={[hullGeo, paintMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
         <instancedMesh ref={mains} args={[mainGeo, sailMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
         <instancedMesh ref={jibs} args={[jibGeo, sailMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />

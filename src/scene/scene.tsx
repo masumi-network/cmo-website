@@ -24,6 +24,7 @@ import { UnionSquare } from "./union-square";
 import { Shadowless } from "./parts";
 import { Pier } from "./pier";
 import { Pins } from "./pins";
+import { Plates } from "./plates";
 import { Reflections } from "./reflections";
 import { DETAIL, rig } from "./shared";
 
@@ -39,7 +40,7 @@ const RaytraceLab =
     ? lazy(() => import("./raytrace-lab"))
     : null;
 
-type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean };
+type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean; photoreal: boolean };
 
 /**
  * Ready once every shader is compiled and every texture uploaded, so the
@@ -107,14 +108,15 @@ const Studio = memo(function Studio() {
   );
 });
 
-function Scene({ onReady, onGo, lite }: Props) {
+function Scene({ onReady, onGo, lite, photoreal }: Props) {
   // Sharp on retina screens, until the GPU can't keep up: then one pixel per pixel.
   const [dpr, setDpr] = useState<[number, number]>(lite ? [1, 1.5] : [1, 2]);
   useEffect(() => {
+    if (photoreal) return; // the camera must hold still on a plate: no pointer parallax
     const move = (e: PointerEvent) => rig.pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     window.addEventListener("pointermove", move, { passive: true });
     return () => window.removeEventListener("pointermove", move);
-  }, []);
+  }, [photoreal]);
 
   return (
     <Canvas
@@ -155,6 +157,7 @@ function Scene({ onReady, onGo, lite }: Props) {
         <Ready onReady={onReady} />
         {PerfOverlay && <PerfOverlay />}
         {RaytraceLab && <RaytraceLab />}
+        {photoreal && <Plates />}
       </Suspense>
       <CameraRig />
       {lite ? (

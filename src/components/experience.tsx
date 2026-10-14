@@ -10,12 +10,13 @@ import { Chapters } from "@/components/chapters";
 import { Hud } from "@/components/hud";
 import { chapters } from "@/content/day";
 import { goToChapter, sectionHeight } from "@/lib/navigate";
+import { photorealOn } from "@/lib/plates";
 import { useCity } from "@/lib/store";
 import { activeIndex } from "@/lib/time";
 
 const Scene = dynamic(() => import("@/scene/scene"), { ssr: false });
 
-type Support = { webgl: boolean; lite: boolean } | null;
+type Support = { webgl: boolean; lite: boolean; photoreal: boolean } | null;
 
 let support: Support = null;
 function detect(): Support {
@@ -26,7 +27,12 @@ function detect(): Support {
   try {
     gl = document.createElement("canvas").getContext("webgl2");
   } catch {}
-  support = { webgl: !!gl && !reduced && !params.has("static"), lite: params.has("lite") || weak(gl) };
+  const lite = params.has("lite") || weak(gl);
+  support = {
+    webgl: !!gl && !reduced && !params.has("static"),
+    lite,
+    photoreal: photorealOn({ lite, search: window.location.search, env: process.env.NEXT_PUBLIC_PHOTOREAL }),
+  };
   gl?.getExtension("WEBGL_lose_context")?.loseContext(); // only asked; the scene makes its own
   return support;
 }
@@ -154,7 +160,7 @@ export function Experience() {
             className={cn("fixed inset-x-0 top-0 h-lvh transition-opacity duration-1000", ready ? "opacity-100" : "opacity-0")}
             onTransitionEnd={(e) => ready && e.target === e.currentTarget && setCovered(true)}
           >
-            <Scene onReady={onReady} onGo={onGo} lite={env.lite} />
+            <Scene onReady={onReady} onGo={onGo} lite={env.lite} photoreal={env.photoreal} />
           </div>
         )}
       </div>
