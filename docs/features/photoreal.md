@@ -32,7 +32,10 @@ Chapters 0 to 3 ship. Reviewed against today's frame:
 | 1 (07:00 shop) | ships | |
 | 2 (09:00 Mission mural) | ships | |
 | 3 (12:00 Union Square) | ships | |
-| 4 to 7 | not baked | `downtown`, towers, `ferry-market`, `coit`, `taqueria`; night chapters need window glow and lamps as emitters |
+| 4 (15:00 Pyramid) | baked, held back | `downtown` towers trace pale (no mullions, dark glass or tar roofs); the Bay Bridge throws a dark lattice shadow on the water that today's frame lacks |
+| 5 (18:00 Ferry Building) | baked, held back | `downtown` walls trace pink and flat, windows black (today they glow warm) |
+| 6 (22:00 pier) | baked, held back | far too dark: the street lamp is no light in the trace, so the deck and anchorage lose their pool; no stars; water reflections turn to squiggles |
+| 7 (06:00 tomorrow) | baked, held back | Telegraph Hill's trees and palms are missing; a dark streak (likely a line tube's shadow) crosses the houses; `downtown` glass tower pale |
 
 What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `raytrace-lab.tsx`):
 - Ground: its own shader drawn in uv space and read back as one colour texture (32 texels per unit), on the same geometry (the mask itself had traced as red, green and blue).
@@ -41,6 +44,7 @@ What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `ray
 - The scene is read again at rest: tree and lamp level-of-detail models switch with the camera.
 - Fog: the depth pass sees the twins, and the sky gets haze near the horizon, so no line or cut where far water meets sky.
 - The bake waits for the camera to set off before waiting for it to stop (chapter 1 once baked chapter 0's view).
+- The bake scrolls by the real section height (`main > section`): the page is taller than 8 sections, so `scrollHeight / 8` landed mid-leg from chapter 4 on and the camera never came to rest.
 - The shop (`shop-painted`): its warm emissive is masked to the cafe by `aGlow` in the shader, so the tracer made the whole front glow tan. The twin keeps the vertex colours, gives each `aMat` surface its gloss, and lets only lamp parts (`aGlow` over 1.5) emit.
 - Houses on `<Instances>` (the shop's shell) carry `aPalette` per instance, not per vertex: the twin reads it by instance (the shell traced blue, not cream).
 - Line tubes (suspenders) are wound to face out: inward sides traced the red cables dark brown.
