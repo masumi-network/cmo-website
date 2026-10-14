@@ -102,7 +102,7 @@ Last updated: 2026-10-14 · Status: v0 (art passes 1 to 9 done) · Launch blocke
   - Performance pass: see the performance log (2026-10-14).
   - The Union Square cable car runs its line (`cable-line.ts`); it was parked.
   - Fog: the drei `Clouds` puffs (hidden by a culling bug in every approved shot, and round bright blobs once visible) are replaced by one fog bank (`fog.tsx`); `cloud.png` is gone.
-  - Fixes: backlit cypresses no longer black; the Union Square billboard centred on its roof; the camera no longer passes through the Pyramid on the way to 15:00 (it was not an obstacle).
+  - Fixes: backlit cypresses no longer black; the Union Square billboard centred on its roof; the camera no longer passes through the Pyramid on the way to 15:00 (it was not an obstacle); the café's fig and hanging plant no longer trail dotted streaks (their leaf sprites touched the framed print and the chalk menu in the café canvas, and a leaf card's edge picked those up; the sprites now keep 8 clear pixels).
 - **Next:** real phone performance check (iOS Safari, Android Chrome); people on sidewalks (scale vs Cuso to decide); a modelled diorama kit if we want to go past procedural.
 
 ## Performance log

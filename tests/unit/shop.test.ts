@@ -97,6 +97,19 @@ describe("the Hayes Valley shop", () => {
     expect(onRegion(ATLAS.bag) / 6).toBeGreaterThanOrEqual(4); // a quad (two triangles, six vertices) per bag
   });
 
+  it("keeps a clear gutter round the leaf sprites, so a leaf card's edge never picks up a neighbour as stray dots", () => {
+    const GUTTER = 8; // texels: clean down to the 16-texel mip level
+    const regions = Object.entries(ATLAS).flatMap(([name, r]) => (typeof r === "number" ? [] : [[name, r] as const]));
+    for (const leaf of ["leaves", "fig"] as const) {
+      const [x, y, w, h] = ATLAS[leaf];
+      for (const [name, [rx, ry, rw, rh]] of regions) {
+        if (name === leaf) continue;
+        const apart = rx >= x + w + GUTTER || rx + rw + GUTTER <= x || ry >= y + h + GUTTER || ry + rh + GUTTER <= y;
+        expect(apart, `${leaf} next to ${name}`).toBe(true);
+      }
+    }
+  });
+
   it("hangs the pendants and stands the tables the cafe's light is baked around inside the room", () => {
     for (const [a, y, c] of PENDANTS) {
       expect(a > ROOM.a0 && a < ROOM.a1 && c > ROOM.c0 && c < 0).toBe(true);

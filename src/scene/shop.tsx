@@ -360,13 +360,15 @@ const SHELVES = [1.62, 2.1];
 /**
  * The cafe's one canvas (512 x 256, drawn at load, nothing to fetch): two leaf
  * sprites, the chalk menu, two framed prints, the coffee-bag label.
- * Regions are [x, y, w, h] in pixels from the top left.
+ * Regions are [x, y, w, h] in pixels from the top left. The leaf sprites keep
+ * 8 clear pixels to their neighbours: a leaf card's edge samples just past its
+ * sprite, and an opaque neighbour there survives the alpha cut as stray dots.
  */
 export const ATLAS = {
   w: 512,
   h: 256,
-  leaves: [0, 0, 128, 128],
-  fig: [0, 128, 128, 128],
+  leaves: [0, 0, 120, 120],
+  fig: [0, 128, 120, 120],
   menu: [128, 0, 384, 120],
   print1: [128, 124, 96, 128],
   print2: [228, 124, 96, 128],
