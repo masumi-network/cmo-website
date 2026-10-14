@@ -30,7 +30,7 @@ All eight chapters ship. Reviewed against today's frame:
 | --- | --- | --- |
 | 0 (06:00 rooftop, Golden Gate) | ships | |
 | 1 (07:00 shop) | ships | |
-| 2 (09:00 Mission mural) | ships | trees a little thinner than today (baked before the tree twins) |
+| 2 (09:00 Mission mural) | ships | |
 | 3 (12:00 Union Square) | ships | re-baked: the smoother camera rests 1.2 m from where the old one did |
 | 4 (15:00 Pyramid) | ships | roofs read lighter than today (the tracer's sun on up-facing faces) |
 | 5 (18:00 Ferry Building) | ships | lit windows a little paler than today's amber |
