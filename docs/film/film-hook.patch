@@ -1,0 +1,61 @@
+--- a/src/scene/camera-rig.tsx
++++ b/src/scene/camera-rig.tsx
+@@ -4,7 +4,7 @@
+ // next place the camera leads him (he walks towards us), then settles into
+ // the next shot. Explore mode pulls back to a bird's-eye view.
+ 
+-import { useFrame } from "@react-three/fiber";
++import { advance, useFrame } from "@react-three/fiber";
+ import { useRef } from "react";
+ import { PerspectiveCamera, Vector3, type Camera } from "three";
+ import { chapters, overview } from "@/content/day";
+@@ -57,6 +57,9 @@
+   return fit;
+ }
+ 
++// Film capture: the chapters for the driver, and a redraw that does not move time (motion blur samples).
++if (typeof window !== "undefined") Object.assign(window, { __chapters: chapters, __draw: () => advance(performance.now()) });
++
+ /** Where the fitted overview looks (the middle of the pins). */
+ export const overviewCenter = () => ({ x: fit.tgt.x, z: fit.tgt.z });
+ 
+@@ -392,6 +395,20 @@
+ 
+   useFrame(({ camera, size, gl }, delta) => {
+     const r = me.current;
++    // Film capture (snapshot copy only): the driver sets window.__film each frame.
++    const film = (window as unknown as { __film?: { pos: number[]; tgt: number[]; fov: number } }).__film;
++    if (film) {
++      const c = camera as PerspectiveCamera;
++      if (c.fov !== film.fov) {
++        c.fov = film.fov;
++        c.updateProjectionMatrix();
++      }
++      if (c.view?.enabled) c.clearViewOffset();
++      camera.position.set(film.pos[0], film.pos[1], film.pos[2]);
++      rig.target.set(film.tgt[0], film.tgt[1], film.tgt[2]);
++      camera.lookAt(rig.target);
++      return;
++    }
+     // Not clamped: every step is exact for any dt. Software WebGL draws a frame every
+     // second or two; clamped, the camera would take minutes to settle.
+     const dt = Math.max(0, delta);
+--- a/src/lib/store.ts
++++ b/src/lib/store.ts
+@@ -57,3 +57,5 @@
+   say: (reply) => set({ reply }),
+   jumpTo: (index, hour, cut) => set({ progress: index, jump: { index, at: performance.now() / 1000, hour, cut } }),
+ }));
++
++if (typeof window !== "undefined") (window as unknown as { __city: typeof useCity }).__city = useCity;
+--- a/src/scene/scene.tsx
++++ b/src/scene/scene.tsx
+@@ -125,7 +125,7 @@
+         gl.debug.checkShaderErrors = process.env.NODE_ENV !== "production";
+       }}
+     >
+-      <PerformanceMonitor onDecline={() => setDpr([1, 1])} />
++      <PerformanceMonitor onDecline={() => !(window as unknown as { __filmMode?: boolean }).__filmMode && setDpr([1, 1])} />
+       <Suspense fallback={null}>
+         <Atmosphere lite={lite} />
+         <Studio />
