@@ -24,7 +24,7 @@ Last updated: 2026-10-14 · Status: v0, behind a flag · Launch: ok (off by defa
 - Re-bake after changing the static city, its materials, a chapter's camera, or the lighting at its hour. The OIDN weights for the denoiser are gitignored in `public/lab/oidn/` (see Denoiser below).
 
 ## Which chapters have plates (2026-10-14)
-Chapters 0 to 3 and 5 ship. Reviewed against today's frame:
+Chapters 0 to 3, 5 and 6 ship. Reviewed against today's frame:
 
 | Chapter | Status | Missing |
 | --- | --- | --- |
@@ -34,7 +34,7 @@ Chapters 0 to 3 and 5 ship. Reviewed against today's frame:
 | 3 (12:00 Union Square) | ships | |
 | 4 (15:00 Pyramid) | held back | the Bay Bridge throws a dark lattice shadow on the water that today's frame lacks; roofs read lighter than today (the tracer's sun on up-facing faces, not the material) |
 | 5 (18:00 Ferry Building) | ships | lit windows a little paler than today's amber |
-| 6 (22:00 pier) | held back | the lamp's pool is in; the bridge lights' reflections on the water trace as white zigzag noise (bottom right), and the anchorage is darker than today (out of the lamp's 8 m reach); no stars |
+| 6 (22:00 pier) | ships | the anchorage is darker than today (out of the lamp's 8 m reach); no stars |
 | 7 (06:00 tomorrow) | held back | Telegraph Hill's trees and palms are missing; a dark streak (likely a line tube's shadow) crosses the houses |
 
 What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `raytrace-lab.tsx`):
@@ -49,6 +49,7 @@ What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `ray
 - Houses on `<Instances>` (the shop's shell) carry `aPalette` per instance, not per vertex: the twin reads it by instance (the shell traced blue, not cream).
 - Line tubes (suspenders) are wound to face out: inward sides traced the red cables dark brown.
 - Glows that follow the hour (house and downtown lit windows, the café's lamps) are set again by `refresh()` from `buildTwins`: the lab builds twins at load (06:00, no night) and then scrolls to its chapter, so 18:00 windows had traced black. The lab refreshes on every hour change and at rest, then `updateMaterials()`.
+- Water: the ripple texture holds wave slopes. The shader only nudges its mirror image by them (slope x 0.6 / (depth + 8)) and calms them with distance, so the twin's normal map is gentle (0.025): at 0.1 it tilted reflections by degrees and swept the bridge lights into zigzag bands (chapter 6), and the tracer reads normal maps without mipmaps. Chapter 0 was re-baked with it: a cleaner bridge reflection, closer to today.
 - Lamps: a point light sits inside its glass globe, which blocked every light ray in the trace (the raster's lights cast no shadows), so the pier lamp lit nothing. `lightHousings` finds the small meshes a light sits in and the lab sets the tracer's `visibleToShadowRays` false on them (an object flag; the material `castShadow` the docs mention is not read by the WebGPU tracer).
 - House windows: about half light up at night, warm, by window and house as the shader picks them (the GPU's 32-bit hash picks a similar share, not the same windows).
 - Downtown towers (`downtown`): the vertex tint times a generated window tile per surface kind (curtain wall, sash, steel, shopfront; `facade-maps.ts`), laid on the wall grid (`aUv`) with a whole-cell offset per tower and face. Each tile carries colour, roughness and metalness, and the night's lit windows (runs along busy floors) as an emissive map scaled by the hour's night. Flat tops are tar. Landmark stone (`tower`): the facade tile in world units, like bridge steel.

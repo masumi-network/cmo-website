@@ -53,6 +53,13 @@ function eachTriangle(mesh: Mesh, fn: (t: Tri) => void) {
 }
 
 const fract = (x: number) => x - Math.floor(x);
+/**
+ * How hard the water's ripples tilt it. The shader only nudges its mirror
+ * image (slope x 0.6 / (depth + 8)) and calms ripples with distance; at 0.1
+ * the twin tilted reflections by degrees and swept the bridge lights into
+ * zigzag bands (the tracer also reads the normal map without mipmaps).
+ */
+const RIPPLE = 0.025;
 /** The shaders' fHash (materials.ts). The GPU runs it in 32-bit floats, so a twin picks a similar share, not the same windows. */
 const glslHash = (x: number, y: number) => fract(Math.sin(x * 12.9898 + y * 78.233) * 43758.5453);
 /** Downtown parts with windows (towers.tsx PART) and their tile in facade-maps.ts. */
@@ -228,7 +235,7 @@ function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>, follow
     });
   } else if (info.kind === "water") {
     eachTriangle(mesh, (t) => {
-      put("water", plain({ roughness: 0.05, metalness: 0, normalMap: info.ripples, normalScale: new Vector2(0.1, 0.1) }), t, {
+      put("water", plain({ roughness: 0.05, metalness: 0, normalMap: info.ripples, normalScale: new Vector2(RIPPLE, RIPPLE) }), t, {
         color: info.deep,
         uv: t.p.map((p) => [p.x * 0.043, p.z * 0.043]),
       });

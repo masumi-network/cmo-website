@@ -332,6 +332,19 @@ describe("traced twins", () => {
     expect(twins.length).toBe(2); // walls, and the tops at 0.62
   });
 
+  it("ripples the water as gently as the shader's mirror does (strong ripples swept the bridge lights into zigzags)", () => {
+    const material = new MeshStandardMaterial();
+    const ripples = new Texture();
+    traceInfo.set(material, { kind: "water", ripples, deep: new Color(0.02, 0.05, 0.08) });
+    const scene = new Scene();
+    scene.add(new Mesh(new BoxGeometry(10, 0.1, 10), material));
+    const water = (buildTwins(scene).group.children[0] as Mesh).material as MeshStandardMaterial;
+    expect(water.normalMap).toBe(ripples);
+    // the shader moves its mirror image by slope x 0.6 / (depth + 8): a few pixels, not a tilt of degrees
+    expect(water.normalScale.x).toBeLessThanOrEqual(0.03);
+    expect(water.roughness).toBeLessThan(0.1);
+  });
+
   it("leaves plain meshes alone: the tracer reads them as they are", () => {
     const scene = new Scene();
     scene.add(new Mesh(new BoxGeometry(), new MeshStandardMaterial({ color: "red" })));
