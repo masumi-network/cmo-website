@@ -3,7 +3,8 @@
 // Cuso: the real mascot.glb, rigged at load (rig.ts). He walks the day at
 // his own pace (routes.ts): scroll sets where he should be, he walks there,
 // dashes the long street stretches and jumps onto roofs; if you jump far
-// ahead he blinks there like a cursor. All motion is in the bones (gait.ts),
+// ahead he blinks there like a cursor. A rail jump (navigate.ts) pops him in
+// a few steps short of the chapter and he walks the rest. All motion is in the bones (gait.ts),
 // so standing still never moves him as a block.
 
 import { Html, useGLTF } from "@react-three/drei";
@@ -14,9 +15,9 @@ import { useCity } from "@/lib/store";
 import { travel } from "@/lib/time";
 import { Vector3, type Camera, type Group, type Mesh, type Object3D } from "three";
 import { STRIDE, pose } from "./gait";
-import { cusoMayGo, unionCar } from "./cable-line";
+import { crossings, cusoMayGo, unionCar } from "./cable-line";
 import { SCALE, rigCuso } from "./rig";
-import { PATHS, TELEPORT, dayDistance, sampleDay, walkOn } from "./routes";
+import { PATHS, TELEPORT, arrival, dayDistance, sampleDay, walkOn } from "./routes";
 import { damp, overlays, rig } from "./shared";
 
 export const CUSO_URL = "/models/cuso.glb";
@@ -37,7 +38,7 @@ export function Cuso() {
   const me = useRef({
     d: -1, phase: 0, walk: 0, dash: 0, air: 0,
     wave: 1, waveUntil: 2.2, cheerAt: -10, cheer: useCity.getState().cheer,
-    popAt: -10, wasMoving: false, nextBlink: 2,
+    popAt: -10, wasMoving: false, nextBlink: 2, jumpAt: -1, turnNow: false,
   });
 
   useEffect(() => {
@@ -59,6 +60,18 @@ export function Cuso() {
     const tr = travel(state.progress, chapters.length);
     const target = dayDistance(tr.from, tr.from === tr.to ? 0 : tr.t);
     if (m.d < 0) m.d = target;
+    // A rail jump: he pops in a few steps short and walks the rest (unless he is nearer already).
+    const { jump } = state;
+    if (jump && jump.at !== m.jumpAt) {
+      m.jumpAt = jump.at;
+      const plan = arrival(jump.index, crossings().windows);
+      const start = jump.cut ? plan.to : plan.from;
+      if (Math.abs(m.d - plan.to) > Math.abs(start - plan.to) + 1e-6) {
+        m.d = start;
+        m.popAt = time;
+        m.turnNow = true;
+      }
+    }
     const gap = target - m.d;
     const blinked = Math.abs(gap) > TELEPORT;
     if (blinked) m.popAt = time;
@@ -104,6 +117,7 @@ export function Cuso() {
     const popU = Math.min(1, (time - m.popAt) / 0.35);
     g.scale.setScalar(popU < 1 ? Math.max(0.01, easeOutBack(popU)) : 1);
     rig.cuso.set(now.pos[0], now.pos[1], now.pos[2]);
+    rig.placed = true;
 
     // Face where he is going (looking a bit ahead so corners are smooth), or the camera at rest.
     // Some moves and spots have a fixed heading (the cable car step is too narrow to turn on):
@@ -119,7 +133,8 @@ export function Cuso() {
     } else {
       yaw = Math.atan2(camera.position.x - now.pos[0], camera.position.z - now.pos[2]);
     }
-    b.rotation.y = angleDamp(b.rotation.y, yaw, damp(now.face !== null ? 25 : moving ? 7 : 3, dt));
+    b.rotation.y = m.turnNow ? yaw : angleDamp(b.rotation.y, yaw, damp(now.face !== null ? 25 : moving ? 7 : 3, dt));
+    m.turnNow = false;
     rig.heading = b.rotation.y;
 
     const tv = rig.travel;

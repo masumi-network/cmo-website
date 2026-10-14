@@ -1,6 +1,6 @@
 "use client";
 
-// A few Teslas: mostly the sedan, a couple of Cybertrucks and Roadsters. Two
+// A few Teslas: mostly Model 3s and Model Ys, the odd Cybertruck and Roadster. Two
 // loops run clockwise round city blocks on the inner lane, so every turn there
 // is a right turn and no two loops ever cross. A few more cars come over the
 // bridges: out of the Yerba Buena tunnel or the Marin fog, over the deck and
@@ -16,12 +16,14 @@ import {
   CanvasTexture,
   Color,
   DoubleSide,
+  Frustum,
   Matrix4,
   MeshBasicMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Object3D,
   PlaneGeometry,
+  Sphere,
   type BufferGeometry,
   type InstancedMesh,
   type Mesh,
@@ -29,6 +31,7 @@ import {
 import type { Vec3 } from "@/content/day";
 import { MARIN_ROAD, heightAt, surfaceAt } from "@/lib/terrain";
 import { DECKS, ROADS, ROAD_WIDTH } from "./roads";
+import { SHADOW_REACH } from "./parts";
 import { DETAIL, rig, useNightGlow } from "./shared";
 
 // ---------------------------------------------------------------------------
@@ -38,10 +41,12 @@ import { DETAIL, rig, useNightGlow } from "./shared";
  * The models at city scale (Cuso is ~1.9 units tall, a lane is 1.5 wide).
  * Metres are the GLB's own size (its node extras, checked by a test): length,
  * width over mirrors and wheels, wheelbase. The Cybertruck is scaled down a
- * little so it still fits its lane.
+ * little so it still fits its lane (mirrors included).
  */
 const model = (url: string, scale: number, metres: { length: number; width: number; wheelbase: number }) => ({
   url,
+  /** Phones: the same car simplified to half a phone pixel (`convert-cars.mjs --lite`), a third to a half of the triangles. */
+  liteUrl: url.replace("/cars/", "/cars/lite/"),
   metres,
   scale,
   length: metres.length * scale,
@@ -49,9 +54,10 @@ const model = (url: string, scale: number, metres: { length: number; width: numb
   wheelbase: metres.wheelbase * scale,
 });
 export const MODELS = {
-  model: model("/models/cars/model.glb", 0.72, { length: 4.69, width: 2.018, wheelbase: 2.773 }),
-  cybertruck: model("/models/cars/cybertruck.glb", 0.66, { length: 5.68, width: 2.229, wheelbase: 3.702 }),
-  roadster: model("/models/cars/roadster.glb", 0.72, { length: 4.3, width: 1.84, wheelbase: 2.731 }),
+  model3: model("/models/cars/model3.glb", 0.68, { length: 4.72, width: 2.088, wheelbase: 2.876 }),
+  modely: model("/models/cars/modely.glb", 0.68, { length: 4.79, width: 2.125, wheelbase: 2.902 }),
+  cybertruck: model("/models/cars/cybertruck.glb", 0.62, { length: 5.683, width: 2.382, wheelbase: 3.643 }),
+  roadster: model("/models/cars/roadster.glb", 0.68, { length: 4.627, width: 1.891, wheelbase: 2.922 }),
 };
 export type CarType = keyof typeof MODELS;
 const TYPES = Object.keys(MODELS) as CarType[];
@@ -73,7 +79,7 @@ export type Pose = { x: number; y: number; z: number; yaw: number; pitch: number
 const PAINTS = ["#e9e8e3", "#0f1012", "#3d4045", "#a2a5a8", "#1d3563", "#a3151d"];
 const [WHITE, BLACK, GREY, SILVER, BLUE] = PAINTS;
 /** Which model each city car is, in order: the Cybertruck in quicksilver, the Roadster in red. */
-const LINEUP: CarType[] = ["model", "model", "model", "cybertruck", "model", "roadster", "model"];
+const LINEUP: CarType[] = ["modely", "model3", "modely", "cybertruck", "model3", "roadster", "modely"];
 
 /**
  * Loops the cars circle, [x0, x1, z0, z1] on car streets, and how many cars each.
@@ -239,9 +245,9 @@ function goldenGateRoute(): P3[] {
  * from the first frame) and their cars, spread evenly along the route.
  */
 const ROUTES: { build: () => P3[]; loop: number; from: [number, number]; cars: [CarType, string][] }[] = [
-  { build: goldenGateRoute, loop: 1, from: [-80.75, -110], cars: [["model", WHITE], ["roadster", BLUE], ["model", GREY]] },
+  { build: goldenGateRoute, loop: 1, from: [-80.75, -110], cars: [["model3", WHITE], ["modely", BLUE], ["model3", GREY]] },
   // The Cybertruck is long: it takes the straight bridge, not the Golden Gate's tight bend.
-  { build: bayRoute, loop: 0, from: [79, 13.25], cars: [["model", BLACK], ["cybertruck", SILVER], ["model", WHITE]] },
+  { build: bayRoute, loop: 0, from: [79, 13.25], cars: [["modely", BLACK], ["cybertruck", SILVER], ["model3", WHITE]] },
 ];
 
 /** Every car: the city loops' first, then the bridge cars. */
@@ -260,7 +266,7 @@ export function makeTraffic(): Car[] {
       offset: (start + (i * path.length) / count) % path.length,
       speed,
       color: PAINTS[k % PAINTS.length],
-      type: LINEUP[k++] ?? "model",
+      type: LINEUP[k++] ?? "model3",
     }));
   });
   const bridges = ROUTES.flatMap(({ build, loop, from: [fx, fz], cars }) => {
@@ -422,8 +428,8 @@ type Spot = { at: Matrix4; radius: number; flip: boolean };
 type Piece = { key: string; type: CarType; part: Part; geometry: BufferGeometry; local: Matrix4; spots: Spot[] };
 
 /** Every (model, material) piece, with the matrix from a car's pose to the piece (scale and the GLB's quantization). */
-function usePieces(): Piece[] {
-  const gltfs = useGLTF(TYPES.map((type) => MODELS[type].url));
+function usePieces(lite: boolean): Piece[] {
+  const gltfs = useGLTF(TYPES.map((type) => (lite ? MODELS[type].liteUrl : MODELS[type].url)));
   return useMemo(
     () =>
       gltfs.flatMap(({ scene }, t) => {
@@ -482,6 +488,8 @@ const m4 = new Matrix4();
 const spin = new Matrix4();
 const blob = new Matrix4();
 const c = new Color();
+const frustum = new Frustum();
+const sphere = new Sphere();
 
 /** A few Teslas circling blocks and crossing the bridges, following the hills and the decks. They stop for Cuso. */
 export function Cars({ lite = false }: { lite?: boolean }) {
@@ -492,47 +500,60 @@ export function Cars({ lite = false }: { lite?: boolean }) {
   const slot = useMemo(() => cars.map((car, i) => cars.slice(0, i).filter((other) => other.type === car.type).length), [cars]);
   const count = (type: CarType) => cars.filter((car) => car.type === type).length;
   const material = useMaterials();
-  const pieces = usePieces();
+  const pieces = usePieces(lite);
   const shadow = useContactShadow();
   useNightGlow(material.light_front, 0.9, 0.03);
   useNightGlow(material.light_rear, 1.8, 0.25);
   const meshes = useRef<(InstancedMesh | null)[]>([]);
   const shadows = useRef<InstancedMesh>(null);
 
+  // Colours before the first frame, so the paint's shader is compiled with them (the frame loop repacks them).
   useLayoutEffect(() => {
     pieces.forEach((piece, k) => {
       const mesh = meshes.current[k];
       if (piece.part !== "paint" || !mesh) return;
       cars.forEach((car, i) => car.type === piece.type && mesh.setColorAt(slot[i], c.set(car.color)));
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     });
   }, [cars, pieces, slot]);
 
-  useFrame((_, dt) => {
+  useFrame(({ camera }, dt) => {
     // At night the sky no longer lights the paint and glass.
     material.paint.envMapIntensity = material.glass.envMapIntensity = 1 - 0.8 * rig.night;
     driveCars(cars, driven, dt, rig.cuso, rolled);
+    // Only the cars in view take an instance (the first `n` of their model's), so the rest cost nothing.
+    frustum.setFromProjectionMatrix(m4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const shown: Record<CarType, number> = { model3: 0, modely: 0, cybertruck: 0, roadster: 0 };
     for (let i = 0; i < cars.length; i++) {
       const car = cars[i];
       carPose(car, driven[i], pose);
+      const { length, width } = MODELS[car.type];
       o.position.set(pose.x, pose.y, pose.z);
       o.rotation.set(pose.pitch, pose.yaw, pose.roll);
       o.scale.setScalar(outOfSight(pose.x, pose.z) ? 0 : 1); // turning round in the tunnel or the fog
       o.updateMatrix();
+      shadows.current?.setMatrixAt(i, blob.multiplyMatrices(o.matrix, m4.makeScale(width * 1.1, 1, length * 1.08)));
+      if (!frustum.intersectsSphere(sphere.set(o.position, length / 2 + (lite ? 0 : SHADOW_REACH)))) continue;
+      const n = shown[car.type]++;
       pieces.forEach((piece, k) => {
         const mesh = meshes.current[k];
         if (piece.type !== car.type || !mesh) return;
-        if (!piece.spots.length) return mesh.setMatrixAt(slot[i], m4.multiplyMatrices(o.matrix, piece.local));
+        if (piece.part === "paint") mesh.setColorAt(n, c.set(car.color));
+        if (!piece.spots.length) return mesh.setMatrixAt(n, m4.multiplyMatrices(o.matrix, piece.local));
         piece.spots.forEach((spot, w) => {
           // Turned round on the right, so it spins the other way to roll forward.
           spin.makeRotationX(wheelAngle(rolled[i], spot.radius) * (spot.flip ? -1 : 1));
-          mesh.setMatrixAt(slot[i] * 4 + w, m4.multiplyMatrices(o.matrix, spot.at).multiply(spin).multiply(piece.local));
+          mesh.setMatrixAt(n * 4 + w, m4.multiplyMatrices(o.matrix, spot.at).multiply(spin).multiply(piece.local));
         });
       });
-      const { length, width } = MODELS[car.type];
-      shadows.current?.setMatrixAt(i, blob.multiplyMatrices(o.matrix, m4.makeScale(width * 1.1, 1, length * 1.08)));
     }
-    for (const mesh of meshes.current) if (mesh) mesh.instanceMatrix.needsUpdate = true;
+    pieces.forEach((piece, k) => {
+      const mesh = meshes.current[k];
+      if (!mesh) return;
+      mesh.count = shown[piece.type] * Math.max(1, piece.spots.length);
+      mesh.visible = mesh.count > 0; // no draw call for a model with no car in view
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    });
     if (shadows.current) shadows.current.instanceMatrix.needsUpdate = true;
   });
 
@@ -556,6 +577,3 @@ export function Cars({ lite = false }: { lite?: boolean }) {
     </>
   );
 }
-
-// Start loading with the rest of the scene (not in unit tests, which only drive the cars).
-if (typeof window !== "undefined" && process.env.NODE_ENV !== "test") useGLTF.preload(TYPES.map((type) => MODELS[type].url));

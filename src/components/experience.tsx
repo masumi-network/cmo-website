@@ -97,6 +97,20 @@ function FlatExtras({ onGo }: { onGo: (index: number) => void }) {
   );
 }
 
+/**
+ * The Ask bar keeps to the free space beside the card column (410 px at the
+ * screen edge, `Work` in chapters.tsx): centred on the screen when it fits
+ * there, otherwise next to the column, narrower if it must. `cards` is the
+ * side the cards are on (the right at 22:00).
+ */
+function askPlace(cards: "left" | "right"): React.CSSProperties {
+  const near = cards === "left" ? "var(--edge-l)" : "var(--edge-r)";
+  const far = cards === "left" ? "var(--edge-r)" : "var(--edge-l)";
+  const column = `calc(${near} + 410px + 24px)`;
+  const width = `min(480px, calc(100% - ${column} - ${far}))`;
+  return { width, [cards]: `max(calc(50% - ${width} / 2), ${column})` };
+}
+
 export function Experience() {
   const env = useSyncExternalStore(noop, detect, () => null);
   const [ready, setReady] = useState(false);
@@ -149,13 +163,9 @@ export function Experience() {
         <Chapters onGo={onGo} />
       </main>
       {showAsk && (
-        // Beside the cards on tablets, centred once there is room.
         <div
-          className={cn(
-            "fixed bottom-10 z-20 hidden w-[min(480px,calc(100vw-554px))] md:block short:hidden min-[1100px]:right-auto min-[1100px]:left-1/2 min-[1100px]:w-[480px] min-[1100px]:-translate-x-1/2",
-            id === "night" ? "left-(--edge-l)" : "right-(--edge-r)",
-            chapters[active].dark && "dark",
-          )}
+          className={cn("fixed bottom-10 z-20 hidden md:block short:hidden", chapters[active].dark && "dark")}
+          style={askPlace(id === "night" ? "right" : "left")}
         >
           <AskBar onGo={onGo} />
         </div>

@@ -8,8 +8,10 @@ import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import { PerspectiveCamera, Vector3, type Camera } from "three";
 import { chapters, overview } from "@/content/day";
+import { jumpEase } from "@/lib/navigate";
 import { usePan } from "@/lib/pan";
-import { insideBuilding } from "./layout";
+import { useCity } from "@/lib/store";
+import { insideBuilding, roofAt, sightClear } from "./layout";
 import { damp, dayNow, overlays, rig, setLerp } from "./shared";
 
 const pos = new Vector3();
@@ -59,29 +61,172 @@ function fitOverview(aspect: number, fov: number) {
 export const overviewCenter = () => ({ x: fit.tgt.x, z: fit.tgt.z });
 
 const eye = new Vector3();
-const probe = new Vector3();
+const lifted = new Vector3();
 
-/** Pull the camera towards Cuso (and up) until nothing solid is in between. */
-function keepClear(camera: Vector3) {
-  eye.set(rig.cuso.x, rig.cuso.y + 1.4, rig.cuso.z);
-  // Mid-jump up a wall his head can be inside a building's margin: nothing to measure from.
-  if (insideBuilding(eye.x, eye.y, eye.z)) return;
-  for (let lift = 0; lift < 3; lift++) {
-    let clearTo = 1;
-    for (let k = 1; k <= 20; k++) {
-      probe.lerpVectors(eye, camera, k / 20);
-      if (insideBuilding(probe.x, probe.y, probe.z)) {
-        clearTo = (k - 1) / 20;
-        break;
-      }
-    }
-    if (clearTo === 1) return;
-    if (clearTo > 0.55) {
-      camera.lerpVectors(eye, camera, clearTo);
-      return;
-    }
-    camera.y += 3; // too close: go over it
+/**
+ * The boom: when something stands between Cuso and the camera, the camera
+ * swings up over him on an arc around his eye (a little closer, looking at
+ * him), and settles back once he is in sight. `x` (0..1) is how far along that path it is; `goal` the lift it is
+ * heading for. Critically damped, so it never pops.
+ */
+export const BOOM = {
+  /** Lifts tried, from none to the whole swing. */
+  levels: 6,
+  /** Extra elevation at full lift (radians), and the steepest it may look down. */
+  angle: 1,
+  steepest: 1.35,
+  /** The boom is this much shorter at full lift. */
+  closer: 0.25,
+  /** Spring rates (1/s): quick to rise, slow and calm to settle. */
+  rise: 7,
+  settle: 2.2,
+  /** Seconds Cuso must be in sight before it comes down, and the extra air it needs to come down. */
+  hold: 0.45,
+  air: 0.6,
+  /** Fastest it ever swings (lift per second), for the tests. */
+  maxRate: 3,
+};
+
+export type Boom = { x: number; v: number; goal: number; clear: number };
+export const newBoom = (): Boom => ({ x: 0, v: 0, goal: 0, clear: 0 });
+
+/** The camera at `cam`, swung up around `eye` by `lift` (0..1). Writes and returns `out`. */
+export function boomPose(out: Vector3, eye: Vector3, cam: Vector3, lift: number) {
+  const l = Math.max(0, lift);
+  const dx = cam.x - eye.x;
+  const dy = cam.y - eye.y;
+  const dz = cam.z - eye.z;
+  const flat = Math.hypot(dx, dz);
+  if (l === 0 || flat < 1e-6) return out.copy(cam);
+  const elevation = Math.atan2(dy, flat);
+  const up = elevation + l * Math.max(0, Math.min(BOOM.angle, BOOM.steepest - elevation));
+  const r = Math.hypot(flat, dy) * (1 - BOOM.closer * l);
+  const across = (r * Math.cos(up)) / flat;
+  return out.set(eye.x + dx * across, eye.y + r * Math.sin(up), eye.z + dz * across);
+}
+
+/**
+ * The least lift that sees Cuso's eye from the camera at `cam`. To come down
+ * below `goal` it must see him with extra air (hysteresis). `sight` false:
+ * only keep the camera itself out of buildings (during a rail jump's flight,
+ * when he is already at the far end).
+ */
+export function boomNeed(eye: Vector3, cam: Vector3, goal: number, sight = true) {
+  for (let k = 0; k < BOOM.levels; k++) {
+    const lift = k / BOOM.levels;
+    boomPose(lifted, eye, cam, lift);
+    if (sight ? sightClear(eye, lifted, lift < goal ? BOOM.air : 0) : !insideBuilding(lifted.x, lifted.y, lifted.z)) return lift;
   }
+  return 1;
+}
+
+/** One step of the boom towards `need` (from boomNeed): up at once, down only after BOOM.hold seconds in sight. */
+export function stepBoom(b: Boom, need: number, dt: number) {
+  if (need > b.goal) {
+    b.goal = need;
+    b.clear = 0;
+  } else if (need < b.goal) {
+    b.clear += dt;
+    if (b.clear >= BOOM.hold) {
+      b.goal = need;
+      b.clear = 0;
+    }
+  } else b.clear = 0;
+  spring(b, b.goal, b.goal >= b.x ? BOOM.rise : BOOM.settle, dt);
+  return b;
+}
+
+/**
+ * One step of a critically damped spring (exact for any dt, so a slow frame
+ * is a big step, not a stall): `s.x` heads for `goal` at rate `w`, `s.v` its
+ * speed. Close enough, it stops dead (Explore's pins must stand still).
+ */
+function spring(s: { x: number; v: number }, goal: number, w: number, dt: number) {
+  const e = Math.exp(-w * dt);
+  const c = s.x - goal;
+  const t = (s.v + w * c) * dt;
+  s.v = (s.v - w * t) * e;
+  s.x = goal + (c + t) * e;
+  if (Math.abs(s.x - goal) < 1e-4 && Math.abs(s.v) < 1e-3) {
+    s.x = goal;
+    s.v = 0;
+  }
+}
+
+const axis = { x: 0, v: 0 };
+const AXES = ["x", "y", "z"] as const;
+/** `p` follows `goal` on a critically damped spring (speed `v`): smooth even when the goal jumps (Cuso blinks). */
+export function follow(p: Vector3, v: Vector3, goal: Vector3, w: number, dt: number) {
+  for (const k of AXES) {
+    axis.x = p[k];
+    axis.v = v[k];
+    spring(axis, goal[k], w, dt);
+    p[k] = axis.x;
+    v[k] = axis.v;
+  }
+}
+
+type Pose = { pos: Vector3; tgt: Vector3 };
+/** How a flight goes: `lift`, how high its arc goes mid-way; `hold`, the part of it spent rising before it sets off (and coming down at the end). */
+export type Plan = { lift: number; hold: number };
+/** A rail jump's camera flight, from where the camera was (or from a flight still under way: a second click). Planned on its first frame. */
+export type Flight = { t0: number; from: Pose | { flight: Flight; to: Pose }; at: Pose; plan: Plan | null };
+const clonePose = (p: Pose): Pose => ({ pos: p.pos.clone(), tgt: p.tgt.clone() });
+/** The arc lifts a fifth of the way it flies, at most this, unless a building is in the way. */
+const FLIGHT_LIFT = 16;
+/** Room it keeps over the roofs it flies across. */
+const OVER_ROOFS = 3;
+const smootherstep = (x: number) => {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * t * (t * (t * 6 - 15) + 10);
+};
+
+/** Where a flight from `a` to `b` is at u (0..1, eased): across by `hold`-delayed progress, up by the arc. */
+function flightPoint(out: Vector3, a: Vector3, b: Vector3, u: number, { lift, hold }: Plan) {
+  out.lerpVectors(a, b, smootherstep((u - hold) / (1 - 2 * hold)));
+  out.y = a.y + (b.y - a.y) * u + lift * Math.sin(Math.PI * u);
+  return out;
+}
+
+/**
+ * The calmest flight from `a` to `b` that passes over every roof between: a
+ * gentle arc if it can, else a higher one, else one that rises first (a tall
+ * tower right beside the start).
+ */
+export function flightPlan(a: Vector3, b: Vector3): Plan {
+  const gentle = Math.min(FLIGHT_LIFT, a.distanceTo(b) * 0.2);
+  for (const hold of [0, 0.12, 0.24]) {
+    const plan = { lift: gentle, hold };
+    for (let u = 0.02; u < 0.99; u += 0.02) {
+      const p = flightPoint(lifted, a, b, u, { lift: 0, hold });
+      plan.lift = Math.max(plan.lift, (roofAt(p.x, p.z, 3) + OVER_ROOFS - p.y) / Math.sin(Math.PI * u));
+    }
+    if (plan.lift <= 40) return plan;
+  }
+  return { lift: 40, hold: 0.24 };
+}
+
+/** Start a flight at `t0` from pose `from`, or on from `flight` (still on its way to `to`). */
+export function startFlight(from: Pose | Flight, t0: number, to?: Pose): Flight {
+  const at = { pos: new Vector3(), tgt: new Vector3() };
+  return { t0, from: "t0" in from ? { flight: from, to: clonePose(to ?? from.at) } : clonePose(from), at, plan: null };
+}
+
+/** Where the flight is at `now` on its way to the live shot `to` (eased, with a gentle lift). Writes `out`, returns how far (0..1). */
+export function flyAt(f: Flight, now: number, to: Pose, out: Pose): number {
+  let start: Pose;
+  if ("flight" in f.from) {
+    const old = f.from;
+    flyAt(old.flight, now, old.to, f.at);
+    start = f.at;
+    if (jumpEase(old.flight.t0, now) >= 1) f.from = clonePose(old.to);
+  } else start = f.from;
+  const u = jumpEase(f.t0, now);
+  f.plan ??= flightPlan(start.pos, to.pos);
+  flightPoint(out.pos, start.pos, to.pos, u, f.plan);
+  // the aim rises with it: it glides over the roofs looking ahead, not down at the street
+  out.tgt.lerpVectors(start.tgt, to.tgt, u).y += f.plan.lift * Math.sin(Math.PI * u) * 0.85;
+  return u;
 }
 
 /** Dev only: `?cam=px,py,pz,tx,ty,tz` pins the camera, for close-up screenshots of one object. */
@@ -150,7 +295,6 @@ export function fitBand(camPos: Vector3, camTgt: Vector3, fov: number, size: { w
   const room = Math.max(48, (bottom - top) * 0.85 - BUBBLE);
   const tall = screenY(0, size.height) - screenY(1.9, size.height);
   if (tall > room) camPos.sub(camTgt).multiplyScalar(Math.min(2, tall / room)).add(camTgt);
-  keepClear(camPos);
   aim();
   const middle = (screenY(1.9, size.height) - BUBBLE + screenY(0, size.height)) / 2;
   return middle - (top + bottom) / 2;
@@ -172,21 +316,112 @@ function publishCuso(canvas: HTMLCanvasElement, camera: Camera, height: number) 
   if (canvas.dataset.cuso !== box) canvas.dataset.cuso = box;
 }
 
-export function CameraRig() {
-  const look = useRef<Vector3 | null>(null);
-  const slide = useRef(0);
+/**
+ * `a` towards `b` by t, going round `center` (Cuso) rather than straight: the
+ * lead cam in front of him and the shot behind him would otherwise blend
+ * through him. Writes `a`.
+ */
+export function orbitLerp(a: Vector3, center: Vector3, b: Vector3, t: number) {
+  const ax = a.x - center.x;
+  const az = a.z - center.z;
+  const bx = b.x - center.x;
+  const bz = b.z - center.z;
+  const ya = Math.atan2(ax, az);
+  const turn = Math.atan2(bx, bz) - ya;
+  const yaw = ya + Math.atan2(Math.sin(turn), Math.cos(turn)) * t;
+  const flat = Math.hypot(ax, az) + (Math.hypot(bx, bz) - Math.hypot(ax, az)) * t;
+  return a.set(center.x + Math.sin(yaw) * flat, a.y + (b.y - a.y) * t, center.z + Math.cos(yaw) * flat);
+}
 
-  useFrame(({ camera, size, gl }, dt) => {
+const live: Pose = { pos, tgt };
+const flown: Pose = { pos: new Vector3(), tgt: new Vector3() };
+/** How quickly the camera follows its shot (spring rates, 1/s). */
+const FOLLOW = { story: 5, explore: 3.2, eye: 8 };
+
+/**
+ * The camera rides with Cuso while the lead cam follows him (`couple` 1): it
+ * follows its goal as an offset from a point that moves with him, on a spring,
+ * so it keeps up however fast he goes (a spring alone trails a dashing Cuso by
+ * 9 units and loses him) while shot changes and the lead cam swinging round a
+ * corner stay smooth. At a chapter's shot (`couple` 0) his hops do not move
+ * it. When he jumps (a blink, a rail jump's pop) the camera stays put and
+ * eases over.
+ */
+export type Trail = { anchor: Vector3; rel: Vector3; v: Vector3; last: Vector3 | null; out: Vector3 };
+export const newTrail = (): Trail => ({ anchor: new Vector3(), rel: new Vector3(), v: new Vector3(), last: null, out: new Vector3() });
+/** He moved more than this in one frame: a jump, not a step. */
+const JUMPED = 1.5;
+
+/** One step: where the trailing point is now, given Cuso at `cuso` and the goal `goal`. */
+export function trail(t: Trail, cuso: Vector3, goal: Vector3, couple: number, w: number, dt: number) {
+  if (!t.last) {
+    t.anchor.copy(cuso);
+    t.rel.subVectors(goal, cuso);
+    t.last = cuso.clone();
+  }
+  const step = t.out.subVectors(cuso, t.last);
+  if (step.length() <= JUMPED) t.anchor.addScaledVector(step, couple);
+  t.last.copy(cuso);
+  follow(t.rel, t.v, t.out.subVectors(goal, t.anchor), w, dt);
+  return t.out.addVectors(t.anchor, t.rel);
+}
+
+/** Put the trailing point at `at` (at rest), e.g. where a flight ends. */
+function place(t: Trail, cuso: Vector3, at: Vector3) {
+  t.anchor.copy(cuso);
+  t.rel.subVectors(at, cuso);
+  t.v.set(0, 0, 0);
+  t.last = (t.last ?? new Vector3()).copy(cuso);
+}
+
+export function CameraRig() {
+  const me = useRef({
+    /** Where the camera stands and looks before the boom: damped towards the shot, or flown on a rail jump. */
+    base: null as Vector3 | null,
+    look: new Vector3(),
+    baseT: newTrail(),
+    lookT: newTrail(),
+    eyeT: newTrail(),
+    slide: 0,
+    boom: newBoom(),
+    flight: null as Flight | null,
+    jumpAt: -1,
+    /** The chapter a rail jump landed on: its shot holds (no lead cam) until the page scrolls away. */
+    held: -1,
+  });
+
+  useFrame(({ camera, size, gl }, delta) => {
+    const r = me.current;
+    // Not clamped: every step is exact for any dt. Software WebGL draws a frame every
+    // second or two; clamped, the camera would take minutes to settle.
+    const dt = Math.max(0, delta);
     const day = dayNow();
+    const { jump, progress } = useCity.getState();
+    const now = performance.now() / 1000;
     const portrait = size.width < size.height;
     const phone = portrait && size.width < 768;
     let slideTo = 0;
+    let chase = 0;
     const cam = camera as PerspectiveCamera;
     const fov = portrait ? PORTRAIT_FOV : 35;
     if (cam.fov !== fov) {
       cam.fov = fov;
       cam.updateProjectionMatrix();
     }
+
+    // A rail jump: fly from wherever the camera is, or on from the flight still under way.
+    if (jump && jump.at !== r.jumpAt) {
+      r.jumpAt = jump.at;
+      r.held = jump.index;
+      if (r.base && !r.flight) {
+        // fly from where the camera really is: take the boom's swing into the flight
+        r.base.copy(camera.position);
+        Object.assign(r.boom, newBoom());
+      }
+      r.flight = jump.cut || !r.base ? null : r.flight ? startFlight(r.flight, jump.at, live) : startFlight({ pos: r.base, tgt: r.look }, jump.at);
+      if (jump.cut) r.base = null;
+    }
+    if (r.held >= 0 && (Math.abs(progress - r.held) > 0.01 || day.mode === "explore")) r.held = -1;
 
     if (day.mode === "explore") {
       // The fitted overview, moved and zoomed by the visitor (drag, pinch, wheel).
@@ -196,26 +431,27 @@ export function CameraRig() {
       pos.subVectors(f.pos, f.tgt).multiplyScalar(zoom).add(tgt);
     } else {
       // Follow where Cuso really is (he walks at his own pace behind the scroll).
+      // After a rail jump: the chapter's own shot while he walks his last steps in.
       const tv = rig.travel;
-      const a = chapters[tv.leg];
-      const b = chapters[Math.min(tv.leg + 1, chapters.length - 1)];
-      const t = smoothstep(0, 1, tv.t);
+      const a = chapters[r.held >= 0 ? r.held : tv.leg];
+      const b = r.held >= 0 ? a : chapters[Math.min(tv.leg + 1, chapters.length - 1)];
+      const t = r.held >= 0 ? 0 : smoothstep(0, 1, tv.t);
       const shotA = phone ? a.phone : a.camera;
       const shotB = phone ? b.phone : b.camera;
       setLerp(pos, shotA.position, shotB.position, t);
       setLerp(tgt, shotA.target, shotB.target, t);
       // Lead cam: ahead of Cuso and off to one side, so we see his face (and his
       // arrow the right way round) as he walks towards us. From a few steps out
-      // until a few steps from arrival.
-      const chase = smoothstep(1, 7, tv.s) * (1 - smoothstep(tv.length - 7, tv.length - 1, tv.s));
+      // until the last stretch, where the next shot takes over (the lead cam
+      // would stand inside the building he is about to jump onto).
+      chase = r.held >= 0 ? 0 : smoothstep(1, 7, tv.s) * (1 - smoothstep(tv.length - 12, tv.length - 2, tv.s));
       if (chase > 0) {
         const h = rig.heading;
         const fx = Math.sin(h);
         const fz = Math.cos(h);
         chasePos.set(rig.cuso.x + fx * 7 + fz * 3.2, rig.cuso.y + 3.6, rig.cuso.z + fz * 7 - fx * 3.2);
         chaseTgt.set(rig.cuso.x - fx * 1.5, rig.cuso.y + 1.1, rig.cuso.z - fz * 1.5);
-        keepClear(chasePos);
-        pos.lerp(chasePos, chase);
+        orbitLerp(pos, tmp.set(rig.cuso.x, rig.cuso.y + 1.1, rig.cuso.z), chasePos, chase);
         tgt.lerp(chaseTgt, chase);
       }
       if (phone) {
@@ -235,26 +471,54 @@ export function CameraRig() {
     if (PIN) {
       pos.set(PIN[0], PIN[1], PIN[2]);
       tgt.set(PIN[3], PIN[4], PIN[5]);
-      look.current = null;
+      r.base = null;
+      r.flight = null;
     }
 
-    if (!look.current) {
-      camera.position.copy(pos);
-      look.current = tgt.clone();
+    if (!r.base) {
+      r.base = pos.clone();
+      r.look.copy(tgt);
+      place(r.baseT, rig.cuso, r.base);
+      place(r.lookT, rig.cuso, r.look);
     }
-    // The blend between two shots, and the eased path towards it, can cut
-    // through a building (the Pyramid on the way to 15:00): keep both clear.
-    if (day.mode !== "explore" && !PIN) keepClear(pos);
-    const k = damp(day.mode === "explore" ? 2 : 3.2, dt);
+    if (!rig.placed) {
+      // He is not in the scene yet (his model is loading): start following from where he appears, not from the origin.
+      r.baseT.last = r.lookT.last = r.eyeT.last = null;
+    }
+    if (r.flight) {
+      const u = flyAt(r.flight, now, live, flown);
+      r.base.copy(flown.pos);
+      r.look.copy(flown.tgt);
+      place(r.baseT, rig.cuso, r.base); // a flight ends at rest
+      place(r.lookT, rig.cuso, r.look);
+      if (u >= 1) r.flight = null;
+    } else {
+      const w = day.mode === "explore" ? FOLLOW.explore : FOLLOW.story;
+      // rides with him as much as the lead cam is in play
+      r.base.copy(trail(r.baseT, rig.cuso, pos, chase, w, dt));
+      r.look.copy(trail(r.lookT, rig.cuso, tgt, chase, w, dt));
+    }
+    const k = damp(3.2, dt);
     // Slide the picture (not the camera) so Cuso sits in the free band.
-    slide.current += (slideTo - slide.current) * k;
-    if (Math.abs(slide.current) > 0.5) cam.setViewOffset(size.width, size.height, 0, slide.current, size.width, size.height);
+    r.slide += (slideTo - r.slide) * k;
+    if (Math.abs(r.slide) > 0.5) cam.setViewOffset(size.width, size.height, 0, r.slide, size.width, size.height);
     else if (cam.view?.enabled) cam.clearViewOffset();
-    camera.position.lerp(pos, k);
-    if (day.mode !== "explore" && !PIN) keepClear(camera.position);
-    look.current.lerp(tgt, k);
-    camera.lookAt(look.current);
-    rig.target.copy(look.current);
+
+    // The boom keeps Cuso in sight (and the camera out of buildings): it checks where the
+    // camera is and where it is heading, so it starts to rise before a wall comes between them.
+    let need = 0;
+    if (day.mode !== "explore" && !PIN && rig.placed) {
+      // the boom swings around his eye; when he pops somewhere else it eases over, so the camera does not jump
+      eye.copy(trail(r.eyeT, rig.cuso, tmp.set(rig.cuso.x, rig.cuso.y + 1.4, rig.cuso.z), 1, FOLLOW.eye, dt));
+      // Mid-flight he is already at the far end (a swing around him would throw the camera
+      // about): only keep the camera out of buildings.
+      need = r.flight ? boomNeed(eye, r.base, r.boom.goal, false) : Math.max(boomNeed(eye, r.base, r.boom.goal), boomNeed(eye, pos, r.boom.goal));
+    }
+    stepBoom(r.boom, need, dt);
+    boomPose(camera.position, eye, r.base, r.boom.x);
+    // swung in close, it looks at him (the shot's aim is past him: he would drop out of the bottom)
+    rig.target.lerpVectors(r.look, tmp.copy(eye).setY(eye.y - 0.4), Math.min(1, Math.max(0, r.boom.x) * 2));
+    camera.lookAt(rig.target);
     publishCuso(gl.domElement, camera, size.height);
   });
 

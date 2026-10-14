@@ -184,18 +184,20 @@ describe("traffic", () => {
     expect(steepest).toBeGreaterThan(0.1); // the routes do climb hills
   });
 
-  it("is mostly the sedan, with a couple of Cybertrucks and Roadsters, all three on the bridges", () => {
+  it("looks like San Francisco traffic: mostly Model 3s and Model Ys, the odd Cybertruck and Roadster", () => {
     const of = (type: string, list = cars) => list.filter((c) => c.type === type).length;
     expect(of("cybertruck")).toBe(2);
-    expect(of("roadster")).toBe(2);
-    expect(of("model")).toBe(cars.length - 4);
-    for (const type of Object.keys(MODELS)) expect(of(type, bridge), type).toBeGreaterThan(0);
+    expect(of("roadster")).toBe(1);
+    expect(of("model3")).toBeGreaterThanOrEqual(4);
+    expect(of("modely")).toBeGreaterThanOrEqual(4);
+    expect(of("model3") + of("modely")).toBe(cars.length - 3);
+    for (const type of ["model3", "modely"]) for (const route of routes) expect(of(type, bridge.filter((c) => c.path === route)), type).toBeGreaterThan(0);
   });
 
   it("keeps a longer gap behind and in front of a longer car", () => {
-    const [sedan, truck] = [cars.find((c) => c.type === "model")!, cars.find((c) => c.type === "cybertruck")!];
+    const [sedan, truck] = [cars.find((c) => c.type === "model3")!, cars.find((c) => c.type === "cybertruck")!];
     expect(spacing(truck, sedan)).toBeGreaterThan(spacing(sedan, sedan));
-    expect(spacing(truck, sedan)).toBeCloseTo((MODELS.cybertruck.length + MODELS.model.length) / 2 + 1.4, 5);
+    expect(spacing(truck, sedan)).toBeCloseTo((MODELS.cybertruck.length + MODELS.model3.length) / 2 + 1.4, 5);
     // Same distance to the car in front: a sedan may roll on, the Cybertruck waits.
     const path = sedan.path;
     const between = (spacing(sedan, sedan) + spacing(truck, sedan)) / 2;
@@ -247,13 +249,32 @@ describe("traffic", () => {
     expect(rolled[0]).toBe(stopped);
   });
 
-  describe.each(Object.entries(MODELS))("the %s model", (type, m) => {
-    const file = join(process.cwd(), "public", m.url);
-    /** The GLB's JSON chunk. */
-    const gltf = () => {
-      const buf = readFileSync(file);
-      return JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString());
-    };
+  /** A GLB's JSON chunk. */
+  const json = (url: string) => {
+    const buf = readFileSync(join(process.cwd(), "public", url));
+    return JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString());
+  };
+  /** Triangles a car draws: its parts once, the wheel (tyre and rim) four times. */
+  const drawn = (url: string) => {
+    const { meshes, accessors, materials } = json(url) as { meshes: { primitives: { indices: number; material: number }[] }[]; accessors: { count: number }[]; materials: { name: string }[] };
+    const wheel = (p: { material: number }) => (["tyre", "rim"].includes(materials[p.material].name) ? 4 : 1);
+    return meshes.flatMap((mesh) => mesh.primitives).reduce((sum, p) => sum + (accessors[p.indices].count / 3) * wheel(p), 0);
+  };
+
+  it.each(Object.entries(MODELS))("gives phones a %s with at most 60% of the triangles", (_, m) => {
+    expect(drawn(m.liteUrl)).toBeLessThan(drawn(m.url) * 0.6);
+  });
+
+  // Per car, wheels counted four times. 13 cars at the most are on screen; a phone draws the lite ones.
+  it.each(Object.entries(MODELS))("keeps the %s within its triangle budget", (_, m) => {
+    expect(drawn(m.url)).toBeLessThan(25_000);
+    expect(drawn(m.url)).toBeGreaterThan(4_000); // not simplified to a blob
+    expect(drawn(m.liteUrl)).toBeLessThan(10_000);
+  });
+
+  describe.each(Object.entries(MODELS).flatMap(([type, m]) => [[type, m, m.url], [`${type} (lite)`, m, m.liteUrl]] as const))("the %s model", (type, m, url) => {
+    const file = join(process.cwd(), "public", url);
+    const gltf = () => json(url);
 
     it("is a small GLB", () => {
       expect(statSync(file).size).toBeLessThan(400 * 1024);
@@ -272,6 +293,8 @@ describe("traffic", () => {
       const { wheels } = gltf().nodes.find((n: { extras?: object }) => n.extras).extras as { wheels: number[][] };
       expect(wheels).toHaveLength(4);
       for (const [x, y, z, r] of wheels) {
+        expect(r, `${type} wheel radius in metres`).toBeGreaterThan(0.3); // 19 to 22 inch wheels with their tyres
+        expect(r, `${type} wheel radius in metres`).toBeLessThan(0.48);
         expect(y, `${type} wheel touches the ground`).toBeCloseTo(r, 2);
         expect(Math.abs(x) + 0.1).toBeLessThan(m.metres.width / 2);
         expect(Math.abs(z) * 2).toBeCloseTo(m.metres.wheelbase, 1);
@@ -279,10 +302,9 @@ describe("traffic", () => {
       expect(wheels.map(([x, , z]) => [Math.sign(x), Math.sign(z)])).toEqual([[1, 1], [-1, 1], [1, -1], [-1, -1]]);
     });
 
-    it("has only the named materials, no logo", () => {
+    it("maps every material to a part traffic.tsx knows, no logo", () => {
       const names = gltf().materials.map((mat: { name: string }) => mat.name);
-      expect(names).toEqual(expect.arrayContaining(["paint", "glass", "trim", "tyre", "rim", "light_front", "light_rear"]));
-      expect(names).toHaveLength(7); // a draw call each
+      expect([...names].sort()).toEqual(["glass", "light_front", "light_rear", "paint", "rim", "trim", "tyre"]); // a draw call each
     });
   });
 });

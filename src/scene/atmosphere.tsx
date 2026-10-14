@@ -4,13 +4,41 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import { BackSide, Color, Fog, ShaderMaterial, Vector3, type DirectionalLight, type HemisphereLight, type Mesh } from "three";
+import { BackSide, Color, Fog, Frustum, Matrix4, ShaderMaterial, Sphere, Vector3, type Camera, type DirectionalLight, type HemisphereLight, type Mesh } from "three";
 import { lightingAt } from "@/lib/time";
+import { LINE, carGround, unionCar } from "./cable-line";
 import { facadeNight } from "./facade";
 import { dayNow, rig, updateNightGlow } from "./shared";
 
 const sunDir = new Vector3();
 const DEG = Math.PI / 180;
+
+/**
+ * Lite: the sun's shadow map is redrawn only when something big in it moves
+ * (the sun, the shadow box, Cuso walking or turning, the cable car in view), and
+ * otherwise every SHADOW_EVERY frames for small idle motion (breathing, wind).
+ * Cars, boats and street furniture cast no shadows in lite.
+ */
+const SHADOW_EVERY = 4;
+const drawn = { box: new Vector3(), sun: new Vector3(), cuso: new Vector3(), heading: 0, frames: 0 };
+const view = new Frustum();
+const m4 = new Matrix4();
+/** The cable car and the shadow it throws on the street, while it runs. */
+const car = new Sphere(new Vector3(), 8);
+const ground = { y: 0, tilt: 0 };
+function shadowsMoved(camera: Camera) {
+  if (unionCar.v !== 0) {
+    carGround(unionCar.s, ground);
+    car.center.set(unionCar.s, ground.y, LINE.z);
+    if (view.setFromProjectionMatrix(m4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)).intersectsSphere(car)) return true;
+  }
+  return (
+    drawn.box.distanceToSquared(rig.target) > 1e-6 ||
+    drawn.sun.distanceToSquared(sunDir) > 1e-8 ||
+    drawn.cuso.distanceToSquared(rig.cuso) > 1e-6 ||
+    Math.abs(drawn.heading - rig.heading) > 1e-3
+  );
+}
 
 export function Atmosphere({ lite }: { lite: boolean }) {
   const sun = useRef<DirectionalLight>(null);
@@ -57,7 +85,7 @@ export function Atmosphere({ lite }: { lite: boolean }) {
 
   const domeRef = useRef<Mesh>(null);
 
-  useFrame(({ camera }) => {
+  useFrame(({ camera, gl }) => {
     const day = dayNow();
     const L = lightingAt(day.hour);
     const explore = day.mode === "explore";
@@ -82,6 +110,15 @@ export function Atmosphere({ lite }: { lite: boolean }) {
         cam.bottom = -box;
         cam.updateProjectionMatrix();
       }
+    }
+    gl.shadowMap.autoUpdate = !lite;
+    if (lite && (++drawn.frames >= SHADOW_EVERY || shadowsMoved(camera))) {
+      gl.shadowMap.needsUpdate = true;
+      drawn.box.copy(rig.target);
+      drawn.sun.copy(sunDir);
+      drawn.cuso.copy(rig.cuso);
+      drawn.heading = rig.heading;
+      drawn.frames = 0;
     }
     if (hemi.current) {
       hemi.current.intensity = L.ambient;

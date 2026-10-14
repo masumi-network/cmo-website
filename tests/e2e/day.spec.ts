@@ -96,6 +96,30 @@ test("the rail jumps to a chapter", async ({ page, isMobile }) => {
   await expect(page.getByRole("heading", { name: "Runs your ads" })).toBeInViewport();
 });
 
+test("the Ask bar never covers a card", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the ask bar is desktop only");
+  for (const width of [1024, 1280, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await open(page, "?static");
+    for (const id of ["learn", "social", "ads", "seo", "newsletter", "night"] as const) {
+      await goToChapter(page, chapterIndex(id));
+      await expect(page.getByLabel("Ask Cuso")).toBeVisible();
+      // Polled: right after the scroll the bar can still sit where the last chapter wanted it.
+      await expect
+        .poll(async () => {
+          const rects = await page.evaluate(() => {
+            const box = (r: DOMRect) => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+            const bar = document.getElementById("ask-cuso")!.closest("form")!.getBoundingClientRect();
+            const cards = [...document.querySelectorAll("[data-card]")].map((el) => el.getBoundingClientRect());
+            return { bar: box(bar), cards: cards.filter((r) => r.width > 0 && r.bottom > 0 && r.top < window.innerHeight).map(box) };
+          });
+          return rects.cards.reduce((sum, card) => sum + overlap(rects.bar, card), 0);
+        }, { message: `${width}px, ${id}` })
+        .toBe(0);
+    }
+  }
+});
+
 test("Ask Cuso sends him to the right place", async ({ page, isMobile }) => {
   test.skip(isMobile, "the ask bar is desktop only");
   await open(page, "?static");
@@ -117,7 +141,10 @@ test("explore mode shows the map and a pin takes you there", heavy, async ({ pag
   await expect(page.getByRole("heading", { name: "Runs your ads" })).toBeInViewport();
 });
 
-test("joining the waitlist works (dummy API)", async ({ page }) => {
+test("joining the waitlist works", async ({ page }) => {
+  // E2E runs a production build with no Sokosumi key, where the real route answers 503.
+  // Stand in for a successful save; the route itself is covered in tests/unit/waitlist-route.test.ts.
+  await page.route("**/api/waitlist", (route) => route.fulfill({ json: { ok: true } }));
   await open(page, "?static");
   await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" }));
   const finale = page.locator("#chapter-join");

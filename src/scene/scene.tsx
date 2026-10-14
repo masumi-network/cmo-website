@@ -21,6 +21,7 @@ import { Pyramid } from "./pyramid";
 import { Rooftop } from "./rooftop";
 import { Shopfront } from "./shop";
 import { UnionSquare } from "./union-square";
+import { Shadowless } from "./parts";
 import { Pier } from "./pier";
 import { Pins } from "./pins";
 import { Reflections } from "./reflections";
@@ -137,9 +138,11 @@ function Scene({ onReady, onGo, lite }: Props) {
         <CoitTower />
         <FerryBuilding />
         <Pier />
-        <BayBridge />
-        <GoldenGate />
-        <Roads />
+        <Shadowless when={lite}>
+          <BayBridge />
+          <GoldenGate />
+          <Roads />
+        </Shadowless>
         <Cuso />
         <Pins onGo={onGo} />
         <Reflections lite={lite} />

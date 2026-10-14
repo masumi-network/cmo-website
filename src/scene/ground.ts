@@ -7,6 +7,9 @@
 // is a crisp vertical kerb, not a half-unit ramp. The kerb mesh closes it: a
 // concrete face between the two levels, a light top edge on the sidewalk and
 // a darker gutter on the street, both a hair above the ground.
+//
+// Both are cut into TILE squares (`tiles`), so the parts out of view, or out
+// of the sun's shadow box, are culled.
 
 import { BufferGeometry, Float32BufferAttribute } from "three";
 import { PLAZA, surfaceAt } from "@/lib/terrain";
@@ -21,6 +24,9 @@ const GUTTER = 0.12;
 const LIFT = 0.006;
 /** Vertex colours on the concrete: top edge lighter, face as is, gutter darker. */
 const SHADE = { top: 1.12, face: 0.95, gutter: 0.62 };
+/** Tile size: a multiple of STEP, from the land's corner, so a tile edge is always a grid line. */
+export const TILE = 20;
+const tileEdge = (v: number, min: number) => Math.abs((v - min) / TILE - Math.round((v - min) / TILE)) < 1e-9;
 
 /** A grid line: where it is, and which side of a kerb it takes (-1, +1; 0 off the kerbs). */
 type Line = { v: number; side: number };
@@ -146,7 +152,9 @@ export function kerbGeometry() {
           const v2 = alongZ ? p[2] : p[0];
           return r.at.every((q) => Math.abs(p0[1] + ((p[1] - p0[1]) * ((alongZ ? q[t][2] : q[t][0]) - v0)) / (v2 - v0) - q[t][1]) < 1e-5);
         });
+      const min = alongZ ? LAND_BOUNDS.minZ : LAND_BOUNDS.minX;
       for (let a = 0; a < along.length - 1; a++) {
+        if (tileEdge(along[a].v, min)) flush(); // a run never crosses a tile edge
         if (along[a + 1].v === along[a].v) {
           flush(); // a cross kerb: the two sides of it differ
           continue;
@@ -188,4 +196,52 @@ export function kerbGeometry() {
   g.setAttribute("uv", new Float32BufferAttribute(uv, 2));
   g.computeVertexNormals();
   return g;
+}
+
+/**
+ * Cuts a ground mesh into TILE squares, each triangle into the tile under its
+ * centre. Every tile copies the vertices it uses (position, normal, uv,
+ * colour), so the edges two tiles share are the same numbers: no seams.
+ */
+export function tiles(g: BufferGeometry): BufferGeometry[] {
+  const pos = g.attributes.position;
+  const index = g.index ? g.index.array : Array.from({ length: pos.count }, (_, i) => i);
+  const { minX, minZ } = LAND_BOUNDS;
+  const buckets = new Map<number, number[]>();
+  for (let t = 0; t < index.length; t += 3) {
+    const [a, b, c] = [index[t], index[t + 1], index[t + 2]];
+    const i = Math.floor(((pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3 - minX) / TILE);
+    const j = Math.floor(((pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3 - minZ) / TILE);
+    const key = j * 1000 + i;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(a, b, c);
+  }
+  return [...buckets.values()].map((tris) => {
+    const local = new Map<number, number>();
+    const own = tris.map((v) => local.get(v) ?? (local.set(v, local.size), local.size - 1));
+    const out = new BufferGeometry();
+    for (const [name, attr] of Object.entries(g.attributes)) {
+      const n = attr.itemSize;
+      const array = new Float32Array(local.size * n);
+      for (const [v, k] of local) for (let c = 0; c < n; c++) array[k * n + c] = attr.array[v * n + c];
+      out.setAttribute(name, new Float32BufferAttribute(array, n));
+    }
+    if (g.index) out.setIndex(own); // unindexed meshes keep their order
+    out.computeBoundingSphere();
+    return out;
+  });
+}
+
+/** How far a tile's land rises and falls (the sea floor under the shore does not count). */
+export function relief(g: BufferGeometry) {
+  const pos = g.attributes.position;
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    if (y <= SEA_FLOOR + 1e-6) continue;
+    lo = Math.min(lo, y);
+    hi = Math.max(hi, y);
+  }
+  return hi > lo ? hi - lo : 0;
 }

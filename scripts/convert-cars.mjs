@@ -1,17 +1,20 @@
 // Turns the supplied Tesla models into the small car GLBs traffic.tsx drives.
 //
-//   node scripts/convert-cars.mjs [--only model|cybertruck|roadster] [--debug]
+//   node scripts/convert-cars.mjs [--only model3|modely|cybertruck|roadster] [--lite] [--debug]
 //
-// Reads 3d-assets-raw/ (gitignored, the user's downloads):
-//   Tesla+Model+obj.zip       Blender OBJ, metres
-//   Tesla_Cybertruck.obj      Maya OBJ, centimetres, no .mtl (parts picked by group below)
-//   Tesla+Roadster+Files.zip  SolidWorks STEP, tessellated with occt-import-js
-// Writes public/models/cars/{model,cybertruck,roadster}.glb.
+// Reads the Sketchfab glTF zips in 3d-assets-raw/tesla/ (gitignored, the user's downloads):
+//   2024_tesla_model_3__interior.zip  Model 3 Highland, with a full interior
+//   2025_tesla_model_y.zip            Model Y Juniper (some parts only have generic names)
+//   tesla_cybertruck_2025.zip         production Cybertruck, nose to -x
+//   tesla_roadster_2020.zip           Roadster 2020, with a full interior
+// All four are in metres, +Y up. Writes public/models/cars/{model3,modely,cybertruck,roadster}.glb,
+// or with --lite public/models/cars/lite/*.glb (the phones' cars, simplified to ERROR_LITE).
 //
 // Each car comes out +Y up, nose to +Z, real length in metres, origin on the
-// ground halfway between the axles. Logos and hidden parts are dropped and the
-// rest is merged into a few named materials (paint, glass, trim, light_front,
-// light_rear, and tyre and rim for the wheel), so a car is a handful of draw calls. Then
+// ground halfway between the axles. The interior, logos, plates, brakes and
+// lamp parts behind their lenses are dropped and the rest is merged into a few
+// named materials (paint, glass, trim, light_front, light_rear, and tyre and rim
+// for the wheel), so a car is a handful of draw calls. Then
 // each part gets creased normals at full detail, is simplified with
 // meshoptimizer to within ERROR metres (normals included, creases and the
 // seams between materials kept), and gltf-transform meshopt-compresses the
@@ -21,24 +24,24 @@
 // wheels: [x, y, z, radius] x4 (front left, front right, rear left, rear right) }.
 //
 // Tools are pinned and installed outside the project (not in package.json),
-// into $CAR_TOOLS or <tmpdir>/cmo-car-tools: @gltf-transform/cli, meshoptimizer, occt-import-js.
+// into $CAR_TOOLS or <tmpdir>/cmo-car-tools: @gltf-transform/cli and core, meshoptimizer.
 // --debug keeps every source group as its own material (named after it) and
 // skips simplifying, to see which group is which.
 
 import { execFileSync } from "node:child_process";
-import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createInterface } from "node:readline";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const SRC = join(ROOT, "3d-assets-raw");
-const OUT = join(ROOT, "public/models/cars");
+const SRC = join(ROOT, "3d-assets-raw/tesla");
+const LITE = process.argv.includes("--lite");
+const OUT = join(ROOT, "public/models/cars", LITE ? "lite" : "");
 const TOOLS = process.env.CAR_TOOLS ?? join(tmpdir(), "cmo-car-tools");
 const WORK = join(TOOLS, "work");
-const PINNED = ["@gltf-transform/cli@4.5.0", "meshoptimizer@1.2.0", "occt-import-js@0.0.23"];
+const PINNED = ["@gltf-transform/cli@4.5.0", "@gltf-transform/core@4.5.1", "meshoptimizer@1.2.0"];
 const args = process.argv.slice(2);
 const DEBUG = args.includes("--debug");
 const ONLY = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
@@ -48,9 +51,15 @@ const ONLY = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
  * car is under 4 units long, and in the closest shot one pixel is about 4 cm
  * of car, so 4 mm is a tenth of a pixel. The glossy paint and glass show
  * every dent; the dark matte trim, tyres and rims hide them, so they may stray
- * up to half a pixel (sedan tyre 3,191 to 492 triangles, 36 of them on the road).
+ * up to half a pixel.
  */
-const ERROR = { paint: 0.004, glass: 0.004, light_front: 0.004, light_rear: 0.004, trim: 0.015, tyre: 0.02, rim: 0.015 };
+const ERROR_FULL = { paint: 0.004, glass: 0.004, light_front: 0.004, light_rear: 0.004, trim: 0.015, tyre: 0.02, rim: 0.015 };
+/**
+ * Lite (phones): half a pixel in the closest shot (2 cm), and the matte parts
+ * a pixel. A phone draws all 13 cars every frame, so this is most of their cost.
+ */
+const ERROR_LITE = { paint: 0.02, glass: 0.02, light_front: 0.02, light_rear: 0.02, trim: 0.04, tyre: 0.04, rim: 0.04 };
+const ERROR = LITE ? ERROR_LITE : ERROR_FULL;
 /** How much a turned normal counts against that error: keeps curved panels from going flat. */
 const NORMAL_WEIGHT = 0.05;
 
@@ -67,60 +76,90 @@ const LOOK = {
 
 // ---------------------------------------------------------------------------
 // The cars. `part(group, x, y, z)` names the material of one source triangle
-// (centroid in source units), or null to drop it. "tyre" and "rim" make the wheels.
+// (group: its node and material names; centroid in source metres, nose to +z),
+// or null to drop it. "tyre" and "rim" hold all four wheels; build() splits them.
 
 const CARS = {
-  model: {
-    length: 4.69,
-    read: () => readObj(findFile(unzip("Tesla+Model+obj.zip"), ".obj")),
-    part({ name, mtl }) {
-      if (mtl === "Logo" || name.startsWith("Headligt_Glass")) return null; // the glass would hide the lamp
-      if (mtl === "Car_Paint") return "paint";
-      if (mtl === "Window") return "glass";
-      if (mtl === "Rubber") return name.startsWith("Wheel") ? "tyre" : "trim";
-      if (mtl === "Emission" || mtl === "Emission_1") return "light_front";
-      if (name.startsWith("TailLight")) return "light_rear";
-      if (name.startsWith("Rim")) return "rim"; // the rim and its back cover
-      return "trim"; // Metal_1..3, Looking_Glass: handles, grille, lower fascia, lamp housings, mirror glass
+  model3: {
+    zip: "2024_tesla_model_3__interior.zip",
+    length: 4.72,
+    part({ mtl }, x, y, z) {
+      if (mtl === "ext_carpaint") return "paint";
+      // Black_Glass is the dark frit round the windows.
+      if (["EXT_Window", "Black_Glass", "Mirror"].includes(mtl)) return "glass";
+      if (mtl === "Tyre") return "tyre";
+      // "material" is the spokes, RIM_2 the barrel, Rim_Blur_Spoke_Black the centre cap; the disc fills the gaps.
+      if (["material", "RIM_2", "Rim_Blur_Spoke_Black", "Brake_Disc"].includes(mtl)) return "rim";
+      // The lenses are opaque here, so they are the lamps (what is behind them is dropped).
+      if (mtl === "EXT_Headlight_Glass") return "light_front";
+      if (mtl === "EXT_Taillight_Glass") return "light_rear";
+      if (mtl === "Lights") return z > 0 ? "light_front" : "light_rear";
+      // Window surrounds, bumpers and mirror bases, wheel arch liners.
+      if (["ext_carpaint_black", "ext_plastic", "Body_Black"].includes(mtl)) return "trim";
+      // int_*, INT_*, DAMAGE_GLASS, the motion-blur Rim_Blur_Spoke, badges, plate, callipers, lamp insides.
+      return null;
+    },
+  },
+  modely: {
+    zip: "2025_tesla_model_y.zip",
+    length: 4.79,
+    part({ name, mtl }, x, y, z) {
+      const front = z > 1.17; // the source's middle
+      if (mtl === "Material_2125765635") return "paint";
+      if (["glass_base", "glass_roof_panorama", "mirror"].includes(mtl)) return "glass";
+      if (mtl === "black_reflection") return name === "Object_3" ? "glass" : "trim"; // the gloss black B pillar; the arch liners
+      if (mtl.startsWith("Rubber_Rough")) return "tyre";
+      if (mtl === "Material_2125767099") return name === "Object_13" ? "rim" : null; // Object_14 is the lettering on the tailgate
+      if (mtl === "front_white_light") return "light_front";
+      if (["back_red_Light", "red_plastic", "material"].includes(mtl)) return "light_rear";
+      if (mtl === "glass_headlight222") return front ? "light_front" : "light_rear";
+      if (mtl === "black_base") return name === "Object_25" ? null : "trim"; // Object_25 is the cabin tub
+      if (["chrome", "black"].includes(mtl)) return "trim"; // window surrounds; the plate recesses
+      // Lug nuts, hubs, brake discs (black*, Material_111, Iron_Clean_Distorted), the plate (04_-_Default).
+      return null;
     },
   },
   cybertruck: {
-    length: 5.68,
+    zip: "tesla_cybertruck_2025.zip",
+    length: 5.683,
+    yaw: Math.PI / 2, // its nose points to -x
     crease: 0.3, // flat steel panels
-    read: () => readObj(join(SRC, "Tesla_Cybertruck.obj")),
-    part({ mtl }, x, y, z) {
-      // Wheels (one group): hub inside 60% of the radius, tyre outside. Axles at z 210 and -180 cm, y 46.
-      if (mtl === "blinn3SG") return Math.hypot(y - 46, z - (z > 0 ? 210 : -180)) < 28 ? "rim" : "tyre";
-      if (mtl === "phong4SG") return z > 0 ? "light_front" : "light_rear"; // the light bars and markers
-      // Steel panels, black cladding, the tonneau cover, glass. blinn6SG and blinn9SG are the hidden cabin.
-      return { blinn8SG: "paint", blinn7SG: "trim", blinn4SG: "trim", phong3SG: "glass" }[mtl] ?? null;
+    part({ name, mtl }) {
+      if (!name.includes("_001_")) return null; // _002 to _004: the floating colour swatches
+      const m = mtl.replace(/^Tesla_cybe?r?_/, "");
+      if (m === "body_stainless_steel") return "paint";
+      if (["windshield", "sunroof", "rear_glass", "side_triangle_glass", "side_pillar", "black_glossy_plastic", "mirror"].includes(m)) return "glass";
+      if (m === "tire_tread" || m === "tire_sidewall") return "tyre";
+      if (m === "rims") return "rim";
+      if (m === "headlight_1") return "light_front";
+      if (m === "talllight_1" || m === "talllight_2") return "light_rear";
+      // Cladding and arches, window seals, the closed vault cover over the bed.
+      if (["black_matte_plastic", "dark_black", "rubber", "cargo_compartment_cover"].includes(m)) return "trim";
+      return null; // brakes, the bed under its cover, plates, logo, radiator
     },
   },
   roadster: {
-    length: 4.3,
-    tyreCrease: Math.PI, // smooth all round: hides the maker's lettering on the sidewall
-    read: () => readStep(findFile(unzip("Tesla+Roadster+Files.zip"), ".STEP")),
-    part({ name }) {
-      const [node, k] = [name.split("#")[0], Number(name.split("#")[1])];
-      if (node.includes("Rim")) return "rim";
-      if (node.includes("Tire")) return "tyre";
-      if (node.includes("Wheel")) return null; // brake discs, callipers, bolts: hidden behind the rims
-      if (node.includes("Roof") || node.includes("Windows")) return "glass";
-      if (node.includes("Front Grid")) return "trim";
-      if (node.includes("Rear Bumper")) return k === 1 ? "trim" : "light_rear";
-      if (node.includes("Headlights")) return k < 2 || k === 3 || k === 4 ? "light_front" : "trim";
-      // Body pieces have no names: picked by eye with --debug.
-      if ([1, 4].includes(k)) return "light_rear";
-      if ([24, 25, 27, 28, 33, 34, 35].includes(k)) return "paint";
-      // 7..16: logo and letters; 17: the plate with the CAD maker's name cut in; 18, 21, 26: slivers, a copy of the headlight bezel.
-      if ((k >= 7 && k <= 17) || k === 18 || k === 21 || k === 26) return null;
-      return "trim";
+    zip: "tesla_roadster_2020.zip",
+    length: 4.627,
+    part({ name, mtl }, x, y, z) {
+      const front = z > 0;
+      if (mtl === "car_main_paint") return "paint";
+      if (mtl === "Glass_mid_tint" || (mtl === "Glass_Tint_max" && y > 0.9)) return "glass";
+      if (mtl === "Thread" || mtl === "Sidewall") return "tyre";
+      if (mtl === "Rims" || (name.startsWith("TR.DEF-Wheel.") && mtl === "Metal_-_Black_rough")) return "rim"; // with the centre nut
+      // The clear lenses are opaque here, so they are the lamps; the reflectors behind them are dropped.
+      if (["headlights_main", "Glass_Amber", "indicator_left", "indicator_right"].includes(mtl) || mtl === "Glass_Clear") return front ? "light_front" : "light_rear";
+      if (["Glass_rear_lights_main", "Glass_rear_lights_DHO", "ior_1"].includes(mtl)) return "light_rear";
+      if (mtl === "chrome") return name.startsWith("roadster.027") ? "trim" : null; // the side strips; the rest is lettering
+      if (["carbon_fibre", "Metal_-_Black_rough", "non_lustrous_metal", "grill"].includes(mtl)) return "trim";
+      // interior, seats, brakes, callipers, headlights_AHO behind the lens, the logos (mirror), the plate light.
+      return null;
     },
   },
 };
 
 // ---------------------------------------------------------------------------
-// Sources -> { name, mtl, pos } groups, pos a triangle soup in source units.
+// Sources -> { name, mtl, pos } groups, pos a triangle soup in metres.
 
 function unzip(file) {
   const dir = join(WORK, file.replace(/\W+/g, "-"));
@@ -136,53 +175,29 @@ function findFile(dir, ext) {
   throw new Error(`no ${ext} in ${dir}`);
 }
 
-async function readObj(file) {
-  const v = [];
-  const groups = new Map();
-  let name = "";
-  let mtl = "";
-  for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Infinity })) {
-    if (line.startsWith("v ")) {
-      const p = line.split(/\s+/);
-      v.push(+p[1], +p[2], +p[3]);
-    } else if (line.startsWith("o ") || line.startsWith("g ")) name = line.slice(2).trim();
-    else if (line.startsWith("usemtl ")) mtl = line.slice(7).trim();
-    else if (line.startsWith("f ")) {
-      const key = `${name}|${mtl}`;
-      if (!groups.has(key)) groups.set(key, { name, mtl, pos: [] });
-      const pos = groups.get(key).pos;
-      const idx = line.slice(2).trim().split(/\s+/).map((t) => {
-        const i = parseInt(t, 10);
-        return i < 0 ? v.length / 3 + i : i - 1;
-      });
-      for (let i = 1; i < idx.length - 1; i++) for (const j of [idx[0], idx[i], idx[i + 1]]) pos.push(v[j * 3], v[j * 3 + 1], v[j * 3 + 2]);
+/** Every triangle primitive of a glTF, one group per node and material, in world space turned `yaw` round +y. */
+async function readGltf(file, yaw = 0) {
+  const { NodeIO, Logger } = createRequire(join(TOOLS, "package.json"))("@gltf-transform/core");
+  const doc = await new NodeIO().setLogger(new Logger(Logger.Verbosity.ERROR)).read(file);
+  const [c, s] = [Math.cos(yaw), Math.sin(yaw)];
+  const groups = [];
+  const v = [0, 0, 0];
+  for (const node of doc.getRoot().listNodes()) {
+    const m = node.getWorldMatrix();
+    for (const prim of node.getMesh()?.listPrimitives() ?? []) {
+      if (prim.getMode() !== 4) continue; // triangles only
+      const at = prim.getAttribute("POSITION");
+      const index = prim.getIndices();
+      const pos = [];
+      for (let i = 0, n = index ? index.getCount() : at.getCount(); i < n; i++) {
+        at.getElement(index ? index.getScalar(i) : i, v);
+        const x = m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12];
+        const z = m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14];
+        pos.push(x * c + z * s, m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13], z * c - x * s);
+      }
+      groups.push({ name: node.getName(), mtl: prim.getMaterial()?.getName() ?? "", pos });
     }
   }
-  return [...groups.values()];
-}
-
-async function readStep(file) {
-  const require = createRequire(join(TOOLS, "package.json"));
-  const occt = await require("occt-import-js")();
-  const res = occt.ReadStepFile(new Uint8Array(readFileSync(file)), {
-    linearUnit: "meter",
-    linearDeflectionType: "bounding_box_ratio",
-    linearDeflection: 0.001,
-    angularDeflection: 0.2, // radians: fine enough that curved panels do not band
-  });
-  if (!res.success) throw new Error("STEP read failed");
-  const groups = [];
-  const walk = (node) => {
-    node.meshes.forEach((m, k) => {
-      const mesh = res.meshes[m];
-      const p = mesh.attributes.position.array;
-      const pos = [];
-      for (const i of mesh.index.array) pos.push(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]);
-      groups.push({ name: `${mesh.name || node.name}#${k}`, mtl: "", pos });
-    });
-    node.children.forEach(walk);
-  };
-  walk(res.root);
   return groups;
 }
 
@@ -242,7 +257,8 @@ function wheels(parts) {
     }
     parts.set(part, kept);
   }
-  return centres;
+  // Each stands on the ground (y = radius): a source tyre may sit a few millimetres high or sunk.
+  return centres.map(([x, , z, r]) => [x, r, z, r]);
 }
 
 /** Bounds of some triangle soups, only counting points whose z passes `filter`. */
@@ -325,8 +341,9 @@ function simplify(soup, error, crease, locked) {
   const n = Float32Array.from(nrm);
   const lock = Uint8Array.from({ length: p.length / 3 }, (_, v) => (locked.has(posKey(p, v)) ? 1 : 0));
   // Permissive: a crease may still collapse where that stays within the error (tyre tread, tiny bevels).
+  // Prune: a loose piece smaller than the error goes (bolts, clips, slivers).
   const w = Array(3).fill(NORMAL_WEIGHT);
-  const [kept] = simplifier.simplifyWithAttributes(index, p, 3, n, 3, w, lock, 0, error, ["ErrorAbsolute", "Permissive"]);
+  const [kept] = simplifier.simplifyWithAttributes(index, p, 3, n, 3, w, lock, 0, error, ["ErrorAbsolute", "Permissive", "Prune"]);
   const low = new Float32Array(kept.length * 3);
   const lowNormals = new Float32Array(kept.length * 3);
   kept.forEach((v, i) => {
@@ -434,7 +451,11 @@ function writeGlb(file, name, parts, size, normalsOf = new Map()) {
 // ---------------------------------------------------------------------------
 
 function tools() {
-  if (!PINNED.every((p) => existsSync(join(TOOLS, "node_modules", p.slice(0, p.lastIndexOf("@")))))) {
+  const installed = (p) => {
+    const file = join(TOOLS, "node_modules", p.slice(0, p.lastIndexOf("@")), "package.json");
+    return existsSync(file) && JSON.parse(readFileSync(file, "utf8")).version === p.slice(p.lastIndexOf("@") + 1);
+  };
+  if (!PINNED.every(installed)) {
     mkdirSync(TOOLS, { recursive: true });
     if (!existsSync(join(TOOLS, "package.json"))) writeFileSync(join(TOOLS, "package.json"), "{}");
     execFileSync("npm", ["install", "--no-audit", "--no-fund", "--prefix", TOOLS, ...PINNED], { stdio: "inherit" });
@@ -450,7 +471,7 @@ mkdirSync(WORK, { recursive: true });
 mkdirSync(OUT, { recursive: true });
 for (const [name, car] of Object.entries(CARS)) {
   if (ONLY && ONLY !== name) continue;
-  const { parts, size } = build(car, await car.read());
+  const { parts, size } = build(car, await readGltf(findFile(unzip(car.zip), ".gltf"), car.yaw));
   const out = join(DEBUG ? WORK : OUT, `${name}${DEBUG ? "-debug" : ""}.glb`);
   if (DEBUG) {
     const raw = join(WORK, `${name}-raw.glb`);
@@ -459,9 +480,11 @@ for (const [name, car] of Object.entries(CARS)) {
   } else {
     const low = new Map();
     const normals = new Map();
-    const locked = seams(parts);
+    // Lite lets seams move too (within its 2 cm): locked, the many small trim and lamp pieces stay as dense as in full.
+    const locked = LITE ? new Set() : seams(parts);
     for (const [part, soup] of parts) {
-      const [simple, n] = simplify(soup, ERROR[part], (part === "tyre" && car.tyreCrease) || car.crease, locked);
+      // Tyres are smooth all round: tread blocks are under a pixel even in the closest shot, and their creases would stop the simplifier.
+      const [simple, n] = simplify(soup, ERROR[part], part === "tyre" ? Math.PI : car.crease, locked);
       low.set(part, simple);
       normals.set(part, n);
       console.log(`  ${part}: ${soup.length / 9} -> ${simple.length / 9} triangles`);

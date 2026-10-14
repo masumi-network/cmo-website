@@ -80,13 +80,13 @@ export function StreetFurniture({ lamps, hydrants, signs }: { lamps: Fixture[]; 
   return (
     <>
       <Lamps lamps={lamps} />
-      <Instances items={hydrants} geometry={STREET_PARTS.hydrant} material={painted} place={set} detail />
-      <Instances items={signs} geometry={STREET_PARTS.sign} material={painted} place={set} detail />
+      <Instances items={hydrants} geometry={STREET_PARTS.hydrant} material={painted} place={set} detail cull />
+      <Instances items={signs} geometry={STREET_PARTS.sign} material={painted} place={set} detail cull />
     </>
   );
 }
 
-/** SF post-top acorn lamps (the street's, and the one by the Hayes Valley shop): 2 draw calls. */
+/** SF post-top acorn lamps (the street's, and the one by the Hayes Valley shop): 2 draw calls, only the lamps in view. */
 export function Lamps({ lamps }: { lamps: Fixture[] }) {
   const m = useMemo(
     () => ({
@@ -99,8 +99,8 @@ export function Lamps({ lamps }: { lamps: Fixture[] }) {
   useNightGlow(m.glass, 3.5);
   return (
     <>
-      <Instances items={lamps} geometry={STREET_PARTS.lampIron} material={m.iron} place={set} />
-      <Instances items={lamps} geometry={STREET_PARTS.lampGlass} material={m.glass} place={set} shadows={false} />
+      <Instances items={lamps} geometry={STREET_PARTS.lampIron} material={m.iron} place={set} cull />
+      <Instances items={lamps} geometry={STREET_PARTS.lampGlass} material={m.glass} place={set} shadows={false} cull />
     </>
   );
 }

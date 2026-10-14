@@ -22,4 +22,4 @@ The marketing site as a playable day in a miniature San Francisco. Next.js 16 (A
 - Copy: plain words, short sentences, no em dashes. Cuso is "he".
 - Four colors only: ink, paper, Cuso blue, muted (`src/app/globals.css`).
 - In `src/scene/**`, mutating three.js objects inside `useFrame` is fine (that lint rule is off there).
-- Dummy parts (Ask Cuso, waitlist storage) are marked as launch blockers in the feature map.
+- Launch blockers are marked in the feature map. Ask Cuso is scripted on purpose (no AI). The waitlist needs `SOKOSUMI_API_KEY` in Vercel.

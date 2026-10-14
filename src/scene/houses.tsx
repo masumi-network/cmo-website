@@ -6,13 +6,15 @@
 // static, so they are merged by district (CELL): one draw call per district,
 // and a district off screen or outside the sun's shadow box costs nothing.
 
-import { useEffect, useMemo } from "react";
-import { Float32BufferAttribute, Object3D, type BufferGeometry, type Texture } from "three";
+import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
+import { BufferGeometry, Float32BufferAttribute, Object3D, type Mesh, type Texture } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { WALK_OFFSET, WALK_Z } from "./grid";
 import { BODY_DEPTH, PALETTES, RELIEF_DEPTH, VARIANTS, W, bodyGeometry, frontGeometry, palette } from "./house-models";
 import { HOUSE_GAP, type House } from "./layout";
 import { houseMaterial } from "./materials";
+import { shadowOnly } from "./parts";
 import { HULL } from "./rig";
 
 /** Variants: 2-storey are 0, 2, 4; 3-storey are 1, 3, 5. */
@@ -112,15 +114,64 @@ export function houseDistricts(houses: House[]): BufferGeometry[] {
   return [...cells.values()].map((parts) => mergeGeometries(parts));
 }
 
+/** Lite: a district farther than FAR from the camera drops its faces under SMALL (square units). */
+const FAR = 40;
+const SMALL = 0.005;
+/**
+ * Lite: the shadows come from a stand-in with only the big faces (walls, roofs,
+ * bays, cornices; a quarter of the triangles). The 1024 shadow map is about
+ * 15 texels a unit: the trim it leaves out is under a texel.
+ */
+const SHADOW_FACES = 0.05;
+
+/**
+ * The same mesh without its smallest faces: dentils, the ends of sills, hoods
+ * and brackets. From FAR on a phone they are a few pixels at most.
+ */
+export function withoutSmallFaces(g: BufferGeometry, area: number) {
+  const p = g.attributes.position.array;
+  const index = g.index!.array;
+  const kept: number[] = [];
+  const d = (a: number, b: number, k: number) => p[b * 3 + k] - p[a * 3 + k];
+  for (let t = 0; t < index.length; t += 3) {
+    const [a, b, c] = [index[t], index[t + 1], index[t + 2]];
+    const [ux, uy, uz, vx, vy, vz] = [d(a, b, 0), d(a, b, 1), d(a, b, 2), d(a, c, 0), d(a, c, 1), d(a, c, 2)];
+    if (Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2 >= area) kept.push(a, b, c);
+  }
+  const out = new BufferGeometry(); // shares the vertex buffers: only the index is new
+  for (const [name, attribute] of Object.entries(g.attributes)) out.setAttribute(name, attribute);
+  out.setIndex(kept);
+  return out;
+}
+
 /** Victorian row houses: one modelled front per variant, lap-sided bodies, flat or gabled roofs. */
-export function Houses({ houses, tex }: { houses: House[]; tex: { siding: Texture; shingles: Texture } }) {
+export function Houses({ houses, tex, lite }: { houses: House[]; tex: { siding: Texture; shingles: Texture }; lite: boolean }) {
   const material = useMemo(() => houseMaterial(tex.siding, tex.shingles, palette()), [tex.siding, tex.shingles]);
-  const districts = useMemo(() => houseDistricts(houses), [houses]);
-  useEffect(() => () => districts.forEach((g) => g.dispose()), [districts]);
+  const districts = useMemo(
+    () => houseDistricts(houses).map((near) => ({ near, far: lite ? withoutSmallFaces(near, SMALL) : null, shadow: lite ? withoutSmallFaces(near, SHADOW_FACES) : null })),
+    [houses, lite],
+  );
+  useEffect(() => () => districts.forEach((d) => [d.near, d.far, d.shadow].forEach((g) => g?.dispose())), [districts]);
+  const meshes = useRef<{ near: Mesh | null; far: Mesh | null }[]>([]);
+  useFrame(({ camera }) => {
+    if (!lite) return;
+    districts.forEach(({ near }, k) => {
+      const m = meshes.current[k];
+      if (!m?.near || !m.far) return;
+      const s = near.boundingSphere ?? (near.computeBoundingSphere(), near.boundingSphere!);
+      const far = camera.position.distanceTo(s.center) - s.radius > FAR;
+      m.near.visible = !far;
+      m.far.visible = far;
+    });
+  });
   return (
     <>
-      {districts.map((geometry, k) => (
-        <mesh key={k} geometry={geometry} material={material} castShadow receiveShadow />
+      {districts.map(({ near, far, shadow }, k) => (
+        <group key={k}>
+          <mesh ref={(m) => void ((meshes.current[k] ??= { near: null, far: null }).near = m)} geometry={near} material={material} castShadow={!lite} receiveShadow />
+          {far && <mesh ref={(m) => void ((meshes.current[k] ??= { near: null, far: null }).far = m)} geometry={far} material={material} receiveShadow visible={false} />}
+          {shadow && <mesh ref={shadowOnly} geometry={shadow} material={material} />}
+        </group>
       ))}
     </>
   );

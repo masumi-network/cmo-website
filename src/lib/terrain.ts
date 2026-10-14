@@ -104,10 +104,40 @@ const marinShore = (x: number) => {
 /** How far inland the hills take to rise from the strait: bluffs here, gentle slopes there (as built at the bridge). */
 const riseWidth = (x: number) => 34 * (1 + 0.7 * awayFromBridge(x) * (valueNoise(x / 26, 7.7) - 0.5));
 
+/** The hills' mesh (city.tsx): every side but the strait shore ends in water before it. */
+export const HEADLANDS = { x0: -210, x1: 70, z0: -340, z1: -118 };
+
+const ramp = (d: number, width: number) => Math.min(1, Math.max(0, d / width));
+const segment = (x: number, z: number, [ax, az]: [number, number], [bx, bz]: [number, number]) => {
+  const vx = bx - ax;
+  const vz = bz - az;
+  const t = Math.min(1, Math.max(0, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)));
+  return Math.hypot(x - ax - vx * t, z - az - vz * t);
+};
+
+/**
+ * The headlands fall into the water before their mesh ends, so no cut edge
+ * stands in the air (the water mirror showed one as a pale arc in the
+ * strait): Point Bonita to the west, the bay toward Sausalito to the east, a
+ * coast to the north. The Marin road keeps its hills (it is planned on
+ * them). The north coast, past the road's end (z -288, about 16 up) too,
+ * slopes down to the sea over NORTH_COAST units: gentler than the cliffs.
+ */
+const NORTH_COAST = 44;
+function coasts(x: number, z: number) {
+  const n = valueNoise(x / 18 + z / 18, 3.7) - 0.5;
+  const west = ramp(x - HEADLANDS.x0 - 3 + 6 * n, 24);
+  const east = ramp(HEADLANDS.x1 - 3 - x + 6 * n, 24);
+  let road = Infinity;
+  for (let i = 1; i < MARIN_ROAD_CTRL.length; i++) road = Math.min(road, segment(x, z, MARIN_ROAD_CTRL[i - 1], MARIN_ROAD_CTRL[i]));
+  const north = Math.max(ramp(z - HEADLANDS.z0 - 3 + 6 * n, NORTH_COAST), 1 - ramp(road - 4, NORTH_COAST));
+  return west * east * north;
+}
+
 function rawHeadland(x: number, z: number) {
   const shore = marinShore(x);
   if (z > shore) return -1.5;
-  const t = Math.min(1, (shore - z) / riseWidth(x));
+  const t = Math.min(1, (shore - z) / riseWidth(x)) * coasts(x, z);
   const rise = t * t * (3 - 2 * t);
   return -1.5 + rise * (5 + 20 * ridges(x, z));
 }
@@ -117,7 +147,7 @@ function rawHeadland(x: number, z: number) {
  * road it cuts and fills: its grade is limited, and the hills are carved
  * around it (see headlandHeight).
  */
-// It runs on north-west over the ridges and out of sight into the fog (the headlands end at z -290).
+// It runs on north-west over the ridges and out of sight into the fog; past its end the hills slope to the sea.
 const MARIN_ROAD_CTRL: [number, number][] = [[-80, -152], [-80, -162], [-83, -172], [-90, -184], [-100, -196], [-112, -206], [-126, -214], [-141, -224], [-154, -238], [-164, -254], [-171, -272], [-174, -288]];
 const MARIN_GRADE = 0.18;
 

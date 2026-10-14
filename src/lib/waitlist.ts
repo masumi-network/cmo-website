@@ -31,6 +31,8 @@ export const waitlistSchema = z.object({
       }
       return site;
     }),
+  // Honeypot: a field people never see. If it has a value, a bot filled the form.
+  nickname: z.string().optional(),
 });
 
 export type WaitlistEntry = z.infer<typeof waitlistSchema>;

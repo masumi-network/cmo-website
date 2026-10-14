@@ -1,7 +1,7 @@
 import { Object3D, type BufferGeometry } from "three";
 import { describe, expect, it } from "vitest";
 import { BODY_DEPTH, FOOT, H, PALETTES, RELIEF_DEPTH, SLOT, SLOTS, VARIANTS, W, bodyGeometry, frontGeometry, palette } from "@/scene/house-models";
-import { CELL, houseDistricts, neighbours, paletteOf, placeBody, placeFront, reliefDepth, variantOf } from "@/scene/houses";
+import { CELL, houseDistricts, neighbours, paletteOf, placeBody, placeFront, reliefDepth, variantOf, withoutSmallFaces } from "@/scene/houses";
 import { CITY, HOUSE_GAP } from "@/scene/layout";
 import { FOOTING } from "@/scene/materials";
 
@@ -178,5 +178,21 @@ describe("row house models", () => {
   it("keeps the whole city of houses within its triangle budget", () => {
     const total = CITY.houses.reduce((sum, h, i) => sum + tris(fronts[variantOf(h, i)]) + tris(h.roof === "gable" ? bodies.gable : bodies.flat), 0);
     expect(total).toBeLessThan(BUDGET.city);
+  });
+
+  it("gives far districts (lite) only the faces over a minimum size: over a quarter fewer triangles, the same vertices", () => {
+    const near = houseDistricts(CITY.houses).sort((a, b) => tris(b) - tris(a))[0];
+    const far = withoutSmallFaces(near, 0.005);
+    expect(tris(far)).toBeLessThan(tris(near) * 0.75);
+    expect(far.attributes.position).toBe(near.attributes.position); // shared buffers, only the index differs
+    const p = far.attributes.position;
+    const index = far.index!.array;
+    const v = (i: number) => [p.getX(i), p.getY(i), p.getZ(i)];
+    for (let t = 0; t < index.length; t += 3) {
+      const [a, b, c] = [v(index[t]), v(index[t + 1]), v(index[t + 2])];
+      const u = [0, 1, 2].map((k) => b[k] - a[k]);
+      const w = [0, 1, 2].map((k) => c[k] - a[k]);
+      expect(Math.hypot(u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]) / 2).toBeGreaterThanOrEqual(0.005);
+    }
   });
 });

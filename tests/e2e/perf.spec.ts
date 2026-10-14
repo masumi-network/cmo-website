@@ -7,11 +7,13 @@ import { chapterIndex } from "@/content/day";
 // depend on the GPU, so software WebGL measures them as well as a real one.
 // The median frame is checked: the glass probe adds a few heavier frames when
 // the scroll stops, and those are not the steady cost.
-// Measured 2026-10-14 (M4 Pro, production build); ceilings leave ~15% room.
+// Measured 2026-10-14 (M4 Pro, production build), after the lite pass; ceilings
+// leave ~15% room over the heaviest frame. Lite redraws the sun's shadow map only
+// when something in it moves (atmosphere.tsx), so most of its frames are lighter still.
 // If a change needs more, raise the ceiling on purpose and say why.
 const CEILING = {
-  full: { chapter: { calls: 350, triangles: 2_050_000 }, explore: { calls: 570, triangles: 2_400_000 } },
-  lite: { chapter: { calls: 270, triangles: 1_300_000 }, explore: { calls: 390, triangles: 1_550_000 } },
+  full: { chapter: { calls: 350, triangles: 1_700_000 }, explore: { calls: 560, triangles: 2_150_000 } },
+  lite: { chapter: { calls: 220, triangles: 730_000 }, explore: { calls: 330, triangles: 1_150_000 } },
 };
 
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[values.length >> 1];

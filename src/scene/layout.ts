@@ -309,10 +309,92 @@ function insidePyramid(x: number, y: number, z: number) {
   return WINGS.some(([side, y0, y1, w]) => h > y0 - PYRAMID_AIR && h < y1 + PYRAMID_AIR && Math.sign(x - PYRAMID.x) === side && dx < pyramidHalf(y0) + PYRAMID_AIR && dz < w / 2 + PYRAMID_AIR);
 }
 
-/** True if a point is inside a building. */
 /** Air the camera keeps from every wall, so the near plane never slices into a facade. */
 const WALL_AIR = 0.35;
 
+/** True if a point is inside a building (with the camera's air around it). */
 export const insideBuilding = (x: number, y: number, z: number) =>
   insidePyramid(x, y, z) ||
   OBSTACLES.some((b) => x > b.minX - WALL_AIR && x < b.maxX + WALL_AIR && z > b.minZ - WALL_AIR && z < b.maxZ + WALL_AIR && y < b.top);
+
+type P3 = { x: number; y: number; z: number };
+
+/** The top of the highest building within `pad` (plus the camera's air) of x, z, or -Infinity: what a camera flying over must clear. */
+export function roofAt(x: number, z: number, pad = 0) {
+  const a = WALL_AIR + pad;
+  let top = -Infinity;
+  for (const b of OBSTACLES) if (x > b.minX - a && x < b.maxX + a && z > b.minZ - a && z < b.maxZ + a) top = Math.max(top, b.top);
+  const r = PYRAMID.base + PYRAMID_AIR + pad;
+  if (Math.abs(x - PYRAMID.x) < r && Math.abs(z - PYRAMID.z) < r) top = Math.max(top, PYRAMID_GROUND + PYRAMID.height + 0.5);
+  return top;
+}
+
+/**
+ * Whether the line a→b misses every building (with WALL_AIR + `air` around
+ * it). Exact: each solid is a set of linear limits along the line, so nothing
+ * thin slips between probes. A solid that already holds `a` (Cuso's eye, mid
+ * jump up a wall) is ignored.
+ */
+export function sightClear(a: P3, b: P3, air = 0) {
+  const pad = WALL_AIR + air;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dz = b.z - a.z;
+  // [lo, hi]: the part of the line (0..1) inside every limit so far; each limit is p + q·t < 0
+  let lo = 0;
+  let hi = 1;
+  const limit = (p: number, q: number) => {
+    if (Math.abs(q) < 1e-12) {
+      if (p >= 0) hi = -1;
+    } else if (q > 0) hi = Math.min(hi, -p / q);
+    else lo = Math.max(lo, -p / q);
+  };
+  const box = (x0: number, x1: number, z0: number, z1: number, y0: number, y1: number) => {
+    if (a.x > x0 && a.x < x1 && a.z > z0 && a.z < z1 && a.y > y0 && a.y < y1) return false; // holds the eye
+    lo = 0;
+    hi = 1;
+    limit(x0 - a.x, -dx);
+    limit(a.x - x1, dx);
+    limit(z0 - a.z, -dz);
+    limit(a.z - z1, dz);
+    limit(y0 - a.y, -dy);
+    limit(a.y - y1, dy);
+    return lo < hi;
+  };
+  const minX = Math.min(a.x, b.x) - pad;
+  const maxX = Math.max(a.x, b.x) + pad;
+  const minZ = Math.min(a.z, b.z) - pad;
+  const maxZ = Math.max(a.z, b.z) + pad;
+  const minY = Math.min(a.y, b.y);
+  for (const o of OBSTACLES) {
+    if (o.maxX < minX || o.minX > maxX || o.maxZ < minZ || o.minZ > maxZ || o.top < minY) continue;
+    if (box(o.minX - pad, o.maxX + pad, o.minZ - pad, o.maxZ + pad, -1e3, o.top)) return false;
+  }
+  // the Pyramid: its foot as a box, the tapered body as four sloping limits, the wings as boxes
+  const g = PYRAMID_GROUND;
+  const r = PYRAMID.base + PYRAMID_AIR + air;
+  if (maxX < PYRAMID.x - r || minX > PYRAMID.x + r || maxZ < PYRAMID.z - r || minZ > PYRAMID.z + r || minY > g + PYRAMID.height + 0.5) return true;
+  if (insidePyramid(a.x, a.y, a.z)) return true;
+  if (box(PYRAMID.x - r, PYRAMID.x + r, PYRAMID.z - r, PYRAMID.z + r, g - 1, g)) return false;
+  // |x - px| < base + air + k·(y - g), with k the taper per unit height
+  const k = (PYRAMID.top - PYRAMID.base) / PYRAMID.height;
+  const ex = a.x - PYRAMID.x;
+  const ez = a.z - PYRAMID.z;
+  const half = r + k * (a.y - g);
+  lo = 0;
+  hi = 1;
+  limit(ex - half, dx - k * dy);
+  limit(-ex - half, -dx - k * dy);
+  limit(ez - half, dz - k * dy);
+  limit(-ez - half, -dz - k * dy);
+  limit(g - a.y, -dy);
+  limit(a.y - (g + PYRAMID.height + 0.5), dy);
+  if (lo < hi) return false;
+  for (const [side, y0, y1, w] of WINGS) {
+    const out = pyramidHalf(y0) + PYRAMID_AIR + air;
+    const [x0, x1] = side > 0 ? [PYRAMID.x, PYRAMID.x + out] : [PYRAMID.x - out, PYRAMID.x];
+    const d = w / 2 + PYRAMID_AIR + air;
+    if (box(x0, x1, PYRAMID.z - d, PYRAMID.z + d, g + y0 - PYRAMID_AIR - air, g + y1 + PYRAMID_AIR + air)) return false;
+  }
+  return true;
+}

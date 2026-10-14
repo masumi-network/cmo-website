@@ -254,7 +254,7 @@ function solidDistance(x: number, z: number) {
 }
 
 /** The baked grid: texel centres at x0 + (i + 0.5) * cell. */
-export const SHORE = { x0: -232, z0: -230, cell: 0.875, w: 512, h: 400 };
+export const SHORE = { x0: -232, z0: -350, cell: 0.875, w: 512, h: 538 };
 export type Shore = typeof SHORE & { data: Float32Array };
 
 /**

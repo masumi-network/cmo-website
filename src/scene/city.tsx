@@ -20,9 +20,9 @@ import {
   type Texture,
 } from "three";
 import { Bay, Hills, Water } from "./bay";
-import { heightAt, headlandHeight } from "@/lib/terrain";
+import { HEADLANDS, heightAt, headlandHeight } from "@/lib/terrain";
 import { LAND, streetDrop } from "./grid";
-import { kerbGeometry, terrainGeometry } from "./ground";
+import { kerbGeometry, relief, terrainGeometry, tiles } from "./ground";
 import { CITY } from "./layout";
 import { groundMaterial, worldMaterial } from "./materials";
 import { Grass } from "./grass";
@@ -33,6 +33,7 @@ import { Towers } from "./towers";
 import { Trees } from "./trees";
 import { Cars } from "./traffic";
 import { Fog } from "./fog";
+import { Shadowless } from "./parts";
 import { detail } from "./shared";
 
 
@@ -59,24 +60,29 @@ export function City({ lite }: { lite: boolean }) {
   }) as Textures;
   return (
     <>
-      <Land tex={tex} />
+      <Land tex={tex} lite={lite} />
       <Water lite={lite} />
       <Hills map={tex.hills} />
       <Headlands map={tex.hills} lite={lite} />
-      <Houses houses={city.houses} tex={tex} />
+      <Houses houses={city.houses} tex={tex} lite={lite} />
       <Towers towers={city.towers} tex={tex} />
       <Trees trees={city.trees} lite={lite} />
       <Grass lite={lite} grass={tex.grass} dry={tex.hills} />
-      <StreetFurniture lamps={city.lamps} hydrants={city.hydrants} signs={city.signs} />
+      <Shadowless when={lite}>
+        <StreetFurniture lamps={city.lamps} hydrants={city.hydrants} signs={city.signs} />
+        <Bay />
+      </Shadowless>
       <Cars lite={lite} />
-      <Bay />
       <Fog lite={lite} />
     </>
   );
 }
 
+/** Lite: only tiles that rise more than HILL cast shadows (a flat tile has nothing lower to shade). */
+const HILL = 1.5;
+
 /** Cliffs around the shore, and the hilly ground on top with the street map. */
-function Land({ tex }: { tex: Textures }) {
+function Land({ tex, lite }: { tex: Textures; lite: boolean }) {
   const cliffs = useMemo(() => {
     // One point per unit along the shore, so the wall's top can follow the hills.
     const shore = LAND.flatMap(([x, z], i) => {
@@ -98,8 +104,10 @@ function Land({ tex }: { tex: Textures }) {
   // Shore: a concrete sea wall.
   const cliffMaterials = useMemo(() => [new MeshBasicMaterial({ visible: false }), worldMaterial(tex.concrete, 3)], [tex.concrete]);
 
-  const terrain = useMemo(() => terrainGeometry(), []);
-  const kerbs = useMemo(() => kerbGeometry(), []);
+  // Lite: in tiles, so what is out of view (or out of the sun's shadow box) is culled. A desktop
+  // draws the ground whole: there the draw calls (main, shadow and mirror passes) cost more than the triangles.
+  const terrain = useMemo(() => (lite ? tiles(terrainGeometry()) : [terrainGeometry()]).map((geometry) => ({ geometry, hill: relief(geometry) > HILL })), [lite]);
+  const kerbs = useMemo(() => (lite ? tiles(kerbGeometry()) : [kerbGeometry()]), [lite]);
   // Concrete kerbs: the shade (top edge, face, gutter) is in the vertex colours.
   const kerbMaterial = useMemo(() => new MeshStandardMaterial({ map: tex.concrete, vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), [tex.concrete]);
   const ground = useMemo(() => groundMaterial(groundMask(), lampLight(CITY.lamps), tex.asphalt, tex.concrete, tex.grass, tex.hills), [tex.asphalt, tex.concrete, tex.grass, tex.hills]);
@@ -107,27 +115,41 @@ function Land({ tex }: { tex: Textures }) {
   return (
     <>
       <mesh geometry={cliffs} material={cliffMaterials} position={[0, -4.6, 0]} receiveShadow />
-      <mesh geometry={terrain} material={ground} receiveShadow castShadow />
-      <mesh ref={detail} geometry={kerbs} material={kerbMaterial} receiveShadow />
+      {terrain.map(({ geometry, hill }, i) => (
+        <mesh key={i} geometry={geometry} material={ground} receiveShadow castShadow={hill || !lite} />
+      ))}
+      {kerbs.map((geometry, i) => (
+        <mesh key={i} ref={detail} geometry={geometry} material={kerbMaterial} receiveShadow />
+      ))}
     </>
   );
 }
+
+/** Where the Marin road ends: north of it the headlands only slope down to the sea. */
+const FAR_COAST = -290;
 
 // Marin Headlands across the Golden Gate: ridged hills of golden grass and
 // scrub, a cove where the bridge lands, steeper slopes darker.
 function Headlands({ map, lite }: { map: Texture; lite: boolean }) {
   const geometry = useMemo(() => {
-    const x0 = -210, x1 = 70, z0 = -290, z1 = -118;
-    // Far across the water: lite takes a coarser grid (a quarter of the triangles).
+    const { x0, x1, z0, z1 } = HEADLANDS;
+    // Far across the water: lite takes a coarser grid (a quarter of the triangles). The north
+    // coast past the road's end (in the fog, seen only from far in Explore) rows twice as far apart.
     const step = lite ? 2.4 : 1.2;
-    const g = new PlaneGeometry(x1 - x0, z1 - z0, Math.round((x1 - x0) / step), Math.round((z1 - z0) / step));
+    const rows = [
+      ...Array.from({ length: Math.round((FAR_COAST - z0) / (2 * step)) }, (_, j) => z0 + (j * (FAR_COAST - z0)) / Math.round((FAR_COAST - z0) / (2 * step))),
+      ...Array.from({ length: Math.round((z1 - FAR_COAST) / step) + 1 }, (_, j) => FAR_COAST + (j * (z1 - FAR_COAST)) / Math.round((z1 - FAR_COAST) / step)),
+    ];
+    const columns = Math.round((x1 - x0) / step);
+    const g = new PlaneGeometry(x1 - x0, 1, columns, rows.length - 1);
     g.rotateX(-Math.PI / 2);
-    g.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+    g.translate((x0 + x1) / 2, 0, 0);
     const pos = g.attributes.position;
     const uv = g.attributes.uv;
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
-      const z = pos.getZ(i);
+      const z = rows[Math.floor(i / (columns + 1))];
+      pos.setZ(i, z);
       pos.setY(i, headlandHeight(x, z));
       uv.setXY(i, x / 26, -z / 26);
     }

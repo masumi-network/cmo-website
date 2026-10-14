@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalCard, WeeklyNote } from "@/components/cards";
@@ -64,6 +64,33 @@ describe("WaitlistForm", () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "a@b.co", website: "b.co" });
   });
 
+  it("tells analytics about the signup when GA is loaded", async () => {
+    const gtag = vi.fn();
+    vi.stubGlobal("gtag", gtag);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 })));
+    render(<WaitlistForm />);
+    await userEvent.type(screen.getByLabelText("Email"), "a@b.co");
+    await userEvent.click(screen.getByRole("button", { name: "Join the waitlist" }));
+    await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
+    expect(gtag).toHaveBeenCalledWith("event", "sign_up", { method: "waitlist" });
+  });
+
+  it("has a honeypot people cannot see or reach, and sends it only when filled", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { container } = render(<WaitlistForm />);
+    const trap = container.querySelector<HTMLInputElement>('input[name="nickname"]')!;
+    expect(trap).toHaveAttribute("tabindex", "-1");
+    expect(trap.closest("[aria-hidden]")).not.toBeNull();
+    expect(screen.getAllByRole("textbox")).toHaveLength(1); // only Email is exposed
+
+    trap.value = "bot";
+    await userEvent.type(screen.getByLabelText("Email"), "a@b.co");
+    await userEvent.click(screen.getByRole("button", { name: "Join the waitlist" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "a@b.co", nickname: "bot" });
+  });
+
   it("shows the server's error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "Server says no." }), { status: 400 })));
     render(<WaitlistForm />);
@@ -81,6 +108,34 @@ describe("AskBar", () => {
     expect(onGo).toHaveBeenCalledWith(chapterIndex("ads"));
     expect(useCity.getState().reply).toMatch(/Union Square/);
     expect(screen.getByLabelText("Ask Cuso")).toHaveValue("");
+  });
+
+  it("says something new when asked the same thing twice", async () => {
+    render(<AskBar onGo={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Ask Cuso"), "seo{Enter}");
+    const first = useCity.getState().reply;
+    await userEvent.type(screen.getByLabelText("Ask Cuso"), "seo{Enter}");
+    expect(useCity.getState().reply).not.toBe(first);
+  });
+
+  it("offers things to ask when he does not know, and a chip sends him there", async () => {
+    const onGo = vi.fn();
+    render(<AskBar onGo={onGo} />);
+    await userEvent.type(screen.getByLabelText("Ask Cuso"), "what is the meaning of life{Enter}");
+    expect(onGo).not.toHaveBeenCalled();
+    const chips = screen.getByRole("group", { name: "Try asking" });
+    await userEvent.click(within(chips).getByRole("button", { name: "SEO" }));
+    expect(onGo).toHaveBeenCalledWith(chapterIndex("seo"));
+    expect(screen.queryByRole("group", { name: "Try asking" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Ask Cuso")).toHaveFocus();
+  });
+
+  it("hides the chips once you start typing", async () => {
+    render(<AskBar onGo={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Ask Cuso"), "asdfghjkl{Enter}");
+    expect(screen.getByRole("group", { name: "Try asking" })).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Ask Cuso"), "a");
+    expect(screen.queryByRole("group", { name: "Try asking" })).not.toBeInTheDocument();
   });
 });
 

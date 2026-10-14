@@ -170,6 +170,26 @@ describe("the Union Square cable car's run", () => {
     }
   });
 
+  it("gives way while Cuso walks up to its street or across it: he never waits seconds at the kerb", () => {
+    const { windows, spans } = crossings();
+    for (const w of windows) {
+      const sp = spans[w.span];
+      // Cuso going past the window, or walking up to it from either side
+      const ways = [{ d: w.a - 10, target: w.b + 10 }, { d: w.a - 8, target: w.a - 6 }, { d: w.b + 8, target: w.b + 6 }];
+      for (const cuso of ways) {
+        for (const dir of [1, -1] as const) {
+          // the car a little way off the span, heading for it
+          const car: CableCar = { ...startCar(), s: dir > 0 ? sp.s0 - 3 : sp.s1 + 3, v: 0, dir, at: -1, next: dir > 0 ? STOPS.length - 1 : 0, claimed: 0 };
+          for (let t = 0; t < 10; t += 1 / 30) {
+            stepCar(car, 1 / 30, cuso, false);
+            expect(car.claimed & (1 << w.span), `window ${w.a.toFixed(1)}, Cuso ${JSON.stringify(cuso)}, car going ${dir}`).toBe(0);
+            expect(car.s > sp.s0 && car.s < sp.s1).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
   it("holds at Union Square for the 07:00 and 12:00 chapters in the story, never in explore mode", () => {
     expect(holdsAtUnion(1, "story")).toBe(true); // 07:00
     expect(holdsAtUnion(3, "story")).toBe(true); // 12:00

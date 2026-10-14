@@ -263,7 +263,11 @@ describe("Cuso's rig", () => {
   });
 
   it("frees the hip hand: the arm and fist move on their own bone", () => {
-    expect(boundTo(BONE.armR).length).toBeGreaterThan(1500);
+    // The fist: everything right of the arrow's flat edge (x 0.0735) below the shoulder.
+    const fist = Array.from({ length: rest.length / 3 }, (_, i) => i).filter((i) => rest[i * 3] > 0.085 && rest[i * 3 + 1] < -0.02);
+    const bound = new Set(boundTo(BONE.armR));
+    expect(fist.length).toBeGreaterThan(100);
+    expect(fist.filter((i) => !bound.has(i))).toEqual([]);
   });
 
   it("closes the hip and the fist where the hand comes off", () => {

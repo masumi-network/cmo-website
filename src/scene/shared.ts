@@ -5,14 +5,17 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import { Vector2, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { chapters, type Vec3 } from "@/content/day";
+import { shownHour } from "@/lib/navigate";
 import { travel } from "@/lib/time";
 import { useCity } from "@/lib/store";
 
 export const rig = {
   /** Where the camera looks. The sun's shadow box follows it. */
   target: new Vector3(),
-  /** Cuso's world position this frame. */
+  /** Cuso's world position this frame, */
   cuso: new Vector3(),
+  /** once he is in the scene (his model loads after the camera starts). */
+  placed: false,
   /** Pointer in -1..1, from window events (the canvas sits under the page). */
   pointer: new Vector2(),
   /** Which way Cuso faces (radians around Y). */
@@ -72,13 +75,11 @@ export function overlays() {
   return covers;
 }
 
-/** Where we are in the day right now. */
+/** Where we are in the day right now. After a rail jump the hour (the light) eases over from where it was. */
 export function dayNow() {
-  const { progress, mode } = useCity.getState();
-  const { from, to, t } = travel(progress, chapters.length);
-  const a = chapters[from];
-  const b = chapters[to];
-  return { from, to, t, a, b, mode, hour: a.hour + (b.hour - a.hour) * t };
+  const state = useCity.getState();
+  const { from, to, t } = travel(state.progress, chapters.length);
+  return { from, to, t, a: chapters[from], b: chapters[to], mode: state.mode, hour: shownHour(state, performance.now() / 1000) };
 }
 
 export const setLerp = (out: Vector3, a: Vec3, b: Vec3, t: number) =>

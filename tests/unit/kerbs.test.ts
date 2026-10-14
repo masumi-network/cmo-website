@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { chapters } from "@/content/day";
 import { heightAt, surfaceAt } from "@/lib/terrain";
 import { CROSSWALKS, EDGE, KERB, LANE_MARKS, STREET, X_STREETS, Z_STREETS, groundAt, inPark, insideLand, streetDrop } from "@/scene/grid";
-import { kerbGeometry, terrainGeometry } from "@/scene/ground";
+import { TILE, kerbGeometry, terrainGeometry, tiles } from "@/scene/ground";
+import type { BufferGeometry } from "three";
 import { HOP, PATHS, samplePath } from "@/scene/routes";
 
 const KERB_X = X_STREETS.flatMap((s) => [s - STREET / 2, s + STREET / 2]);
@@ -155,6 +156,36 @@ describe("ground mesh", () => {
       // never below the lower level nor above the higher one (plus the strips' lift)
       expect(y, `${x},${z}`).toBeGreaterThanOrEqual(Math.min(...ys) - 0.02);
       expect(y, `${x},${z}`).toBeLessThanOrEqual(Math.max(...ys) + 0.02);
+    }
+  });
+});
+
+/** Every triangle as its three corners, each corner with all its attributes (exact numbers, winding kept). */
+function triangles(g: BufferGeometry) {
+  const attrs = Object.values(g.attributes);
+  const corner = (v: number) => attrs.map((a) => Array.from({ length: a.itemSize }, (_, c) => a.array[v * a.itemSize + c]).join(",")).join(";");
+  const index = g.index?.array ?? Array.from({ length: g.attributes.position.count }, (_, i) => i);
+  const out: string[] = [];
+  for (let t = 0; t < index.length; t += 3) out.push([0, 1, 2].map((k) => corner(index[t + k])).join("|"));
+  return out.sort();
+}
+
+describe("ground tiles", () => {
+  it.each([
+    ["terrain", terrainGeometry],
+    ["kerbs", kerbGeometry],
+  ])("cut the %s into tiles that cover it exactly once, edges shared to the bit (no cracks)", (_, make) => {
+    const whole = make();
+    const parts = tiles(whole);
+    expect(parts.length).toBeGreaterThan(10);
+    // The same triangles, each once, every corner with the same position, normal, uv and colour.
+    expect(parts.flatMap(triangles).sort()).toEqual(triangles(whole));
+    // Each tile inside one TILE square.
+    for (const g of parts) {
+      g.computeBoundingBox();
+      const { min, max } = g.boundingBox!;
+      expect(max.x - min.x).toBeLessThanOrEqual(TILE + 1e-6);
+      expect(max.z - min.z).toBeLessThanOrEqual(TILE + 1e-6);
     }
   });
 });

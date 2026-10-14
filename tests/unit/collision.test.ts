@@ -21,7 +21,7 @@ import { MISSION } from "@/scene/mission";
 import { HULL } from "@/scene/rig";
 import { SHOP } from "@/scene/shop";
 import { HYDRANT, LAMP, SIGN } from "@/scene/street";
-import { DAY_LENGTH, FACE, dayDistance, sampleDay, walkOn } from "@/scene/routes";
+import { DAY_LENGTH, FACE, arrival, dayDistance, sampleDay, walkOn } from "@/scene/routes";
 
 /** An axis-aligned box. `slope`: each side moves in by this much per unit up (the pyramid). */
 type Solid = { name: string; x0: number; x1: number; y0: number; y1: number; z0: number; z1: number; slope?: number };
@@ -239,6 +239,14 @@ describe("Cuso's body never goes through anything", () => {
       }
     });
     expect([...misses]).toEqual([]);
+  });
+
+  it("a rail jump pops him in clear of everything, facing his way in", () => {
+    for (let i = 0; i < chapters.length; i++) {
+      const { from, to } = arrival(i, crossings().windows);
+      const dir = to >= from ? 1 : -1;
+      expect(hit(sampleDay(from).pos, facing(from, dir, 0)), chapters[i].id).toBeNull();
+    }
   });
 
   it("keeps the pyramid spire out from behind him in the 15:00 shot", () => {

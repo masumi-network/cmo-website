@@ -26,6 +26,10 @@ describe("waitlistSchema", () => {
     expect(waitlistSchema.parse({ email: "a@b.co" })).toEqual({ email: "a@b.co", website: "" });
   });
 
+  it("passes the honeypot through so the API can spot bots", () => {
+    expect(waitlistSchema.parse({ email: "a@b.co", nickname: "bot" }).nickname).toBe("bot");
+  });
+
   it("explains a bad email", () => {
     const result = waitlistSchema.safeParse({ email: "nope" });
     expect(result.success).toBe(false);

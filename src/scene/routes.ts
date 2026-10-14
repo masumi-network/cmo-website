@@ -233,6 +233,42 @@ export function sampleDay(distance: number): Sample & { leg: number; t: number }
   return { ...samplePath(PATHS[leg], t), leg, t };
 }
 
+/** A rail jump walks him in this far, */
+const WALK_IN = 3.5;
+/** or, if that is part way up a jump, from this far before the jump, */
+const RUNUP = 1;
+/** but never more than this (the Pyramid's 28-unit leap: he comes up over the edge). */
+const MAX_IN = 9;
+
+/**
+ * Where a rail jump (the time rail, an Explore pin, Ask Cuso) puts him: a few
+ * steps short of chapter `index` on his route into it, so he walks or hops the
+ * rest as the camera settles. `from` and `to` are day distances. The first
+ * chapter has nothing before it: he walks back to it from the start of his
+ * way out. `keepOut`: stretches he must not start in (where the Union Square
+ * cable car can reach him); he starts at their far end instead.
+ */
+export function arrival(index: number, keepOut: readonly { a: number; b: number }[] = []) {
+  const to = dayDistance(index, 0);
+  let from: number;
+  if (index === 0) {
+    from = WALK_IN;
+  } else {
+    const path = PATHS[index - 1];
+    const start = LEG_START[index - 1];
+    let s = path.length - WALK_IN;
+    // part way up a jump: back to where the jump starts on the ground, and a step more
+    let i = path.cum.findIndex((c) => c >= s);
+    if (path.modes[i] === "jump") {
+      while (i > 1 && path.modes[i - 1] === "jump") i--;
+      s = path.cum[i - 1] - RUNUP;
+    }
+    from = start + Math.max(s, path.length - MAX_IN);
+  }
+  for (const w of keepOut) if (from > w.a && from < w.b) from = index === 0 ? w.a : w.b;
+  return { from, to };
+}
+
 /** Further than this behind the scroll, he blinks there instead of walking. */
 export const TELEPORT = 70;
 

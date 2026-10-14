@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { HILLS, MAST_TOP, ROUTES, WATER_Y, bakeShore, bayGeometries, boatAt, shoreDistance, sailTrim, track, yerbaBuenaHeight } from "@/scene/bay";
+import { HILLS, MAST_TOP, ROUTES, SHORE, WATER_Y, bakeShore, bayGeometries, boatAt, shoreDistance, sailTrim, track, yerbaBuenaHeight } from "@/scene/bay";
 import { BAY_ANCHORS, ISLAND, ROADS, piers } from "@/scene/roads";
 import { insideLand } from "@/scene/layout";
-import { headlandHeight } from "@/lib/terrain";
+import { HEADLANDS, MARIN_ROAD, headlandHeight } from "@/lib/terrain";
 
 const shore = bakeShore();
 const tracks = ROUTES.map(track);
@@ -49,20 +49,47 @@ describe("shore distance (the water shader's foam and shallows)", () => {
     expect(shoreDistance(shore, 120, -7)).toBeGreaterThan(8);
   });
 
-  it("meets the Marin hills along the strait in coves and points, not a ruler line, and still lands the bridge", () => {
-    // Seen from the bay, a straight shore read as the hills' mesh cut off at the water.
-    const [x0, x1, z0, z1] = [-210, 70, -290, -118]; // the hills' mesh (city.tsx)
-    const shoreAt = (x: number) => {
-      for (let z = z1; z > z0; z -= 0.25) if (headlandHeight(x, z) > WATER_Y) return z;
-      return NaN;
-    };
-    for (let from = -200; from <= 30; from += 20) {
-      if (Math.abs(from + 20 + 80) < 30) continue; // the cove where the bridge lands bends anyway
-      const zs = Array.from({ length: 41 }, (_, i) => shoreAt(from + i));
-      expect(Math.max(...zs) - Math.min(...zs), `${from}..${from + 40}`).toBeGreaterThan(3);
-    }
-    expect(shoreAt(-80)).toBeCloseTo(-153.25, 0);
-    for (let x = x0; x <= x1; x += 0.5) expect(headlandHeight(x, z1), `${x},${z1}`).toBeLessThan(WATER_Y);
+  it("has open water along its west and north borders (the shader clamps them out to the horizon)", () => {
+    for (let z = -300; z <= 0; z += 2) expect(shoreDistance(shore, -231, z), `-231,${z}`).toBeGreaterThan(8);
+    const north = SHORE.z0 + 0.5;
+    for (let x = -232; x <= 216; x += 2) expect(shoreDistance(shore, x, north), `${x},${north}`).toBeGreaterThan(8);
+  });
+
+  describe("the Marin hills fall into the water before their mesh ends", () => {
+    // A cut edge standing in the air showed in the water mirror as a pale arc in the strait.
+    const { x0, x1, z0, z1 } = HEADLANDS;
+    it("at Point Bonita (west)", () => {
+      for (let z = z0; z <= z1; z += 0.5) expect(headlandHeight(x0, z), `${x0},${z}`).toBeLessThan(WATER_Y);
+      expect(shoreDistance(shore, -214, -200)).toBeGreaterThan(3);
+    });
+    it("toward Sausalito (east)", () => {
+      for (let z = z0; z <= z1; z += 0.5) expect(headlandHeight(x1, z), `${x1},${z}`).toBeLessThan(WATER_Y);
+      expect(shoreDistance(shore, 74, -200)).toBeGreaterThan(3);
+    });
+    it("in the north, the road's end included", () => {
+      for (let x = x0; x <= x1; x += 0.5) expect(headlandHeight(x, z0), `${x},${z0}`).toBeLessThan(WATER_Y);
+    });
+    it("past the Marin road's end, down a gentle slope (no bluff)", () => {
+      const [ex, , ez] = MARIN_ROAD[MARIN_ROAD.length - 1];
+      for (let z = ez; z > z0; z -= 1) expect(Math.abs(headlandHeight(ex, z - 1) - headlandHeight(ex, z)), `${ex},${z}`).toBeLessThan(0.8);
+    });
+    it("and stay hills inland", () => {
+      for (const [x, z] of [[-160, -200], [40, -200], [-60, -260], [-174, -286], [-174, -300]]) expect(shoreDistance(shore, x, z), `${x},${z}`).toBeLessThan(0);
+    });
+    it("along the strait in coves and points, not a ruler line, and still land the bridge", () => {
+      // Seen from the bay, a straight shore read as the hills' mesh cut off at the water.
+      const shoreAt = (x: number) => {
+        for (let z = z1; z > z0; z -= 0.25) if (headlandHeight(x, z) > WATER_Y) return z;
+        return NaN;
+      };
+      for (let from = -200; from <= 30; from += 20) {
+        if (Math.abs(from + 20 + 80) < 30) continue; // the cove where the bridge lands bends anyway
+        const zs = Array.from({ length: 41 }, (_, i) => shoreAt(from + i));
+        expect(Math.max(...zs) - Math.min(...zs), `${from}..${from + 40}`).toBeGreaterThan(3);
+      }
+      expect(shoreAt(-80)).toBeCloseTo(-153.25, 0);
+      for (let x = x0; x <= x1; x += 0.5) expect(headlandHeight(x, z1), `${x},${z1}`).toBeLessThan(WATER_Y);
+    });
   });
 
   it("measures distance in world units", () => {

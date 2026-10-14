@@ -89,6 +89,15 @@ describe("phone framing", () => {
     expect(largestGap([], 600)).toEqual([0, 600]);
   });
 
+  it.each(PHONES)("on a $name phone Cuso stands inside the screen in every chapter, the hero included", ({ size, band }) => {
+    // the hero's free band is below its words and form, above the scroll button (measured on a 390x844 phone)
+    const hero: [number, number] = [Math.round(size.height * 0.57), Math.round(size.height * 0.91)];
+    for (const ch of chapters) {
+      const { cuso } = phoneShot(ch, size, ch.id === "arrive" ? hero : band);
+      expect(cuso.top >= 0 && cuso.bottom <= size.height && cuso.left >= 0 && cuso.right <= size.width, `${ch.id}: ${JSON.stringify(cuso)}`).toBe(true);
+    }
+  });
+
   it("every chapter has a phone shot that starts outside buildings", () => {
     for (const c of chapters) expect(insideBuilding(...c.phone.position), c.id).toBe(false);
   });

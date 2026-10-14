@@ -47,6 +47,8 @@ const HOLD = ["learn", "ads"];
 
 /** The car waits while Cuso is this close (day distance) to a crossing; more than he moves in a frame (22 units/s at 0.1 s). */
 const NEAR = 4;
+/** The car also gives way while Cuso walks towards a crossing from this close (about 3 s of his walk and dash). */
+const AHEAD = 40;
 
 export type CableCar = {
   /** Centre x along the rails, speed (>= 0), heading (+1 east). */
@@ -193,11 +195,19 @@ export function crossings() {
 /** Cuso's day distance now and where the scroll sends him. */
 export type CusoAt = { d: number; target: number };
 
-/** Whether Cuso is clear of span k: neither he nor where he is going is near one of its windows. */
+/**
+ * Whether Cuso is clear of span k: neither he nor where he is going is near
+ * one of its windows, and he is not on his way across one or walking up to one
+ * (the car gives way: a cable car is slow, and him waiting seconds at the
+ * kerb read as lag).
+ */
 function clear(k: number, { d, target }: CusoAt) {
   for (const w of crossings().windows) {
     if (w.span !== k) continue;
     if ((d > w.a - NEAR && d < w.b + NEAR) || (target > w.a - NEAR && target < w.b + NEAR)) return false;
+    if (Math.min(d, target) < w.a && Math.max(d, target) > w.b) return false;
+    // walking towards it, a few steps away
+    if ((target > d && d < w.a && w.a - d < AHEAD) || (target < d && d > w.b && d - w.b < AHEAD)) return false;
   }
   return true;
 }
