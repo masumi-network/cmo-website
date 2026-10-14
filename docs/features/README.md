@@ -23,6 +23,7 @@ feature? Update its doc and its row in the same change.
 | F09 | Waitlist: email (and website) signup | done | ok | [waitlist](waitlist.md) | `src/lib/waitlist.ts`, `src/components/waitlist-form.tsx`, `src/app/api/waitlist/route.ts` | `tests/unit/waitlist.test.ts`, `tests/unit/waitlist-route.test.ts`, `tests/unit/components.test.tsx`, `tests/e2e/day.spec.ts` |
 | F10 | Without 3D: posters, reduced motion, accessibility | done | ok | [fallback-and-access](fallback-and-access.md) | `src/components/experience.tsx`, `public/concepts` | `tests/e2e/day.spec.ts` |
 | F11 | Site check: Cuso reviews your site and reports back | planned | ok | [site-check](site-check.md) | | |
+| F12 | Photo-real mode: WebGPU path tracing on desktop, behind a flag | planned | ok | [photoreal](photoreal.md) | `src/scene/raytrace-lab.tsx`, `src/scene/traced.ts`, `src/scene/trace-info.ts`, `src/scene/fx-lab.ts`, `src/scene/plate-lab.ts`, `scripts/raytrace-bench.mjs`, `scripts/fx-bench.mjs`, `scripts/plates.mjs` | `tests/unit/photoreal.test.ts` |
 
 ## How we verify
 

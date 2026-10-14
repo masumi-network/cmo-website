@@ -33,6 +33,12 @@ const PerfOverlay =
     ? lazy(() => import("./perf-overlay"))
     : null;
 
+/** Dev only: `?raytrace` path-traces the city with WebGPU over this canvas (the photo-real spike). Compiled out of production builds. */
+const RaytraceLab =
+  process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("raytrace")
+    ? lazy(() => import("./raytrace-lab"))
+    : null;
+
 type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean };
 
 /**
@@ -148,6 +154,7 @@ function Scene({ onReady, onGo, lite }: Props) {
         <Reflections lite={lite} />
         <Ready onReady={onReady} />
         {PerfOverlay && <PerfOverlay />}
+        {RaytraceLab && <RaytraceLab />}
       </Suspense>
       <CameraRig />
       {lite ? (

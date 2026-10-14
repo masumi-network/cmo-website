@@ -558,7 +558,8 @@ export function Cars({ lite = false }: { lite?: boolean }) {
   });
 
   return (
-    <>
+    // live: drawn over pre-traced plates, never in them (photo-real spike)
+    <group userData={{ live: true }}>
       {pieces.map((piece, k) => (
         <instancedMesh
           key={piece.key}
@@ -574,6 +575,6 @@ export function Cars({ lite = false }: { lite?: boolean }) {
         />
       ))}
       <instancedMesh ref={shadows} args={[shadow.geometry, shadow.material, cars.length]} frustumCulled={false} renderOrder={-1} layers={DETAIL} />
-    </>
+    </group>
   );
 }

@@ -146,7 +146,8 @@ export function Cuso() {
   });
 
   return (
-    <group ref={outer}>
+    // live: drawn over pre-traced plates, never in them (photo-real spike)
+    <group ref={outer} userData={{ live: true }}>
       <group ref={body}>
         <primitive object={scene} scale={SCALE} position-y={FEET} />
       </group>

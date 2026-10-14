@@ -54,6 +54,7 @@ import { LAND, insideLand } from "./layout";
 import { BAY_ANCHORS, ISLAND, ROADS, piers } from "./roads";
 import { useGlow } from "./parts";
 import { rig } from "./shared";
+import { traceInfo } from "./trace-info";
 
 /** The water surface. Pier, cliffs and bridges are built around it. */
 export const WATER_Y = -0.45;
@@ -769,6 +770,7 @@ function waterMaterial(mirror: boolean) {
     uMirrorMatrix: { value: new Matrix4() },
   };
   const material = new MeshStandardMaterial({ roughness: 0.14, metalness: 0, envMapIntensity: 0 });
+  traceInfo.set(material, { kind: "water", ripples, deep: uniforms.uDeep.value });
   if (mirror) material.defines = { MIRROR: "" };
   material.customProgramCacheKey = () => (mirror ? "bay-water-mirror" : "bay-water");
   material.onBeforeCompile = (shader) => {
@@ -1067,16 +1069,19 @@ export function Bay() {
   return (
     <>
       <Alcatraz waterY={WATER_Y} unreflected={notReflected} />
-      <instancedMesh ref={hulls} args={[hullGeo, paintMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
-      <instancedMesh ref={mains} args={[mainGeo, sailMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
-      <instancedMesh ref={jibs} args={[jibGeo, sailMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
-      <instancedMesh ref={lights} args={[undefined, lamp, SAILS.length + 1]} frustumCulled={false}>
-        <sphereGeometry args={[0.045, 6, 4]} />
-      </instancedMesh>
-      <instancedMesh ref={wakes} args={[wakeGeo, wakeMaterial, SAILS.length + 1]} receiveShadow frustumCulled={false} />
-      <group ref={ferry} matrixAutoUpdate={false}>
-        <mesh geometry={ferryGeo} material={paintMaterial} castShadow receiveShadow />
-        <mesh geometry={windowsGeo} material={windows} />
+      {/* live: drawn over pre-traced plates, never in them (photo-real spike) */}
+      <group userData={{ live: true }}>
+        <instancedMesh ref={hulls} args={[hullGeo, paintMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
+        <instancedMesh ref={mains} args={[mainGeo, sailMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
+        <instancedMesh ref={jibs} args={[jibGeo, sailMaterial, SAILS.length]} castShadow receiveShadow frustumCulled={false} />
+        <instancedMesh ref={lights} args={[undefined, lamp, SAILS.length + 1]} frustumCulled={false}>
+          <sphereGeometry args={[0.045, 6, 4]} />
+        </instancedMesh>
+        <instancedMesh ref={wakes} args={[wakeGeo, wakeMaterial, SAILS.length + 1]} receiveShadow frustumCulled={false} />
+        <group ref={ferry} matrixAutoUpdate={false}>
+          <mesh geometry={ferryGeo} material={paintMaterial} castShadow receiveShadow />
+          <mesh geometry={windowsGeo} material={windows} />
+        </group>
       </group>
     </>
   );

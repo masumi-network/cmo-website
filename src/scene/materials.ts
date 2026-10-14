@@ -8,6 +8,7 @@ import { facadeNight } from "./facade";
 import { SLOT, SLOTS } from "./house-models";
 import { LAWN_GLSL, lawnTexture } from "./lawn";
 import { GLASS_ENV_GLSL, glassUniforms } from "./reflections";
+import { traceInfo } from "./trace-info";
 
 /** Footing below ground on every building (see city.tsx). */
 export const FOOTING = 1.4;
@@ -74,7 +75,9 @@ const VALUE_NOISE = /* glsl */ `
  */
 export function houseMaterial(siding: Texture, shingles: Texture, palette: Float32Array) {
   const n = SLOTS.length;
-  return patch(new MeshStandardMaterial({ roughness: 0.82 }), "house", {
+  const material = new MeshStandardMaterial({ roughness: 0.82 });
+  traceInfo.set(material, { kind: "house", siding, shingles, palette });
+  return patch(material, "house", {
     uniforms: { uSiding: { value: siding }, uShingles: { value: shingles }, uPalette: { value: palette }, ...glassUniforms },
     vertHead: "attribute float aSlot;\nattribute float aWin;\nattribute vec2 aPane;\nattribute float aPalette;\nattribute vec2 aOrigin;\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;",
     vert: /* glsl */ `
@@ -393,7 +396,9 @@ export function groundMaterial(mask: Texture, light: Texture, asphalt: Texture, 
 
 /** Any texture mapped in world units: walls by (along, height), tops by (x, z). */
 export function worldMaterial(map: Texture, scale: number, top?: string) {
-  return patch(new MeshStandardMaterial({ roughness: 0.6, metalness: 0.2 }), `world-${top ?? "same"}`, {
+  const material = new MeshStandardMaterial({ roughness: 0.6, metalness: 0.2 });
+  traceInfo.set(material, { kind: "world", map, scale, top });
+  return patch(material, `world-${top ?? "same"}`, {
     uniforms: { uMap: { value: map }, uScale: { value: scale } },
     fragHead: "uniform sampler2D uMap;\nuniform float uScale;",
     color: /* glsl */ `
@@ -418,7 +423,9 @@ function hexToVec(hex: string) {
  * a dark, glossier wet band at `waterline`.
  */
 export function concreteMaterial(map: Texture, waterline: number) {
-  return patch(new MeshStandardMaterial({ color: "#b4aea3", roughness: 0.9 }), "concrete", {
+  const material = new MeshStandardMaterial({ color: "#b4aea3", roughness: 0.9 });
+  traceInfo.set(material, { kind: "concrete", map, color: material.color });
+  return patch(material, "concrete", {
     uniforms: { uConcrete: { value: map }, uWater: { value: waterline } },
     vertHead: "attribute float aTop;\nvarying float vTop;",
     vert: "vTop = aTop;",
