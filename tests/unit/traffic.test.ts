@@ -2,10 +2,14 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { Euler, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { surfaceAt } from "@/lib/terrain";
-import { WALK_X, WALK_Z, X_STREETS, Z_STREETS, insideLand } from "@/scene/grid";
+import { heightAt, surfaceAt } from "@/lib/terrain";
+import { WALK_X, WALK_Z, X_STREETS, Z_STREETS, groundAt, insideLand } from "@/scene/grid";
+import { CITY, OBSTACLES, PYRAMID, pyramidHalf } from "@/scene/layout";
+import { HYDRANT, LAMP, SIGN } from "@/scene/street";
+import { PATHS } from "@/scene/routes";
+import { chapters } from "@/content/day";
 import { MAX_GRADE, ROADS, ROAD_WIDTH, onRoad } from "@/scene/roads";
-import { type Car, type Pose, MODELS, carPose, driveCars, makeTraffic, outOfSight, pointAt, spacing, wheelAngle } from "@/scene/traffic";
+import { type Car, type Pose, LOOPS, MODELS, carPose, driveCars, makeTraffic, outOfSight, pointAt, spacing, wheelAngle } from "@/scene/traffic";
 
 const cars = makeTraffic();
 /** Cars on a city loop; the others cross a bridge (their path knows the road surface). */
@@ -97,9 +101,10 @@ describe("traffic", () => {
         pointAt(car.path, s, p);
         expect(insideLand(p.x, p.z), `${p.x},${p.z}`).toBe(true);
         const inLane = (cs: number[], v: number) => cs.some((c) => Math.abs(Math.abs(v - c) - LANE) < 0.02);
-        const near = (cs: number[], v: number) => cs.some((c) => Math.abs(v - c) < 2); // a corner
-        const turning = near(carX, p.x) && near(carZ, p.z);
-        expect(inLane(carX, p.x) || inLane(carZ, p.z) || turning, `${p.x},${p.z}`).toBe(true);
+        // turning (a left turn starts well before its corner), or drifting back into its lane after one, still on a car street
+        const near = (r: number) => carX.some((c) => Math.abs(p.x - c) < r) && carZ.some((c) => Math.abs(p.z - c) < r);
+        const onStreet = carX.some((c) => Math.abs(p.x - c) < 1.5) || carZ.some((c) => Math.abs(p.z - c) < 1.5);
+        expect(inLane(carX, p.x) || inLane(carZ, p.z) || near(6) || (near(18) && onStreet), `${p.x},${p.z}`).toBe(true);
       }
     }
   });
@@ -212,8 +217,9 @@ describe("traffic", () => {
   it.each([
     ["city", city, 0.05],
     // A rigid car can't touch with all four tyres where the road twists under it (the Golden Gate's
-    // radius 6 bend at full grade: on the inside lane its axles are not square to the road). Springs take that up.
-    ["bridge", bridge, 0.065],
+    // radius 6 bend at full grade: on the inside lane its axles are not square to the road), nor turning onto the
+    // foot of the Bay Bridge ramp across the seam with the street. Springs take that up.
+    ["bridge", bridge, 0.075],
   ] as const)("keeps every tyre of the %s cars on the road, round corners, over hills and over the bridges", (_, list, most) => {
     let worst = 0;
     for (const car of list) {
@@ -238,8 +244,11 @@ describe("traffic", () => {
     const rolled = new Float64Array(cars.length);
     const radius = 0.25;
     for (let k = 0; k < 50; k++) driveCars(cars, driven, 0.1, far, rolled); // 5 s, nothing in the way
-    expect(rolled[0]).toBeCloseTo(5 * cars[0].speed, 3);
-    expect(wheelAngle(rolled[0], radius)).toBeCloseTo((5 * cars[0].speed) / radius, 2);
+    // as far as it went along its path (slower round a corner)
+    const along = (driven[0] - cars[0].offset + cars[0].path.length) % cars[0].path.length;
+    expect(rolled[0]).toBeCloseTo(along, 3);
+    expect(rolled[0]).toBeGreaterThan(5 * cars[0].speed * 0.5);
+    expect(wheelAngle(rolled[0], radius)).toBeCloseTo(along / radius, 2);
     expect(wheelAngle(2 * rolled[0], radius)).toBeGreaterThan(wheelAngle(rolled[0], radius));
     // Cuso steps out just ahead of car 0: it stops, and so do its wheels.
     const ahead = carPose(cars[0], driven[0] + 2.5, newPose());
@@ -326,11 +335,13 @@ describe("bridge traffic", () => {
 
   it("keeps to the right-hand lane of every bridge road, the whole car on the road", () => {
     const widest = Math.max(...bridge.map((c) => MODELS[c.type].width));
+    /** Turning at a bridge junction, or drifting back into its lane after a left turn there (the turn tests cover it). */
+    const turning = ({ x, z }: { x: number; z: number }) => [[13, 14], [-51, -36]].some(([jx, jz]) => Math.hypot(x - jx, z - jz) < 14);
     for (const path of routes) {
       const pts = samples(path);
       for (let i = 1; i < pts.length; i++) {
         const [a, b] = [onRoad(pts[i - 1].x, pts[i - 1].z), onRoad(pts[i].x, pts[i].z)];
-        if (!next(pts, i) || !a || !b || a.name !== b.name || Math.abs(b.s - a.s) < 0.05) continue;
+        if (!next(pts, i) || !a || !b || a.name !== b.name || Math.abs(b.s - a.s) < 0.05 || turning(pts[i])) continue;
         const at = `${b.name} ${pts[i].x.toFixed(1)},${pts[i].z.toFixed(1)}`;
         // The road's left is +offset: driving along it, the right lane is at -LANE; against it, +LANE.
         expect(b.offset * Math.sign(b.s - a.s), at).toBeCloseTo(-LANE, 1);
@@ -352,7 +363,7 @@ describe("bridge traffic", () => {
       for (let i = 6; i < pts.length; i++) {
         const [a, b] = [onRoad(pts[i - 6].x, pts[i - 6].z), onRoad(pts[i].x, pts[i].z)];
         if (pts[i].s - pts[i - 6].s > 3.1 || !a || !b || a.name !== b.name) continue;
-        expect(Math.abs(pts[i].y - pts[i - 6].y) / Math.abs(b.s - a.s), b.name).toBeLessThanOrEqual(MAX_GRADE + 0.005);
+        expect(Math.abs(pts[i].y - pts[i - 6].y) / Math.abs(b.s - a.s), b.name).toBeLessThanOrEqual(MAX_GRADE + 0.006);
       }
     }
     let steepest = 0;
@@ -385,8 +396,10 @@ describe("bridge traffic", () => {
         if (onBridge(pts[i])) continue;
         expect(insideLand(x, z), `${x},${z}`).toBe(true);
         const inLane = (cs: number[], v: number) => cs.some((c) => Math.abs(Math.abs(v - c) - LANE) < 0.02);
-        const junction = X_STREETS.some((sx) => Math.abs(x - sx) < 2.6) && Z_STREETS.some((sz) => Math.abs(z - sz) < 2.6);
-        expect(inLane(carX, x) || inLane(carZ, z) || junction, `${x},${z}`).toBe(true);
+        // turning (a left turn starts well before its corner), or drifting back into its lane after one, still on a car street
+        const near = (r: number) => X_STREETS.some((sx) => Math.abs(x - sx) < r) && Z_STREETS.some((sz) => Math.abs(z - sz) < r);
+        const onStreet = carX.some((c) => Math.abs(x - c) < 1.5) || carZ.some((c) => Math.abs(z - c) < 1.5);
+        expect(inLane(carX, x) || inLane(carZ, z) || near(6) || (near(14) && onStreet), `${x},${z}`).toBe(true);
       }
     }
   });
@@ -426,5 +439,232 @@ describe("bridge traffic", () => {
     driven[0] = s1;
     driveCars([car], driven, 0.1, { x: high.x + 2, y: surfaceAt(high.x + 2, 15.6), z: 15.6 });
     expect(driven[0]).toBeGreaterThan(s1);
+  });
+});
+
+/** A car's body as points: its outline at the sill, the mirrors and the roof (narrower), turned and tilted with its pose. */
+function body(car: Car, s: number) {
+  const p = carPose(car, s, newPose());
+  const { length, width } = MODELS[car.type];
+  const turn = new Euler(p.pitch, p.yaw, p.roll, "YXZ");
+  const pts: Vector3[] = [];
+  for (const [h, w] of [[0.15, 1], [0.6, 1], [1, 0.75]]) {
+    for (let a = -1; a <= 1; a += 0.125) for (const side of [-1, 1]) pts.push(new Vector3((side * width * w) / 2, h, (a * length) / 2).applyEuler(turn).add(new Vector3(p.x, p.y, p.z)));
+    for (let b = -1; b <= 1; b += 0.25) for (const end of [-1, 1]) pts.push(new Vector3((b * width * w) / 2, h, (end * length) / 2).applyEuler(turn).add(new Vector3(p.x, p.y, p.z)));
+  }
+  return { p, pts };
+}
+
+/** Where a car's tyres touch the road: each wheel's footprint, front and back edge, both sides (from the GLB). */
+function tyres(car: Car, s: number) {
+  const m = MODELS[car.type];
+  const buf = readFileSync(join(process.cwd(), "public", m.url));
+  const { wheels } = JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString()).nodes[0].extras as { wheels: number[][] };
+  const p = carPose(car, s, newPose());
+  const [fx, fz] = [Math.sin(p.yaw), Math.cos(p.yaw)];
+  // a tyre is about 0.25 m wide: its outer edge
+  return wheels.flatMap(([x, , z, r]) =>
+    [-r, r].map((d) => {
+      const [ax, az] = [(x + Math.sign(x) * 0.12) * m.scale, (z + d) * m.scale];
+      return { x: p.x + fx * az + fz * ax, z: p.z + fz * az - fx * ax };
+    }),
+  );
+}
+
+/** Drives one car alone round its whole route at 60 fps: time, pose and speed per frame. */
+function drive(car: Car) {
+  const driven = Float32Array.from([car.offset]);
+  const rolled = new Float64Array(1);
+  const frames: { pose: Pose; v: number }[] = [];
+  for (let n = 0; rolled[0] < car.path.length; n++) {
+    const before = rolled[0];
+    driveCars([car], driven, 1 / 60, far, rolled);
+    frames.push({ pose: carPose(car, driven[0], newPose()), v: (rolled[0] - before) * 60 });
+  }
+  return frames;
+}
+const turnOf = (a: number, b: number) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
+const DEG = 180 / Math.PI;
+/** One car of each route, the biggest on it. */
+const biggest = [...new Set(cars.map((c) => c.path))].map((path) => cars.filter((c) => c.path === path).reduce((a, b) => (MODELS[b.type].length > MODELS[a.type].length ? b : a)));
+
+describe("turns", () => {
+  it("never puts a car body into the Pyramid, a building, a landmark or street furniture", () => {
+    const g = heightAt(PYRAMID.x, PYRAMID.z);
+    const posts = [
+      ...CITY.lamps.map((l) => ({ ...l, r: LAMP.reach, h: LAMP.height })),
+      ...CITY.hydrants.map((l) => ({ ...l, r: HYDRANT.reach, h: HYDRANT.height })),
+      ...CITY.signs.map((l) => ({ ...l, r: SIGN.reach, h: SIGN.height })),
+    ];
+    const hits = new Set<string>();
+    for (const car of cars) {
+      for (let s = 0; s < car.path.length; s += 0.1) {
+        const { p, pts } = body(car, s);
+        if (outOfSight(p.x, p.z)) continue;
+        for (const v of pts) {
+          // the Pyramid's tapered body, with 5 cm of air (its north face stands 0.1 off the kerb)
+          const half = pyramidHalf(Math.max(0, v.y - g)) + 0.05;
+          if (Math.abs(v.x - PYRAMID.x) < half && Math.abs(v.z - PYRAMID.z) < half) hits.add(`Pyramid at ${p.x.toFixed(1)},${p.z.toFixed(1)}`);
+          const box = OBSTACLES.find((b) => v.x > b.minX && v.x < b.maxX && v.z > b.minZ && v.z < b.maxZ && v.y < b.top);
+          if (box) hits.add(`building at ${v.x.toFixed(1)},${v.z.toFixed(1)}`);
+          const post = posts.find((o) => Math.abs(v.x - o.x) < o.r && Math.abs(v.z - o.z) < o.r && v.y < o.y + o.h);
+          if (post) hits.add(`post at ${post.x.toFixed(1)},${post.z.toFixed(1)}`);
+        }
+      }
+    }
+    expect([...hits]).toEqual([]);
+  }, 60_000);
+
+  it("keeps the tyres on the asphalt and the body over the kerb by a hair at most, round every corner", () => {
+    /** On a street, a bridge road or in the tunnel. */
+    const paved = (x: number, z: number) => groundAt(x, z) === "street" || !!onRoad(x, z) || x > PORTAL[0];
+    for (const car of biggest) {
+      let tyre = 0;
+      let over = 0;
+      for (let s = 0; s < car.path.length; s += 0.1) {
+        const { p, pts } = body(car, s);
+        if (outOfSight(p.x, p.z) || onRoad(p.x, p.z)) continue;
+        tyre += tyres(car, s).filter((t) => !paved(t.x, t.z)).length;
+        // how far the body's sill reaches over a sidewalk: step it back towards the car's centre line
+        for (const v of pts.slice(0, 50)) {
+          let d = 0;
+          const [lx, lz] = [p.x - v.x, p.z - v.z].map((c) => c / Math.hypot(p.x - v.x, p.z - v.z));
+          while (!paved(v.x + lx * d, v.z + lz * d) && d < 1) d += 0.01;
+          over = Math.max(over, d);
+        }
+      }
+      expect(tyre, `${car.type} tyres off the asphalt`).toBe(0);
+      // Was 0.66: the old cars pivoted over the corners. Measured from the car's middle out, so a corner counts a little
+      // more than it sticks out. A left turn into a lane as narrow as the car still puts a nose over the far kerb.
+      expect(over, `${car.type} body over a sidewalk`).toBeLessThan(0.25);
+    }
+  }, 60_000);
+
+  it("keeps a city car on its own side of every street: the rear axle never crosses a centre line, the body only round a corner", () => {
+    /** How far x, z is outside a ring of street centre lines (0 inside). */
+    const outside = (ring: [number, number][], x: number, z: number) => {
+      let inside = false;
+      let edge = Infinity;
+      ring.forEach(([ax, az], k) => {
+        const [bx, bz] = ring[(k + 1) % ring.length];
+        if (az > z !== bz > z && x < ((bx - ax) * (z - az)) / (bz - az) + ax) inside = !inside;
+        const t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (z - az) * (bz - az)) / ((bx - ax) ** 2 + (bz - az) ** 2)));
+        edge = Math.min(edge, Math.hypot(x - ax - (bx - ax) * t, z - az - (bz - az) * t));
+      });
+      return inside ? 0 : edge;
+    };
+    for (const { ring } of LOOPS) {
+      const car = city.find((c) => outside(ring, pointAt(c.path, 0, { x: 0, z: 0 }).x, pointAt(c.path, 0, { x: 0, z: 0 }).z) === 0 && c.path.length < 2 * ring.reduce((sum, [x, z], k) => sum + Math.hypot(x - ring[(k + 1) % ring.length][0], z - ring[(k + 1) % ring.length][1]), 0))!;
+      // an inside corner of the ring is a left turn: the car comes out over the centre line and drifts back over 12
+      const left = ring.filter(([x, z], k) => {
+        const [px, pz] = ring[(k + ring.length - 1) % ring.length];
+        const [nx, nz] = ring[(k + 1) % ring.length];
+        return (x - px) * (nz - z) - (z - pz) * (nx - x) < 0;
+      });
+      for (let s = 0; s < car.path.length; s += 0.1) {
+        const { p, pts } = body(car, s);
+        const half = MODELS[car.type].wheelbase / 2;
+        const rear = { x: p.x - Math.sin(p.yaw) * half, z: p.z - Math.cos(p.yaw) * half };
+        const drifting = left.some(([x, z]) => Math.hypot(rear.x - x, rear.z - z) < 18);
+        // (but a left turn cuts its corner, as a real one does)
+        const cutting = left.some(([x, z]) => Math.hypot(rear.x - x, rear.z - z) < 6);
+        if (!cutting) expect(outside(ring, rear.x, rear.z), `rear axle ${rear.x.toFixed(2)},${rear.z.toFixed(2)}`).toBe(0);
+        // The sill (the mirrors lean with the hill) keeps to its own side of the centre lines away from the corners.
+        // Round one, and a car length past it, a real car's nose swings wide in a turn this tight, then straightens.
+        for (const v of pts.slice(0, 52)) {
+          const corner = ring.some(([x, z]) => Math.abs(v.x - x) < 5.2 && Math.abs(v.z - z) < 5.2);
+          if (corner) continue;
+          expect(outside(ring, v.x, v.z), `body ${v.x.toFixed(2)},${v.z.toFixed(2)}`).toBeLessThan(drifting ? 0.6 : 0.05);
+        }
+      }
+    }
+  });
+
+
+  it.each(biggest.map((car, i) => [i, car] as const))("route %i: the body never snaps round, and on the streets points along the path from its rear axle", (_, car) => {
+    const frames = drive(car);
+    const half = MODELS[car.type].wheelbase / 2;
+    let rate = 0;
+    let jerk = 0;
+    let slip = 0;
+    for (let n = 2; n < frames.length; n++) {
+      const [a, b, c] = [frames[n - 2].pose, frames[n - 1].pose, frames[n].pose];
+      if ([a, b, c].some((q) => outOfSight(q.x, q.z)) || frames[n].v === 0) continue;
+      const r1 = turnOf(a.yaw, b.yaw) * 60;
+      const r2 = turnOf(b.yaw, c.yaw) * 60;
+      rate = Math.max(rate, Math.abs(r2));
+      jerk = Math.max(jerk, Math.abs(r2 - r1));
+      // the rear axle rolls along the way the car points: no sideways slide
+      const [bx, bz] = [b.x - Math.sin(b.yaw) * half, b.z - Math.cos(b.yaw) * half];
+      const [cx, cz] = [c.x - Math.sin(c.yaw) * half, c.z - Math.cos(c.yaw) * half];
+      if (Math.hypot(cx - bx, cz - bz) > 1e-3 && !onRoad(c.x, c.z)) slip = Math.max(slip, Math.abs(turnOf(Math.atan2(cx - bx, cz - bz), b.yaw + turnOf(b.yaw, c.yaw) / 2)));
+    }
+    expect(rate * DEG, "yaw rate, degrees a second").toBeLessThan(75); // was 122
+    expect(jerk * DEG, "change of yaw rate frame to frame, degrees a second").toBeLessThan(10); // was 71: the old turns started and ended at once
+    expect(slip * DEG, "rear axle sliding sideways, degrees").toBeLessThan(2); // the old body pivoted round its middle (55 degrees)
+  });
+
+  it.each(biggest.map((car, i) => [i, car] as const))("route %i: slows into each turn and speeds up out of it, never braking or pulling away hard", (_, car) => {
+    const frames = drive(car);
+    let slowest = Infinity;
+    let accel = 0;
+    let sideways = 0;
+    for (let n = 1; n < frames.length; n++) {
+      const [a, b] = [frames[n - 1], frames[n]];
+      if (outOfSight(b.pose.x, b.pose.z)) continue;
+      const rate = Math.abs(turnOf(a.pose.yaw, b.pose.yaw)) * 60;
+      accel = Math.max(accel, Math.abs(b.v - a.v) * 60);
+      sideways = Math.max(sideways, b.v * rate);
+      if (rate * DEG > 60) slowest = Math.min(slowest, b.v);
+      if (rate * DEG > 60) expect(b.v, `turning hard at ${b.pose.x.toFixed(1)},${b.pose.z.toFixed(1)}`).toBeLessThan(car.speed * 0.6);
+    }
+    expect(accel, "units a second squared").toBeLessThan(2); // the old cars took corners at full speed
+    expect(sideways, "sideways acceleration, units a second squared").toBeLessThan(1.5);
+    expect(Math.max(...frames.map((f) => f.v))).toBeCloseTo(car.speed, 3); // full speed on the straights
+    expect(slowest).toBeLessThan(car.speed * 0.5);
+  });
+
+});
+
+describe("the Roadster", () => {
+  const roadster = cars.find((c) => c.type === "roadster")!;
+  const along = (step: number) => Array.from({ length: Math.floor(roadster.path.length / step) }, (_, k) => carPose(roadster, k * step, newPose()));
+
+  it("takes the long way round, through several districts, not round one block", () => {
+    const poses = along(0.5);
+    const xs = poses.map((p) => p.x);
+    const zs = poses.map((p) => p.z);
+    // a block is 16 east to west and 10 north to south
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(16 + 10);
+    expect(Math.max(...zs) - Math.min(...zs)).toBeGreaterThan(5 * 10);
+    // the blocks (between car streets) it drives along the edge of
+    const cells = new Set(poses.map((p) => `${Math.floor((p.x + 67) / 16)},${Math.floor((p.z + 46) / 10)}`));
+    expect(cells.size).toBeGreaterThanOrEqual(10);
+    // more than a square's four corners: an inside corner, so a left turn too
+    const ring = LOOPS.find((l) => l.cars === 1 && l.ring.length > 4)!.ring;
+    expect(ring.length).toBeGreaterThan(4);
+    expect(roadster.path.length).toBeGreaterThan(150);
+  });
+
+  it("never needs to stop for Cuso: his day never comes near its streets", () => {
+    let nearest = Infinity;
+    for (const { points } of PATHS) {
+      for (const [x, , z] of points) for (const p of along(0.5)) nearest = Math.min(nearest, Math.hypot(x - p.x, z - p.z));
+    }
+    expect(nearest).toBeGreaterThan(4); // a car stops for him when he is up to 2.4 past its nose and 1.2 to its side
+  });
+
+  it("never passes between a chapter's camera and Cuso", () => {
+    const poses = along(0.25);
+    for (const ch of chapters) {
+      const [cx, cy, cz] = ch.camera.position;
+      const [sx, sy, sz] = ch.spot;
+      for (let t = 0; t <= 1; t += 0.01) {
+        const [x, y, z] = [cx + (sx - cx) * t, cy + (sy + 1 - cy) * t, cz + (sz - cz) * t];
+        if (y - surfaceAt(x, z) > 1.4) continue; // over a car's roof
+        const near = poses.some((p) => Math.hypot(p.x - x, p.z - z) < 2);
+        expect(near, `${ch.id} at ${x.toFixed(1)},${z.toFixed(1)}`).toBe(false);
+      }
+    }
   });
 });

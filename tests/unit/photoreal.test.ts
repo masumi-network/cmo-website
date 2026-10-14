@@ -375,7 +375,7 @@ describe("traced twins", () => {
 
   it("lights as many windows at 18:00 as today's towers show (60 to 80 percent, measured on the GPU)", () => {
     for (const kind of ["sash", "steel"] as const) {
-      const lit = facadeMaps(kind).lit.image.data as Uint8Array;
+      const lit = (facadeMaps(kind).lit.image as { data: Uint8Array }).data;
       const size = Math.sqrt(lit.length / 4);
       const cell = size / FACADE_CELLS;
       let on = 0;
