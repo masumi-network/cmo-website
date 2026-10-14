@@ -24,16 +24,23 @@ Last updated: 2026-10-14 · Status: v0, behind a flag · Launch: ok (off by defa
 - Re-bake after changing the static city, its materials, a chapter's camera, or the lighting at its hour. The OIDN weights for the denoiser are gitignored in `public/lab/oidn/` (see Denoiser below).
 
 ## Which chapters have plates (2026-10-14)
-Only chapter 0 (06:00, the Golden Gate from the rooftop) ships. The others were baked and reviewed, and need traceable twins (traced.ts) first:
+Chapters 0, 2 and 3 ship. Reviewed against today's frame:
 
-| Chapter | What breaks in the plate | Twin needed |
+| Chapter | Status | Missing |
 | --- | --- | --- |
-| 1 (07:00 shop) | streets and sidewalks: green and red masks, mirror roads; shopfront flat tan | `ground`, `shop-painted` |
-| 2 (09:00 Mission) | mural wall black; ground masks; mirror street | `ground`, `mission`, mural |
-| 3 (12:00 Union Square) | ground masks in the street; the rest reads well | `ground` |
-| 4 to 7 | not reviewed (night chapters also need window glow and lamps as emitters) | `downtown`, towers, `ferry-market`, `coit`, `taqueria`, night emission |
+| 0 (06:00 rooftop, Golden Gate) | ships | suspender cables trace dark brown, not red |
+| 1 (07:00 shop) | held back | shopfront flat tan: needs a `shop-painted` twin |
+| 2 (09:00 Mission mural) | ships | |
+| 3 (12:00 Union Square) | ships | |
+| 4 to 7 | not baked | `downtown`, towers, `ferry-market`, `coit`, `taqueria`; night chapters need window glow and lamps as emitters |
 
-`ground` is in every street chapter: it is the next twin to build.
+What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `raytrace-lab.tsx`):
+- Ground: its own shader drawn in uv space and read back as one colour texture (32 texels per unit), on the same geometry (the mask itself had traced as red, green and blue).
+- Multi-material meshes split into their visible groups: the cliffs' invisible cap had traced as a mirror over the streets.
+- Additive washes and glows are skipped: the mural's black wash had traced as a black box.
+- The scene is read again at rest: tree and lamp level-of-detail models switch with the camera.
+- Fog: the depth pass sees the twins, and the sky gets haze near the horizon, so no line or cut where far water meets sky.
+- The bake waits for the camera to set off before waiting for it to stop (chapter 1 once baked chapter 0's view).
 
 ## Spike (2026-10-14)
 - Dev only: `?raytrace` (`src/scene/raytrace-lab.tsx`) path-traces the live city over the WebGL canvas. R hides the traced image, F freezes the WebGL city, P restarts. Options: `&scale=0.5` (half resolution), `&spp=8` (denoise sooner), `&denoise=0`, `&pose=0` (keep load-time poses).

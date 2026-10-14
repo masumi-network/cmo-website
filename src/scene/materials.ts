@@ -338,7 +338,9 @@ export function downtownMaterial(stone: Texture) {
  * a darker edge at the kerb, and gullies bent into the normals.
  */
 export function groundMaterial(mask: Texture, light: Texture, asphalt: Texture, concrete: Texture, grass: Texture, dry: Texture) {
-  return patch(new MeshStandardMaterial({ map: mask, roughness: 0.95 }), "ground", {
+  const material = new MeshStandardMaterial({ map: mask, roughness: 0.95 });
+  traceInfo.set(material, { kind: "ground", mask });
+  return patch(material, "ground", {
     uniforms: { uLamp: { value: light }, uAsphalt: { value: asphalt }, uConcrete: { value: concrete }, uGrass: { value: grass }, uDry: { value: dry }, uLawn: { value: lawnTexture() } },
     fragHead: /* glsl */ `
       uniform sampler2D uLamp;

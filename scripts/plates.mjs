@@ -23,7 +23,7 @@ const browser = await chromium.launch({
 // Only the canvases: no HUD, speech bubbles, stats panel or dev badge.
 const HIDE = "body * { visibility: hidden !important; } canvas { visibility: visible !important; }";
 
-/** Opens a chapter and waits until the camera has not moved for a second (it eases in). */
+/** Opens a chapter and waits for the camera to set off (up to 5 s) and then not move for a second (it eases in). */
 async function open(page, query, chapter) {
   page.on("console", (m) => m.type() === "error" && console.error("page:", m.text().slice(0, 300)));
   // outside the lab, read the camera from three's devtools hook: the one drawing the city
@@ -49,12 +49,16 @@ async function open(page, query, chapter) {
   await page.evaluate(
     () =>
       new Promise((done, fail) => {
+        const first = JSON.stringify(window.__rtCamera?.());
+        let moving = false;
         let last = "";
         let still = 0;
         let ticks = 0;
         const t = setInterval(() => {
           const now = JSON.stringify(window.__rtCamera?.());
-          still = now === last ? still + 1 : 0;
+          // the camera may wait a moment for Cuso to set off: give it up to 5 s to start, then wait for it to stop
+          moving ||= now !== first || ticks > 50;
+          still = moving && now === last ? still + 1 : 0;
           last = now;
           // a camera that never settles (Cuso still walking, a drifting shot) gets no plate: fail in 60 s, not hang
           if (++ticks > 600) fail(clearInterval(t) ?? new Error("the camera did not come to rest in 60 s"));

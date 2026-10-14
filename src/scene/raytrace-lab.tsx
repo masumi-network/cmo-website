@@ -13,9 +13,10 @@ import { useEffect } from "react";
 import { initUNetFromURL } from "oidn-web";
 import { OIDNDenoiser, WebGPUPathTracer } from "three-gpu-pathtracer/webgpu";
 import { BVHComputeData } from "three-mesh-bvh/webgpu";
-import { perspectiveDepthToViewZ, screenUV, smoothstep, step, texture, uniform } from "three/tsl";
+import { float, getViewPosition, perspectiveDepthToViewZ, screenUV, select, smoothstep, texture, uniform, vec4 } from "three/tsl";
 import {
   ACESFilmicToneMapping,
+  AdditiveBlending,
   NoToneMapping,
   Color,
   DataTexture,
@@ -45,6 +46,7 @@ import { lightingAt } from "@/lib/time";
 import { dayNow } from "./shared";
 import { CHAINS, screenSpace, type Chain } from "./fx-lab";
 import { splitScene } from "./plates";
+import { bakeGround } from "./bake-ground";
 import { TRACE_LAYER, buildTwins } from "./traced";
 
 type Stats = {
@@ -161,7 +163,9 @@ function asTraced(scene: Scene, sky: Texture, twinned: Object3D[], fn: () => voi
     // three-mesh-bvh reads one BVH per batched geometry here and builds the missing ones (the trees).
     if ((o as BatchedMesh).isBatchedMesh) (o as BatchedMesh & { boundsTrees?: unknown[] }).boundsTrees ??= [];
     const mesh = o as Mesh;
-    if (mesh.isMesh && [mesh.material].flat().some((m) => !("color" in m))) {
+    // no colour (the sky's shader), not drawn at all (material.visible false), or adding light (washes, glows):
+    // the tracer would draw them as solid surfaces (the mural's black wash hid the mural)
+    if (mesh.isMesh && [mesh.material].flat().some((m) => !("color" in m) || !m.visible || m.blending === AdditiveBlending)) {
       swapped.push([mesh, mesh.material, mesh.visible]);
       mesh.material = blank;
       mesh.visible = false;
@@ -208,7 +212,7 @@ function guided(scene: Scene, camera: PerspectiveCamera, sky: Texture, hide: Obj
 /**
  * The scene's distance fog over the traced image: the tracer has no fog, so a
  * depth pass (redrawn when the view changes) blends in the fog colour as three's
- * linear fog does. The sky stays clear, as the WebGL sky dome ignores fog.
+ * linear fog does; the sky gets haze near the horizon only.
  * Karl the fog bank (fog.tsx) is a GLSL shader: it needs its TSL port first.
  */
 function distanceFog(renderer: WebGPURenderer, scene: Scene, camera: PerspectiveCamera) {
@@ -224,7 +228,15 @@ function distanceFog(renderer: WebGPURenderer, scene: Scene, camera: Perspective
   const depth = texture(depthTexture, screenUV).x;
   const overlay = new MeshBasicNodeMaterial({ transparent: true, depthTest: false, depthWrite: false });
   overlay.colorNode = fogColor;
-  overlay.opacityNode = smoothstep(fogNear, fogFar, perspectiveDepthToViewZ(depth, near, far).negate()).mul(step(depth, 0.99999));
+  // Geometry: three's linear fog by distance. Sky: the same haze as skyTexture near the horizon, so a pixel
+  // that is half far water and half sky (the depth pass is not antialiased, the trace is) still fogs: no line.
+  const ground = smoothstep(fogNear, fogFar, perspectiveDepthToViewZ(depth, near, far).negate());
+  // the city camera's matrices: inside the quad, three's camera nodes are the quad's own camera
+  const projectionInverse = uniform(camera.projectionMatrixInverse);
+  const world = uniform(camera.matrixWorld);
+  const view = getViewPosition(screenUV, float(1), projectionInverse);
+  const up = world.mul(vec4(view, 0)).xyz.normalize().y;
+  overlay.opacityNode = select(depth.lessThan(0.99999), ground, smoothstep(0.12, 0, up));
   const quad = new QuadMesh(overlay);
   return {
     /** Redraws the depth: after the camera or the objects move. */
@@ -232,6 +244,9 @@ function distanceFog(renderer: WebGPURenderer, scene: Scene, camera: Perspective
       const { overrideMaterial, environment, background } = scene;
       const shown = hide.filter((m) => m.visible);
       for (const m of shown) m.visible = false;
+      // what the tracer sees: the twins (the cables exist only as twins), not the originals
+      const mask = camera.layers.mask;
+      camera.layers.enable(TRACE_LAYER);
       scene.overrideMaterial = depthOnly;
       scene.environment = null;
       scene.background = null;
@@ -239,6 +254,7 @@ function distanceFog(renderer: WebGPURenderer, scene: Scene, camera: Perspective
       renderer.render(scene, camera);
       renderer.setRenderTarget(null);
       Object.assign(scene, { overrideMaterial, environment, background });
+      camera.layers.mask = mask;
       for (const m of shown) m.visible = true;
     },
     draw() {
@@ -249,6 +265,8 @@ function distanceFog(renderer: WebGPURenderer, scene: Scene, camera: Perspective
       }
       near.value = camera.near;
       far.value = camera.far;
+      projectionInverse.value = camera.projectionMatrixInverse;
+      world.value = camera.matrixWorld;
       renderer.autoClear = false;
       quad.render(renderer);
       renderer.autoClear = true;
@@ -387,7 +405,7 @@ export default function RaytraceLab() {
       if (stop) return;
 
       const tw0 = performance.now();
-      const twins = buildTwins(scene);
+      const twins = buildTwins(scene, bakeGround(gl, scene));
       scene.add(twins.group);
       stats.twinMs = performance.now() - tw0;
       cleanup.push(() => {
@@ -424,7 +442,7 @@ export default function RaytraceLab() {
       const hide = [...notInDepth(scene), ...live];
       const guideHidden = [...hide, ...staticHidden];
       cleanup.push(() => fog.dispose());
-      fog.measure(hide);
+      fog.measure(guideHidden);
 
       const last = new Matrix4().copy(camera.matrixWorld);
       let stillSince = t1;
@@ -458,7 +476,8 @@ export default function RaytraceLab() {
         if (!posed && now - stillSince > 300) {
           posed = true;
           const p0 = performance.now();
-          if (params.get("pose") === "0" || plateMode) {
+          // plates re-read too: level-of-detail models (trees) switch on and off with the camera
+          if (params.get("pose") === "0") {
             // keep the poses read at load: only restart the samples
             tracer.reset();
           } else {
@@ -466,7 +485,7 @@ export default function RaytraceLab() {
             // so read the scene again: the per-geometry BVHs are cached, only the packing repeats.
             asTraced(scene, sky!, staticHidden, () => tracer!.setScene(scene, camera));
           }
-          fog.measure(hide);
+          fog.measure(guideHidden);
           stats.poseMs = performance.now() - p0;
           resetAt = now;
           stats.reached = {};
@@ -486,7 +505,8 @@ export default function RaytraceLab() {
             };
           }, (e: unknown) => (stats.error = String(e)));
         }
-        fog.draw();
+        // a plate's progress view stays raw: the export mixes the fog in (a half-sampled sky under it reads as a cut)
+        if (!plateMode) fog.draw();
         stats.sinceReset = now - resetAt;
         if (now - lastPoll > 250) {
           lastPoll = now;

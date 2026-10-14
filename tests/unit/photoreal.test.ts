@@ -85,6 +85,53 @@ describe("traced twins", () => {
     expect(Math.min(...Array.from({ length: pos.count }, (_, i) => pos.getX(i)))).toBeCloseTo(9);
   });
 
+  it("stands the ground in with its baked colour, on the same geometry and uv", () => {
+    const mask = new Texture();
+    mask.repeat.set(0.01, 0.02);
+    const ground = new MeshStandardMaterial({ map: mask });
+    traceInfo.set(ground, { kind: "ground", mask });
+    const scene = new Scene();
+    const tile = new Mesh(new BoxGeometry(), ground);
+    tile.position.set(3, 0, -2);
+    scene.add(tile);
+    const baked = new Texture();
+
+    const { group, originals } = buildTwins(scene, new Map([[ground, baked]]));
+    expect(originals).toEqual([tile]);
+    const twin = group.children[0] as Mesh;
+    expect(twin.geometry).toBe(tile.geometry);
+    expect((twin.material as MeshStandardMaterial).map).toBe(baked);
+    expect(twin.matrixWorld.equals(tile.matrixWorld)).toBe(true);
+  });
+
+  it("keeps the original ground when there is no bake, rather than leave a hole", () => {
+    const mask = new Texture();
+    const ground = new MeshStandardMaterial({ map: mask });
+    traceInfo.set(ground, { kind: "ground", mask });
+    const scene = new Scene();
+    scene.add(new Mesh(new BoxGeometry(), ground));
+    const { group, originals } = buildTwins(scene);
+    expect(originals).toEqual([]);
+    expect(group.children).toHaveLength(0);
+  });
+
+  it("splits a multi-material mesh into its visible groups (the cliffs' hidden cap must not trace)", () => {
+    const geometry = new BoxGeometry(); // 6 groups, one per side
+    const hidden = new MeshBasicMaterial({ visible: false });
+    const rock = new MeshStandardMaterial({ color: "grey" });
+    const cliffs = new Mesh(geometry, [hidden, rock, hidden, rock, hidden, rock]);
+    const scene = new Scene();
+    scene.add(cliffs);
+
+    const { group, originals } = buildTwins(scene);
+    expect(originals).toEqual([cliffs]);
+    expect(group.children).toHaveLength(3);
+    for (const part of group.children as Mesh[]) {
+      expect(part.material).toBe(rock);
+      expect(part.geometry.index!.count).toBe(6); // one side: two triangles
+    }
+  });
+
   it("leaves plain meshes alone: the tracer reads them as they are", () => {
     const scene = new Scene();
     scene.add(new Mesh(new BoxGeometry(), new MeshStandardMaterial({ color: "red" })));

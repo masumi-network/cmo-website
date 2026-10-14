@@ -5,7 +5,7 @@
 // textures get UVs projected the same way the shaders do it. Twins are in world
 // space (instances expanded), on a layer only the tracer sees.
 
-import { BufferGeometry, Color, Float32BufferAttribute, Group, Matrix3, Matrix4, Mesh, MeshStandardMaterial, type LineBasicMaterial, type LineSegments, Vector2, Vector3, type InstancedMesh, type Object3D } from "three";
+import { BufferGeometry, Color, Float32BufferAttribute, Group, Matrix3, Matrix4, Mesh, MeshStandardMaterial, type LineBasicMaterial, type LineSegments, type Material, type Texture, Vector2, Vector3, type InstancedMesh, type Object3D } from "three";
 import { SLOT, SLOTS } from "./house-models";
 import { traceInfo, type TraceInfo } from "./trace-info";
 
@@ -54,8 +54,19 @@ const along = (p: Vector3, face: Vector3) => {
   return p.x * t2.x + p.z * t2.y;
 };
 
-/** Twins for one patched mesh: a mesh per bucket (texture or surface kind). */
-function twin(mesh: Mesh, info: TraceInfo): Mesh[] {
+/** Twins for one patched mesh: a mesh per bucket (texture or surface kind). `baked`: colour textures baked from shaders (bake-ground.ts). */
+function twin(mesh: Mesh, info: TraceInfo, baked: Map<Material, Texture>): Mesh[] {
+  if (info.kind === "ground") {
+    // same geometry and uv as the original, its shader's colour baked into one texture
+    const map = baked.get(mesh.material as Material);
+    if (!map) return [];
+    const m = new Mesh(mesh.geometry, new MeshStandardMaterial({ map, roughness: 0.9 }));
+    m.matrixAutoUpdate = false;
+    m.matrix.copy(mesh.matrixWorld);
+    m.matrixWorld.copy(mesh.matrixWorld);
+    m.layers.set(TRACE_LAYER);
+    return [m];
+  }
   const buckets = new Map<string, Bucket>();
   const put = (key: string, make: () => MeshStandardMaterial, t: Tri, out: Out) => {
     let b = buckets.get(key);
@@ -134,6 +145,30 @@ function twin(mesh: Mesh, info: TraceInfo): Mesh[] {
 }
 
 /**
+ * A multi-material mesh as one mesh per visible group (the tracer takes one
+ * material per mesh, and draws an invisible one: the cliffs' hidden cap became
+ * a mirror over the streets). Placed where the original is.
+ */
+function visibleGroups(mesh: Mesh): Mesh[] {
+  const g = mesh.geometry;
+  const materials = mesh.material as Material[];
+  return g.groups
+    .filter((grp) => materials[grp.materialIndex ?? 0]?.visible)
+    .map((grp) => {
+      const part = new BufferGeometry();
+      for (const [name, attr] of Object.entries(g.attributes)) part.setAttribute(name, attr);
+      const ids = g.index ? Array.from(g.index.array.slice(grp.start, grp.start + grp.count)) : Array.from({ length: grp.count }, (_, i) => grp.start + i);
+      part.setIndex(ids);
+      const m = new Mesh(part, materials[grp.materialIndex ?? 0]);
+      m.matrixAutoUpdate = false;
+      m.matrix.copy(mesh.matrixWorld);
+      m.matrixWorld.copy(mesh.matrixWorld);
+      m.layers.set(TRACE_LAYER);
+      return m;
+    });
+}
+
+/**
  * Lines (the Golden Gate suspenders, rigging): the tracer sees triangles only,
  * so each segment becomes a thin square tube in the line's colour.
  */
@@ -173,7 +208,7 @@ function lineTwin(line: LineSegments, width: number): Mesh {
  * Builds twins for every visible patched mesh the tracer cannot read. Returns
  * the group to add to the scene and the originals to hide while tracing.
  */
-export function buildTwins(scene: Object3D) {
+export function buildTwins(scene: Object3D, baked = new Map<Material, Texture>()) {
   const group = new Group();
   group.layers.set(TRACE_LAYER);
   const originals: Mesh[] = [];
@@ -184,11 +219,23 @@ export function buildTwins(scene: Object3D) {
       return;
     }
     const mesh = o as Mesh;
-    if (!mesh.isMesh || Array.isArray(mesh.material)) return;
+    if (!mesh.isMesh) return;
+    if (Array.isArray(mesh.material)) {
+      if (!mesh.geometry.groups.length) return;
+      originals.push(mesh);
+      for (const part of visibleGroups(mesh)) {
+        const info = traceInfo.get(part.material as Material);
+        const twins = info ? twin(part, info, baked) : [];
+        for (const t of twins.length ? twins : [part]) group.add(t);
+      }
+      return;
+    }
     const info = traceInfo.get(mesh.material);
     if (!info) return;
+    const twins = twin(mesh, info, baked);
+    if (!twins.length) return; // nothing to stand in: the tracer reads the original
     originals.push(mesh);
-    for (const t of twin(mesh, info)) group.add(t);
+    for (const t of twins) group.add(t);
   });
   return { group, originals };
 }
