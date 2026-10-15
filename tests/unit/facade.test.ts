@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Color, MeshStandardMaterial, type WebGLProgramParametersWithUniforms } from "three";
-import { ASHLAR, BRICK, BRICK_BR, FACADE_GLSL, facadeNight, glassTint, isBrick, masonryCell } from "@/scene/facade";
+import { ASHLAR, BRICK, BRICK_BR, FACADE_GLSL, OIL_CANNING, facadeNight, glassTint, isBrick, masonryCell } from "@/scene/facade";
 import { CITY } from "@/scene/layout";
 import { downtownMaterial } from "@/scene/materials";
 import { towerStyle } from "@/scene/towers";
@@ -107,6 +107,27 @@ describe("downtown shader", () => {
     const names = [...top.matchAll(/\b(?:float|int|bool|void|vec[234]|mat[234])(?:\[\d+\])?\s+(\w+)/g)].map((m) => m[1]);
     expect(names.length).toBeGreaterThan(5);
     for (const n of names) expect(n).toMatch(/^(fac|FAC_)/);
+  });
+
+  it("keeps oil-canning subtle, so the city in the glass stays crisp", () => {
+    // A pane 15 units from what it mirrors shifts the image by 2 x tilt x 15: under a fifth of a pane (0.4 wide).
+    expect(OIL_CANNING.tilt).toBeLessThanOrEqual(0.008);
+    expect(OIL_CANNING.pillow).toBeLessThanOrEqual(0.008);
+  });
+
+  it("lets one material keep plain curtain glass (the Pyramid) on the same program", () => {
+    const tex = { isTexture: true } as never;
+    const [towers, pyramid] = [downtownMaterial(tex), downtownMaterial(tex, false)];
+    const [a, b] = [towers, pyramid].map((m) => {
+      const shader = { uniforms: {}, vertexShader: "#include <common>\n#include <begin_vertex>", fragmentShader: "#include <common>\n#include <color_fragment>" } as unknown as WebGLProgramParametersWithUniforms;
+      m.onBeforeCompile(shader, undefined as never);
+      return shader;
+    });
+    expect(pyramid.customProgramCacheKey()).toBe(towers.customProgramCacheKey());
+    expect(a.fragmentShader).toBe(b.fragmentShader);
+    expect(a.uniforms.uCurtain).toEqual({ value: 1 });
+    expect(b.uniforms.uCurtain).toEqual({ value: 0 });
+    expect(a.fragmentShader).toContain("facCurtain(fTint, vTUv, vFNormal, fRnd, fS, fM, uCurtain,");
   });
 
   it("keeps the night level", () => {

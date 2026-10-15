@@ -295,7 +295,8 @@ export function Pyramid() {
   const ground = heightAt(PYRAMID.x, PYRAMID.z);
   const { stone } = useLandmarkTextures();
   // The towers' material: same shader program, so the windows light up with downtown at night.
-  const material = useMemo(() => downtownMaterial(stone), [stone]);
+  // Its glass stays plain: the curtain wall detail is for the glass towers.
+  const material = useMemo(() => downtownMaterial(stone, false), [stone]);
   const geometry = useMemo(() => merged([pyramidGeometry(ground), plazaWallGeometry()]), [ground]);
   const beacon = useGlow("#ff2414", 3, 0.3);
   useFrame(({ clock }) => {

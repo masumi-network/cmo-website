@@ -205,18 +205,20 @@ export function towerMaterial(facade: Texture, tile: { w: number; h: number }, g
  * shops warmer); floodlit crowns get a warm wash that fades upward.
  * All glass (curtain wall panes, punched windows, shop fronts) reflects the
  * city from the probe (reflections.ts) by fresnel; curtain walls are coated,
- * so they reflect more head-on than plain windows.
+ * so they reflect more head-on than plain windows. `curtain` false keeps
+ * curtain wall glass plain (no per-pane detail or oil-canning): the Pyramid.
  */
-export function downtownMaterial(stone: Texture) {
+export function downtownMaterial(stone: Texture, curtain = true) {
   const material = new MeshStandardMaterial({ vertexColors: true });
   return patch(material, "downtown", {
-    uniforms: { uStone: { value: stone }, ...glassUniforms },
+    uniforms: { uStone: { value: stone }, uCurtain: { value: curtain ? 1 : 0 }, ...glassUniforms },
     // vInfo is flat: interpolating a constant is not exact on every GPU (SwiftShader), and the window
     // hashes amplify the tiniest error into per-pixel speckle.
     vertHead: "attribute vec2 aUv;\nattribute vec3 aInfo;\nvarying vec2 vTUv;\nflat varying vec3 vInfo;",
     vert: "vTUv = aUv;\nvInfo = aInfo;",
     fragHead: /* glsl */ `
       uniform sampler2D uStone;
+      uniform float uCurtain; // curtain wall detail: 1, or 0 for plain glass (one program for both)
       varying vec2 vTUv;
       flat varying vec3 vInfo;
       float fLit = 0.0;
@@ -250,7 +252,7 @@ export function downtownMaterial(stone: Texture) {
         // Half the towers have deep spandrel bands, half read as nearly all glass.
         float fS = fLine(vTUv.y, mix(0.04, 0.11, step(0.5, vInfo.y)));
         float fPane = (1.0 - fM) * (1.0 - fS);
-        diffuseColor.rgb = facCurtain(fTint, vTUv, vFNormal, fRnd, fS, fM, facGlass, facBend);
+        diffuseColor.rgb = facCurtain(fTint, vTUv, vFNormal, fRnd, fS, fM, uCurtain, facGlass, facBend);
         fRough = mix(0.5, 0.14, fPane);
         fMetal = mix(0.4, 0.2, fPane);
         fGl = fPane;
