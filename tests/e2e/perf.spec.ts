@@ -5,8 +5,8 @@ import { chapterIndex } from "@/content/day";
 // water mirror, glass probe, post effects) in the costliest views, under a ceiling.
 // Desktop runs full mode, the phone (Pixel 7, touch) runs lite. Counts do not
 // depend on the GPU, so software WebGL measures them as well as a real one.
-// The median frame is checked: the glass probe adds a few heavier frames when
-// the scroll stops, and those are not the steady cost.
+// The median frame is checked, after the glass probe is done: it adds six heavier
+// frames when the scroll stops or the mode changes, and those are not the steady cost.
 // Measured 2026-10-14 (M4 Pro, production build), after the lite pass; ceilings
 // leave ~15% room over the heaviest frame. Lite redraws the sun's shadow map only
 // when something in it moves (atmosphere.tsx), so most of its frames are lighter still.
@@ -65,7 +65,9 @@ test("the costliest views stay within their draw call and triangle budget", { ta
     if (view !== "explore") await page.evaluate((i) => window.scrollTo({ top: i * innerHeight * 1.6, behavior: "instant" }), view);
     await expect(page.locator("[data-scene]")).toHaveAttribute("data-scene", "ready", { timeout: 90_000 });
     if (view === "explore") await page.getByRole("button", { name: "Explore", exact: true }).click();
-    await frames(page, 3); // the camera eases in
+    // The camera eases in, and the glass probe renders its six faces, one a frame (Explore starts a new probe).
+    // With only 3 here, probe frames could fill the median (lite Explore: 337 calls, 302 steady).
+    await frames(page, 8);
     const seen = await frames(page, 5);
     expect(seen.length, `${view}: frames rendered`).toBeGreaterThanOrEqual(5);
     const ceiling = view === "explore" ? mode.explore : mode.chapter;
