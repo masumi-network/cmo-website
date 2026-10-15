@@ -158,9 +158,11 @@ describe("towers", () => {
       for (let i = 0; i < n.length; i += 3) expect(Math.hypot(n[i], n[i + 1], n[i + 2])).toBeCloseTo(1, 4);
     }
     // The body casts the shadows: about what the whole skyline was before the relief.
-    expect(triangles(body)).toBeLessThan(6000);
+    // Measured 2026-10-15 with cornices, belts and modillions: body 3852 (cornice bands
+    // have no hidden faces; 4068 before), relief 27752 (23568 before). Caps leave ~15% room.
+    expect(triangles(body)).toBeLessThan(4500);
     expect(triangles(relief)).toBeGreaterThan(triangles(body));
-    expect(triangles(body) + triangles(relief)).toBeLessThan(60000);
+    expect(triangles(body) + triangles(relief)).toBeLessThan(36000);
   });
 
   it("profiles a strong cornice for stone and loft towers: the corona projects most, at the roof line, inside the tier", () => {
@@ -168,7 +170,8 @@ describe("towers", () => {
     for (const style of ["deco", "loft"] as const) {
       const inset = towerStyle(of(style)[0]).inset;
       expect(inset, style).toBeGreaterThanOrEqual(0.15);
-      for (const top of [true, false]) {
+      // Lofts are never set back (layout keeps them under 13): one profile.
+      for (const top of style === "deco" ? [true, false] : [true]) {
         const c = corniceProfile(style, top)!;
         const outs = c.steps.map((s) => s.out);
         const id = `${style} ${top ? "crown" : "setback"}`;
@@ -182,9 +185,10 @@ describe("towers", () => {
         expect(Math.max(...outs), id).toBeGreaterThanOrEqual(top ? 0.15 : 0.12);
         expect(c.parapet.out, id).toBeLessThan(Math.max(...outs));
       }
-      const height = (top: boolean) => corniceProfile(style, top)!.steps.reduce((s, x) => s + x.h, 0);
-      expect(height(true), style).toBeGreaterThan(height(false));
     }
+    const height = (top: boolean) => corniceProfile("deco", top)!.steps.reduce((s, x) => s + x.h, 0);
+    expect(height(true)).toBeGreaterThan(height(false));
+    for (const t of of("loft")) expect(t.tiers.length).toBe(1);
   });
 
   it("crowns every stone and loft tower with a projecting cornice that casts a shadow and stays inside the footprint", () => {
