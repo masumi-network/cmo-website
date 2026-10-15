@@ -4,7 +4,7 @@
 // windows at night from the dark glass in each texture.
 
 import { MeshStandardMaterial, type Texture } from "three";
-import { facadeNight } from "./facade";
+import { FACADE_GLSL, facadeNight } from "./facade";
 import { SLOT, SLOTS } from "./house-models";
 import { LAWN_GLSL, lawnTexture } from "./lawn";
 import { GLASS_ENV_GLSL, glassUniforms } from "./reflections";
@@ -197,8 +197,8 @@ export function towerMaterial(facade: Texture, tile: { w: number; h: number }, g
  * little), 1 tar-and-gravel roof, 2 shop fronts (middle bay is the entrance),
  * 3 plain, 4 metal, 5 aluminium cladding, 6 and 8 a punched window pane (`aUv`
  * is its column and storey plus where on the pane: a one-over-one sash or a
- * steel factory window), 7 masonry (stone grain from the stone texture, tinted:
- * limestone, terracotta, brick). Flat tops of parts 0 to 2 are roofs. At night
+ * steel factory window), 7 masonry (limestone ashlar or running-bond brick with
+ * stone grain, facade.ts). Flat tops of parts 0 to 2 are roofs. At night
  * whole floors are busy or quiet and lit windows come in runs (offices cooler,
  * shops warmer); floodlit crowns get a warm wash that fades upward.
  * All glass (curtain wall panes, punched windows, shop fronts) reflects the
@@ -229,7 +229,8 @@ export function downtownMaterial(stone: Texture) {
         float aa = fwidth(x);
         float d = abs(fract(x + 0.5) - 0.5);
         return mix(1.0 - smoothstep(w - aa, w + aa, d), 2.0 * w, smoothstep(0.2, 0.5, aa));
-      }`,
+      }
+      ${FACADE_GLSL}`,
     color: /* glsl */ `
       float fPart = floor(vInfo.x + 0.5);
       vec3 fTint = diffuseColor.rgb;
@@ -247,8 +248,7 @@ export function downtownMaterial(stone: Texture) {
         // Half the towers have deep spandrel bands, half read as nearly all glass.
         float fS = fLine(vTUv.y, mix(0.04, 0.11, step(0.5, vInfo.y)));
         float fPane = (1.0 - fM) * (1.0 - fS);
-        vec3 fGlassC = fTint * (0.62 + 0.12 * fRnd);
-        diffuseColor.rgb = mix(mix(fGlassC, fTint * 0.3, fS), vec3(0.5, 0.52, 0.54), fM);
+        diffuseColor.rgb = facCurtain(fTint, vTUv, vFNormal, fRnd, fS, fM, facGlass, facBend);
         fRough = mix(0.5, 0.14, fPane);
         fMetal = mix(0.4, 0.2, fPane);
         fGl = fPane;
@@ -276,28 +276,18 @@ export function downtownMaterial(stone: Texture) {
         fGl = fGlz - fFrame;
         fLit = (fGlz - fFrame) * step(0.45, fRnd) * (0.2 + 0.2 * smoothstep(0.1, 0.6, fY));
       } else if (fPart > 6.5 && fPart < 7.5) {
-        // Masonry: the stone grain of a window-free strip of the stone texture (stacked blocks about
-        // 0.36 by 0.34), tinted. Walls by (along, height), sills and caps by (x, z).
-        vec2 fT2 = normalize(vec2(-vFNormal.z, vFNormal.x) + vec2(1e-5, 0.0));
-        vec2 fS = abs(vFNormal.y) > 0.5 ? vFPos.xz : vec2(dot(vFPos.xz, fT2), vFPos.y);
-        vec2 fQ = vec2(fS.x / 0.36 * 0.1, fS.y / 5.0);
-        vec3 fF = textureGrad(uStone, vec2(0.45 + mod(fQ.x, 0.1), fQ.y), dFdx(fQ), dFdy(fQ)).rgb;
-        diffuseColor.rgb = fTint * fLuma(fF) / 0.68;
+        // Masonry (facade.ts): limestone ashlar or running-bond brick by the tint, stone grain per block.
+        diffuseColor.rgb = facMasonry(vFPos, vFNormal, fTint, vInfo.y, uStone, facBend);
       } else if (fPart > 5.5) {
         // A punched window pane: a frame and a meeting rail (sash) or a grid of muntins (steel), dark glass
-        // with a room behind; some offices have a blind part way down.
+        // with a room behind; some have a blind part way down or curtains drawn to the sides.
         bool fSteel = fPart > 7.5;
-        vec2 fP = fract(vTUv);
         // bars on whole numbers of the unwrapped coordinate (the frame is on the pane's edges): its derivatives never jump
         vec2 fG = vTUv * (fSteel ? vec2(3.0, 4.0) : vec2(1.0, 2.0));
         float fBar = max(fLine(fG.x, fSteel ? 0.05 : 0.07), fLine(fG.y, fSteel ? 0.05 : 0.045));
-        float fDrop = 1.0 - (0.15 + 0.35 * fract(fRnd * 7.31));
-        float fAa = fwidth(vTUv.y) + 0.005;
-        float fBlind = step(fSteel ? 2.0 : 0.75, fRnd) * smoothstep(fDrop - fAa, fDrop + fAa, fP.y) * (1.0 - fBar);
-        vec3 fRoom = fTint * (0.5 + 0.3 * fRnd) * (0.75 + 0.5 * fP.y);
-        vec3 fFrame = fSteel ? vec3(0.035, 0.04, 0.045) : vec3(0.07, 0.055, 0.04);
-        diffuseColor.rgb = mix(mix(fRoom, vec3(0.4, 0.38, 0.34), fBlind), fFrame, fBar);
-        fGl = (1.0 - fBar) * (1.0 - fBlind);
+        float fCover = 0.0; // blinds and curtains (facade.ts)
+        diffuseColor.rgb = facPane(fTint, vTUv, fBar, fRnd, vInfo.y, fSteel, fCover, facGlass);
+        fGl = (1.0 - fBar) * (1.0 - fCover);
         fRough = mix(0.6, 0.12, fGl);
         fMetal = fSteel ? 0.3 * fBar : 0.0;
         // Whole floors are busy or quiet; lit windows come in runs of three.
@@ -319,12 +309,14 @@ export function downtownMaterial(stone: Texture) {
       fFl *= abs(fPart - 5.0) < 0.5 ? 0.4 : 1.0; // aluminium is pale: a softer wash keeps it calm
       if (fGl > 0.0) {
         vec3 fV = normalize(vFPos - cameraPosition);
-        vec3 fN = normalize(vFNormal);
+        vec3 fN = normalize(vFNormal + facBend);
         // capped: set-back panes are shaded by their frames at a glancing angle
         float fF = min(0.5, fGlF0 + (1.0 - fGlF0) * pow(1.0 - abs(dot(fV, fN)), 5.0));
-        totalEmissiveRadiance += glassEnv(vFPos, reflect(fV, fN), vec3(0.0)) * fF * fGl;
+        totalEmissiveRadiance += glassEnv(vFPos, reflect(fV, fN), vec3(0.0)) * fF * fGl * facGlass;
       }
       totalEmissiveRadiance += (fLitC * fLit * 1.4 + diffuseColor.rgb * vec3(1.0, 0.8, 0.58) * fFl * 0.85) * uNight;`,
+    // pane tilt and joint grooves (facade.ts)
+    normal: "normal = normalize(normal + mat3(viewMatrix) * facBend);",
     // once the probe is ready, glass reflects the city instead of the studio environment
     lights: "radiance *= 1.0 - fGl * uGlassMix;",
   });
