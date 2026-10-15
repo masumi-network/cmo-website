@@ -1,14 +1,14 @@
 "use client";
 
-// Post effects. Today's look at every hour, except where src/lib/look.ts tunes it (12:00: contact shadows,
-// depth of field on Cuso, a warm grade and film grain). Everything stays mounted: per frame only uniforms
+// Post effects. Today's look at every hour, except where src/lib/look.ts tunes it (12:00: depth of field
+// on Cuso, a warm grade and film grain). Everything stays mounted: per frame only uniforms
 // and `enabled` change, so no shader compiles after the poster fades.
 
 import { useFrame } from "@react-three/fiber";
-import { Bloom, DepthOfField, EffectComposer, EffectGroup, HueSaturation, N8AO, TiltShift2, ToneMapping, Vignette, type TiltShiftEffect } from "@react-three/postprocessing";
+import { Bloom, DepthOfField, EffectComposer, EffectGroup, HueSaturation, TiltShift2, ToneMapping, Vignette, type TiltShiftEffect } from "@react-three/postprocessing";
 import { type DepthOfFieldEffect, type EffectPass, type HueSaturationEffect, ToneMappingMode } from "postprocessing";
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Fog, Vector3, type Scene } from "three";
+import { useEffect, useMemo, useRef } from "react";
+import { Vector3 } from "three";
 import { TODAY, dofAmount, focusGoal, liteLook, lookFor, passOn, stepFocus } from "@/lib/look";
 import { overhead } from "./atmosphere";
 import { GradeEffect } from "./grade";
@@ -18,46 +18,11 @@ import { dayNow, rig } from "./shared";
 const LOOK_OFF =
   process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("look") === "off";
 
-/** The bits of n8ao's N8AOPostPass used here (the package ships no types). */
-type AOPass = {
-  enabled: boolean;
-  scene: Scene;
-  autoDetectTransparency: boolean;
-  configuration: { intensity: number; transparencyAware: boolean };
-  render: (...args: unknown[]) => void;
-};
+type Props = { lite: boolean; multisampling: number };
 
-/**
- * AO only near the camera: n8ao fades AO by the scene fog, so during its render the scene gets a short fog of
- * its own. Far thin edges got dark halos and AO hid the distance fog (city-scene.md). Transparency detection
- * off: it walks the scene and renders it twice more every frame.
- */
-const AO_FADE = new Fog(0x000000, 25, 70);
-const nearAO = (pass: AOPass) => {
-  pass.autoDetectTransparency = false;
-  pass.configuration.transparencyAware = false;
-  const render = pass.render.bind(pass);
-  pass.render = (...args) => {
-    const fog = pass.scene.fog;
-    pass.scene.fog = AO_FADE;
-    try {
-      render(...args);
-    } finally {
-      pass.scene.fog = fog;
-    }
-  };
-};
-
-type Props = { lite: boolean; multisampling: number; declined: boolean };
-
-export function Post({ lite, multisampling, declined }: Props) {
+export function Post({ lite, multisampling }: Props) {
   const grade = useMemo(() => new GradeEffect(), []);
   useEffect(() => () => grade.dispose(), [grade]);
-  const ao = useRef<AOPass | null>(null);
-  const setAO = useCallback((pass: AOPass | null) => {
-    if (pass && ao.current !== pass) nearAO(pass);
-    ao.current = pass;
-  }, []);
   const dofPass = useRef<EffectPass>(null);
   const dof = useRef<DepthOfFieldEffect>(null);
   const tilt = useRef<TiltShiftEffect>(null);
@@ -73,12 +38,6 @@ export function Post({ lite, multisampling, declined }: Props) {
     scene.environmentIntensity = L.env;
     grade.set(L, gl.getPixelRatio());
     if (lite) return;
-
-    if (ao.current) {
-      const intensity = declined ? 0 : L.ao;
-      if (ao.current.configuration.intensity !== intensity) ao.current.configuration.intensity = intensity;
-      ao.current.enabled = passOn(intensity, ready);
-    }
 
     // Depth of field: focus pulls to Cuso; it fades out as the camera rises over the city.
     const high = day.mode === "explore" ? 1 : overhead(camera.position.distanceTo(rig.target));
@@ -109,7 +68,6 @@ export function Post({ lite, multisampling, declined }: Props) {
 
   return (
     <EffectComposer multisampling={multisampling}>
-      <N8AO ref={setAO} halfRes depthAwareUpsampling aoSamples={16} denoiseSamples={8} aoRadius={3} distanceFalloff={0.6} intensity={0} screenSpaceRadius={false} />
       <EffectGroup ref={dofPass}>
         <DepthOfField ref={dof} worldFocusDistance={9} worldFocusRange={TODAY.focusRange} bokehScale={0} resolutionScale={0.5} />
       </EffectGroup>

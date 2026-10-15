@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Vector3 } from "three";
 import { chapters } from "@/content/day";
@@ -16,12 +17,16 @@ const shot = (c: (typeof chapters)[number]) => {
 const middle = (spot: readonly [number, number, number]) => new Vector3(spot[0], spot[1] + 0.95, spot[2]);
 
 describe("look per hour", () => {
+  it("has no ambient occlusion at any hour (dropped 2026-10-15: about 3 ms for a little shading under cornices)", () => {
+    for (const h of [6, 9, 10.5, 12, 15, 22]) expect(Object.keys(lookFor(h)), `${h}:00`).not.toContain("ao");
+    expect(readFileSync("src/scene/post.tsx", "utf8")).not.toMatch(/N8AO/);
+  });
+
   it("is today's look at every hour not tuned yet", () => {
     for (const h of [6, 7, 8, 9, 15, 18, 20, 22, 26, 30, 3]) expect(lookFor(h), `${h}:00`).toEqual(TODAY);
   });
 
   it("today's look draws no AO, no depth of field and no grade (only the toy tilt-shift)", () => {
-    expect(TODAY.ao).toBe(0);
     expect(TODAY.dof).toBe(0);
     expect(TODAY.tilt).toBeGreaterThan(0);
     expect(TODAY.gain).toEqual([1, 1, 1]);
@@ -30,10 +35,9 @@ describe("look per hour", () => {
     expect(TODAY.grain).toBe(0);
   });
 
-  it("at 12:00 has contact shadows, depth of field, a warm grade, grain and no tilt-shift", () => {
+  it("at 12:00 has depth of field, a warm grade, grain and no tilt-shift", () => {
     const L = lookFor(12);
     expect(L).toEqual(NOON);
-    expect(L.ao).toBeGreaterThan(0);
     expect(L.dof).toBeGreaterThan(0);
     expect(L.tilt).toBe(0);
     expect(L.gain[0]).toBeGreaterThan(L.gain[2]); // warm: more red than blue
@@ -43,7 +47,7 @@ describe("look per hour", () => {
   });
 
   it("blends between 09:00 and 12:00 and back by 15:00 (no pop while scrolling)", () => {
-    const keys: (keyof Look)[] = ["ao", "dof", "tilt", "contrast", "grain", "env", "saturation"];
+    const keys: (keyof Look)[] = ["dof", "tilt", "contrast", "grain", "env", "saturation"];
     for (const h of [10, 10.5, 11, 13, 14]) {
       const L = lookFor(h);
       for (const k of keys) {
@@ -52,14 +56,13 @@ describe("look per hour", () => {
         expect(L[k] as number, `${k} at ${h}`).toBeLessThanOrEqual(hi);
       }
     }
-    expect(lookFor(10.5).ao).toBeCloseTo(NOON.ao / 2, 5);
-    expect(lookFor(11).ao).toBeGreaterThan(lookFor(10).ao);
+    expect(lookFor(10.5).dof).toBeCloseTo(NOON.dof / 2, 5);
+    expect(lookFor(11).dof).toBeGreaterThan(lookFor(10).dof);
   });
 
-  it("on phones keeps the grade and the grain, never AO or depth of field", () => {
+  it("on phones keeps the grade and the grain, never depth of field", () => {
     for (const h of [6, 10.5, 12, 22]) {
       const L = liteLook(lookFor(h));
-      expect(L.ao).toBe(0);
       expect(L.dof).toBe(0);
       expect(L.gain).toEqual(lookFor(h).gain);
       expect(L.grain).toBe(lookFor(h).grain);

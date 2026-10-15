@@ -4,8 +4,6 @@
 export type RGB = readonly [number, number, number];
 
 export type Look = {
-  /** Contact shadows (ambient occlusion strength). 0 = off. */
-  ao: number;
   /** Depth of field strength (bokeh scale). 0 = off. */
   dof: number;
   /** World units around the focus over which things go from sharp to fully soft. */
@@ -26,7 +24,6 @@ export type Look = {
 
 /** Today's look: the toy-model city. Every hour not tuned yet keeps it. */
 export const TODAY: Look = {
-  ao: 0,
   dof: 0,
   focusRange: 14,
   tilt: 0.04,
@@ -40,7 +37,6 @@ export const TODAY: Look = {
 
 /** 12:00, Union Square: the look test. Restrained and photographic. */
 export const NOON: Look = {
-  ao: 6,
   dof: 1.5,
   focusRange: 14,
   tilt: 0,
@@ -79,7 +75,6 @@ export function lookFor(hour: number): Look {
   if (a === b || t === 0) return a;
   if (t === 1) return b;
   return {
-    ao: mix(a.ao, b.ao, t),
     dof: mix(a.dof, b.dof, t),
     focusRange: mix(a.focusRange, b.focusRange, t),
     tilt: mix(a.tilt, b.tilt, t),
@@ -92,8 +87,8 @@ export function lookFor(hour: number): Look {
   };
 }
 
-/** Phones and weak GPUs: the grade and the grain (nearly free), no AO or depth of field. */
-export const liteLook = (look: Look): Look => ({ ...look, ao: 0, dof: 0 });
+/** Phones and weak GPUs: the grade and the grain (nearly free), no depth of field. */
+export const liteLook = (look: Look): Look => ({ ...look, dof: 0 });
 
 /** Depth of field fades out as the camera rises over the city (`overhead` 0..1; 1 in Explore). */
 export const dofAmount = (look: Look, overhead: number) => look.dof * (1 - clamp01(overhead));

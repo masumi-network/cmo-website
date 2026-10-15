@@ -103,7 +103,6 @@ const Studio = memo(function Studio() {
 function Scene({ onReady, onGo, lite }: Props) {
   // Sharp on retina screens, until the GPU can't keep up: then one pixel per pixel.
   const [dpr, setDpr] = useState<[number, number]>(lite ? [1, 1.5] : [1, 2]);
-  const [declined, setDeclined] = useState(false);
   useEffect(() => {
     const move = (e: PointerEvent) => rig.pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     window.addEventListener("pointermove", move, { passive: true });
@@ -125,12 +124,7 @@ function Scene({ onReady, onGo, lite }: Props) {
         gl.debug.checkShaderErrors = process.env.NODE_ENV !== "production";
       }}
     >
-      <PerformanceMonitor
-        onDecline={() => {
-          setDpr([1, 1]);
-          setDeclined(true); // and no ambient occlusion
-        }}
-      />
+      <PerformanceMonitor onDecline={() => setDpr([1, 1])} />
       <Suspense fallback={null}>
         <Atmosphere lite={lite} />
         <Studio />
@@ -157,7 +151,7 @@ function Scene({ onReady, onGo, lite }: Props) {
       <CameraRig />
       {/* Retina already draws 4 pixels per point: 2x MSAA looks the same as 4x there (checked on the Golden Gate
           cables) and saves about 1.2 ms a frame at 1440x900. */}
-      <Post lite={lite} declined={declined} multisampling={lite || Math.min(window.devicePixelRatio, dpr[1]) >= 2 ? 2 : 4} />
+      <Post lite={lite} multisampling={lite || Math.min(window.devicePixelRatio, dpr[1]) >= 2 ? 2 : 4} />
     </Canvas>
   );
 }
