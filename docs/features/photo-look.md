@@ -1,6 +1,6 @@
 # F13 · Photo look
 
-Last updated: 2026-10-15 · Status: planned · Launch: ok
+Last updated: 2026-10-15 · Status: v0 · Launch: ok
 
 Make the city read like a photo of a real city, with art direction in the WebGL renderer. Target: `public/concepts/*.jpg` (style prompt `design/prompts/_style.txt`).
 
@@ -60,4 +60,17 @@ Code: `src/scene/foreground.tsx` (mounted in `src/scene/union-square.tsx`). Test
 
 ## Measurements
 
-(before and after screenshots, GPU frame time)
+Look test, 2026-10-15. Union Square at rest, 1440x900, DPR 1, headed Chromium on an M-series Mac (Metal), GPU timer queries over 10 s, 3 runs each, back to back in one session. "Before" is `?look=off` (same code, today's look).
+
+| | GPU mean | Draw calls | FPS |
+| --- | --- | --- | --- |
+| Before, run 1 | 6.2 ms | 218 | 120 |
+| After | 11.6 ms | 238 | 120 |
+| Before, run 2 | 4.8 ms | 218 | 120 |
+
+- The look costs about +6 ms GPU at 12:00 on desktop. Ambient occlusion is about 3 ms of that, depth of field 2 to 3 ms, sky and leaves under 0.5 ms.
+- CPU time did not change (1.6 ms).
+- Other hours and phones: no measurable change (passes off, grade only).
+- The GPU clock swings about 1.5 ms between runs: compare runs from one session.
+- In this shot the camera sits below the roof line, so ambient occlusion shows only under cornices and in window recesses. Open question: drop it here, or keep it for shots where it shows more.
+- The biggest gap left to the concept is the shot itself: the concept looks down a hill at the skyline and the bay. Ours looks up at the billboard from the next roof.
