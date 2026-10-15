@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { MeshStandardMaterial } from "three";
+import { rockMaterial } from "@/scene/seashore";
 import {
   BEACH_W,
   COAST_PATH,
@@ -250,5 +252,17 @@ describe("coast mesh", () => {
   });
   it("rocks are finite", () => {
     for (const r of ROCKS) expect([r.x, r.y, r.z, r.s, r.tall, r.yaw].every(Number.isFinite)).toBe(true);
+  });
+});
+
+describe("coast rock shader", () => {
+  it("desktop: its own, wet at the water line and white with birds on the stacks", () => {
+    expect(rockMaterial(false).customProgramCacheKey()).toBe("coast-rocks");
+  });
+  it("phones: the parks' plain rock (one shader fewer to compile)", () => {
+    const lite = rockMaterial(true);
+    const park = new MeshStandardMaterial({ roughness: 0.92, flatShading: true });
+    expect(lite.customProgramCacheKey()).toBe(park.customProgramCacheKey());
+    expect(lite.flatShading).toBe(true);
   });
 });

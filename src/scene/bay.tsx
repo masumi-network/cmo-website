@@ -849,9 +849,16 @@ function waterMaterial(mirror: boolean) {
           * smoothstep(0.4, 1.0, shoreD) * (1.0 - smoothstep(0.8, 3.4, shoreD));
         // Surf on ocean-facing shores (coast.ts), in place of the bay's swash.
         float exposed = ${COAST_OFF ? "0.0" : "coastExposure(wp)"};
-        vec2 sn = (texture2D(uRipples, wp * 0.013 + vec2(0.21, 0.63)).xy * 2.0 - 1.0) * 2.5;
-        float froth = texture2D(uRipples, wp * 0.29).x + texture2D(uRipples, wp * 0.67 + vec2(0.5)).y - 0.5;
-        float surf = exposed * coastSurf(shoreD, textureLod(uShore, shoreUv, 2.5).r * 16.0 - 2.0, uTime, sn.x, sn.y, froth);
+        float surf = 0.0;
+        // Phones skip its four look-ups wherever there is none (the bay, most of the screen).
+        #ifndef MIRROR
+        if (exposed > 0.0)
+        #endif
+        {
+          vec2 sn = (texture2D(uRipples, wp * 0.013 + vec2(0.21, 0.63)).xy * 2.0 - 1.0) * 2.5;
+          float froth = texture2D(uRipples, wp * 0.29).x + texture2D(uRipples, wp * 0.67 + vec2(0.5)).y - 0.5;
+          surf = exposed * coastSurf(shoreD, textureLod(uShore, shoreUv, 2.5).r * 16.0 - 2.0, uTime, sn.x, sn.y, froth);
+        }
         float foam = clamp(edge + swash * 0.2 * (1.0 - exposed) + surf, 0.0, 1.0) * (0.8 + 0.2 * r1.x) * (1.0 - 0.45 * uNight);
         diffuseColor.rgb = mix(body, uFoam, foam);`,
       )

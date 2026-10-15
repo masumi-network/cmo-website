@@ -380,7 +380,7 @@ function rng(seed: number) {
 
 /** Lights per square unit: dense on the flats, sparse up the slopes. */
 const DENSITY = { flats: 0.05, slopes: 0.026 };
-const MAX_LIGHTS = { full: 3000, lite: 2500 };
+const MAX_LIGHTS = 3000;
 
 /**
  * Points of light on the towns: a street grid on the East Bay flats, sparse
@@ -388,6 +388,8 @@ const MAX_LIGHTS = { full: 3000, lite: 2500 };
  * the mast. kind: 0 ground, 1 window, 2 mast (the only ones that blink).
  */
 export function townLights(lite = false) {
+  // Phones: none. Their 22:00 camera looks down at Cuso, never at the horizon.
+  if (lite) return null;
   const rand = rng(91);
   const pos: number[] = [];
   const kind: number[] = [];
@@ -439,7 +441,7 @@ export function townLights(lite = false) {
     }
   }
   // thin evenly to the cap (never the mast's)
-  const cap = (lite ? MAX_LIGHTS.lite : MAX_LIGHTS.full) - 2;
+  const cap = MAX_LIGHTS - 2;
   const keep = Math.min(1, cap / kind.length);
   const position: number[] = [];
   const kinds: number[] = [];

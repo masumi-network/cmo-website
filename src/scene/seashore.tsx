@@ -4,7 +4,8 @@
 // one mesh, the boulders and sea stacks as one instanced draw of the parks'
 // rock. Both on the DETAIL layer (not in the mirror or the glass probe),
 // receive shadows, cast none. Sand darkens where it is wet and a lace of
-// swash runs up and back; rock darkens and turns green at the water line.
+// swash runs up and back; rock darkens and turns green at the water line
+// (phones: plain rock, like the parks').
 // The surf itself is in the water shader (bay.tsx).
 
 import { useFrame } from "@react-three/fiber";
@@ -70,7 +71,9 @@ function coastMaterial(uniforms: { uTime: { value: number } }) {
   return material;
 }
 
-function rockMaterial() {
+/** The rocks' shader. `lite`: the parks' plain rock (the same program as theirs, one fewer to compile). */
+export function rockMaterial(lite: boolean) {
+  if (lite) return new MeshStandardMaterial({ roughness: 0.92, flatShading: true });
   const material = new MeshStandardMaterial({ roughness: 0.9, flatShading: true });
   material.customProgramCacheKey = () => "coast-rocks";
   material.onBeforeCompile = (shader) => {
@@ -105,7 +108,7 @@ function CoastMeshes({ lite }: { lite: boolean }) {
   const geometry = useMemo(() => coastGeometry(), []);
   const material = useMemo(() => coastMaterial(uniforms), [uniforms]);
   const rock = useMemo(() => stoneGeometries().rock, []);
-  const rockMat = useMemo(() => rockMaterial(), []);
+  const rockMat = useMemo(() => rockMaterial(lite), [lite]);
   const rocks = useMemo(() => (lite ? liteRocks(ROCKS) : ROCKS), [lite]);
   useEffect(() => () => [geometry, material, rock, rockMat].forEach((o) => o.dispose()), [geometry, material, rock, rockMat]);
   useFrame(({ clock }) => {

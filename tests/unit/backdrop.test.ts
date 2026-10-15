@@ -266,15 +266,18 @@ describe("backdrop look through the day", () => {
 });
 
 describe("town lights", () => {
-  const lights = townLights();
+  const lights = townLights()!;
   const at = (i: number) => [lights.position[i * 3], lights.position[i * 3 + 1], lights.position[i * 3 + 2]];
 
-  it("are deterministic and few: at most 3000, fewer on phones", () => {
-    expect(townLights().position).toEqual(lights.position);
+  it("are deterministic and few: at most 3000", () => {
+    expect(townLights()!.position).toEqual(lights.position);
     expect(lights.count).toBeLessThanOrEqual(3000);
     expect(lights.count).toBeGreaterThan(1500);
-    expect(townLights(true).count).toBeLessThanOrEqual(2500);
     expect(lights.position.every(Number.isFinite)).toBe(true);
+  });
+
+  it("are not on phones: their night camera looks down at Cuso, never at the horizon", () => {
+    expect(townLights(true)).toBeNull();
   });
 
   it("sit on their layer's land, under the crest: never in the sky or on the water", () => {

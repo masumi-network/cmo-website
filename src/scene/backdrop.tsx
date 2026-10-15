@@ -2,7 +2,7 @@
 
 // The distant hills and towns beyond the modelled city (skyline.ts): one
 // shader for every ridge (its own haze, no scene fog), and town lights at
-// night. Shown in the story, gone in Explore.
+// night. Shown in the story, gone in Explore. Phones: no town lights.
 
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
@@ -194,6 +194,7 @@ function Ridges({ lite }: { lite: boolean }) {
   );
   const lightsGeometry = useMemo(() => {
     const l = townLights(lite);
+    if (!l) return null;
     const g = new BufferGeometry();
     g.setAttribute("position", new Float32BufferAttribute(l.position, 3));
     g.setAttribute("aKind", new Float32BufferAttribute(l.kind, 1));
@@ -206,7 +207,7 @@ function Ridges({ lite }: { lite: boolean }) {
   useEffect(
     () => () => {
       for (const g of geometries) g.dispose();
-      lightsGeometry.dispose();
+      lightsGeometry?.dispose();
     },
     [geometries, lightsGeometry],
   );
@@ -277,15 +278,17 @@ function Ridges({ lite }: { lite: boolean }) {
           }}
         />
       ))}
-      <points
-        ref={(p) => {
-          points.current = p;
-          p?.layers.set(DETAIL);
-        }}
-        geometry={lightsGeometry}
-        material={lightMat}
-        visible={false}
-      />
+      {lightsGeometry && (
+        <points
+          ref={(p) => {
+            points.current = p;
+            p?.layers.set(DETAIL);
+          }}
+          geometry={lightsGeometry}
+          material={lightMat}
+          visible={false}
+        />
+      )}
     </group>
   );
 }
