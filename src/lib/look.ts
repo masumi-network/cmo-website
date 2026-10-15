@@ -20,6 +20,10 @@ export type Look = {
   grain: number;
   /** Studio fill (scene.environmentIntensity). Lower = deeper shadows. */
   env: number;
+  /** Bloom strength, times this (1 = full). */
+  bloom: number;
+  /** A soft light on Cuso alone, from the camera (rig.ts). 0 = off. For shots where the sun is behind him. */
+  cusoFill: number;
 };
 
 /** Today's look: the toy-model city. Every hour not tuned yet keeps it. */
@@ -33,6 +37,8 @@ export const TODAY: Look = {
   contrast: 0,
   grain: 0,
   env: 0.5,
+  bloom: 1,
+  cusoFill: 0,
 };
 
 // One look per chapter hour (F13). Each moves toward its concept (public/concepts): depth of field on Cuso,
@@ -49,6 +55,10 @@ const SUNRISE: Look = {
   contrast: 0.2,
   grain: 0.035,
   env: 0.32,
+  // the sun glints off the bay in frame: a softer bloom keeps it from blowing out
+  bloom: 0.8,
+  // the sun is behind him: without it his face goes grey
+  cusoFill: 1.2,
 };
 
 /** 07:00, Hayes Valley: soft warm morning, mist up the street. */
@@ -62,6 +72,8 @@ const MORNING: Look = {
   contrast: 0.16,
   grain: 0.035,
   env: 0.45,
+  bloom: 1,
+  cusoFill: 0,
 };
 
 /** 09:00, the Mission: bright, warm, crisp shadows on the mural wall. */
@@ -75,6 +87,8 @@ const LATE_MORNING: Look = {
   contrast: 0.18,
   grain: 0.035,
   env: 0.38,
+  bloom: 1,
+  cusoFill: 0,
 };
 
 /** 12:00, Union Square: the look test. Restrained and photographic. */
@@ -88,6 +102,8 @@ export const NOON: Look = {
   contrast: 0.18,
   grain: 0.035,
   env: 0.38,
+  bloom: 1,
+  cusoFill: 0,
 };
 
 /** 15:00, on the Pyramid: golden afternoon, the city soft far below. */
@@ -101,6 +117,8 @@ const AFTERNOON: Look = {
   contrast: 0.16,
   grain: 0.035,
   env: 0.38,
+  bloom: 1,
+  cusoFill: 0,
 };
 
 /** 18:00, the Ferry Building: sunset, deep orange, long shadows. */
@@ -114,6 +132,8 @@ const SUNSET: Look = {
   contrast: 0.2,
   grain: 0.04,
   env: 0.38,
+  bloom: 1,
+  cusoFill: 0,
 };
 
 /** 22:00, the Embarcadero: blue night, the lamps and windows warm. */
@@ -127,10 +147,12 @@ const NIGHT: Look = {
   contrast: 0.14,
   grain: 0.045,
   env: 0.45,
+  bloom: 1,
+  cusoFill: 0,
 };
 
 /** 06:00 tomorrow, high over Russian Hill: the sunrise again, the city a soft miniature. */
-const FINALE: Look = { ...SUNRISE, dof: 1, focusRange: 24, saturation: 0.12, gain: [1.03, 0.98, 0.9], contrast: 0.24 };
+const FINALE: Look = { ...SUNRISE, dof: 1, focusRange: 24, saturation: 0.12, gain: [1.03, 0.98, 0.9], contrast: 0.24, bloom: 1, cusoFill: 0 };
 
 const KEYS: [number, Look][] = [
   [6, SUNRISE],
@@ -170,6 +192,8 @@ export function lookFor(hour: number): Look {
     contrast: mix(a.contrast, b.contrast, t),
     grain: mix(a.grain, b.grain, t),
     env: mix(a.env, b.env, t),
+    bloom: mix(a.bloom, b.bloom, t),
+    cusoFill: mix(a.cusoFill, b.cusoFill, t),
   };
 }
 

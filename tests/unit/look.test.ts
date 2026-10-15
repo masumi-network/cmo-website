@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Vector3 } from "three";
 import { chapters } from "@/content/day";
+import { lightingAt } from "@/lib/time";
 import { NOON, TODAY, coc, dofAmount, focusGoal, gradePixel, liteLook, lookFor, passOn, stepFocus, type Look } from "@/lib/look";
 import { AD_PANEL, FACE_Z, UNION } from "@/scene/union-square";
 
@@ -51,7 +52,7 @@ describe("look per hour", () => {
   });
 
   it("never pops while scrolling: every value moves a little at a time through the whole day", () => {
-    const nums = (L: Look) => [L.dof, L.focusRange / 20, L.tilt, L.saturation, ...L.gain, ...L.lift, L.contrast, L.grain, L.env];
+    const nums = (L: Look) => [L.dof, L.focusRange / 20, L.tilt, L.saturation, ...L.gain, ...L.lift, L.contrast, L.grain, L.env, L.cusoFill / 2, L.bloom];
     for (let h = 6; h < 30; h += 0.05) {
       const a = nums(lookFor(h));
       const b = nums(lookFor(h + 0.05));
@@ -64,11 +65,27 @@ describe("look per hour", () => {
     for (let i = 0; i < hours.length - 1; i++) {
       const [a, b] = [lookFor(hours[i]), lookFor(hours[i + 1])];
       const mid = lookFor((hours[i] + hours[i + 1]) / 2);
-      for (const k of ["dof", "contrast", "grain", "env", "saturation"] as const) {
+      for (const k of ["dof", "contrast", "grain", "env", "saturation", "cusoFill", "bloom"] as const) {
         expect(mid[k], `${k} ${hours[i]}..${hours[i + 1]}`).toBeGreaterThanOrEqual(Math.min(a[k], b[k]) - 1e-9);
         expect(mid[k], `${k} ${hours[i]}..${hours[i + 1]}`).toBeLessThanOrEqual(Math.max(a[k], b[k]) + 1e-9);
       }
     }
+  });
+
+  it("softens the bloom by a fifth at 06:00, where the low sun glints off the bay in frame; full bloom elsewhere", () => {
+    expect(lookFor(6).bloom).toBeCloseTo(0.8);
+    for (const c of chapters.filter((c) => c.id !== "arrive")) expect(lookFor(c.hour).bloom, c.id).toBe(1);
+    expect(TODAY.bloom).toBe(1);
+  });
+
+  it("lights Cuso's face with a soft fill at 06:00, where the low sun is behind him; no fill at the other chapters", () => {
+    expect(lookFor(6).cusoFill).toBeGreaterThan(0);
+    expect(lookFor(6).cusoFill).toBeLessThan(lightingAt(6).sunIntensity / 2); // soft: well under the sun
+    expect(lookFor(6.5).cusoFill).toBeLessThan(lookFor(6).cusoFill); // fades out toward 07:00
+    expect(lookFor(6.5).cusoFill).toBeGreaterThan(0);
+    for (const c of chapters.filter((c) => c.id !== "arrive")) expect(lookFor(c.hour).cusoFill, c.id).toBe(0);
+    expect(TODAY.cusoFill).toBe(0);
+    expect(liteLook(lookFor(6)).cusoFill).toBe(lookFor(6).cusoFill); // phones too
   });
 
   it("today's look draws no AO, no depth of field and no grade (only the toy tilt-shift)", () => {

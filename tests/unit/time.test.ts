@@ -50,9 +50,14 @@ describe("lightingAt", () => {
     expect(lightingAt(12).elevation).toBeGreaterThan(lightingAt(6).elevation);
   });
 
-  it("wraps past midnight to the next morning", () => {
-    expect(lightingAt(30)).toEqual(lightingAt(6));
+  it("wraps past midnight to the next morning (only the opening shot's sun is dimmer)", () => {
+    expect({ ...lightingAt(30), sunIntensity: 0, ambient: 0 }).toEqual({ ...lightingAt(6), sunIntensity: 0, ambient: 0 });
     expect(lightingAt(26).night).toBeGreaterThan(0);
+  });
+
+  it("dims the 06:00 sun by a fifth: it glints off the bay in the opening shot; the finale keeps it", () => {
+    expect(lightingAt(6).sunIntensity).toBeCloseTo(lightingAt(30).sunIntensity * 0.8);
+    expect(lightingAt(30).sunIntensity).toBe(3.6);
   });
 
   const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));

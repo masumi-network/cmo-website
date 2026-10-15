@@ -157,7 +157,7 @@ export function rigCuso(scene: Object3D): CusoRig {
   bones.thighR.add(bones.shinR);
   bones.shinR.add(bones.footR);
 
-  paintBack(mesh.material as Material);
+  shadeCuso(mesh.material as Material);
   const skinned = new SkinnedMesh(geometry, mesh.material);
   skinned.name = mesh.name;
   skinned.position.copy(mesh.position);
@@ -319,14 +319,28 @@ function freeHipHand(geometry: BufferGeometry): Uint8Array {
 }
 
 /**
+ * A soft light on Cuso alone, from the camera, a little above and to the right (intensity, like a light's).
+ * Set per hour from the look (look.ts `cusoFill`, post.tsx); 0 leaves him as the scene lights him.
+ * Three's lights can't be kept off the roof around him, so this one lives in his shader.
+ */
+export const cusoFill = { value: 0 };
+
+/**
  * Cuso is flat: from behind, his white face would read as a mirrored cursor.
  * Paint the back of the arrow body (faces pointing -z, above the legs) dark,
- * like his rubber outline. Shoes and legs keep their colours.
+ * like his rubber outline. Shoes and legs keep their colours. Also adds his fill light.
  */
-function paintBack(material: Material) {
+function shadeCuso(material: Material) {
   const m = material as MeshStandardMaterial;
-  m.customProgramCacheKey = () => "cuso-back";
+  m.customProgramCacheKey = () => "cuso-back-fill";
   m.onBeforeCompile = (shader) => {
+    shader.uniforms.cusoFill = cusoFill;
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nuniform float cusoFill;")
+      .replace(
+        "#include <lights_fragment_end>",
+        "#include <lights_fragment_end>\nreflectedLight.directDiffuse += cusoFill * saturate(dot(normal, normalize(vec3(0.35, 0.45, 1.0)))) * vec3(1.0, 0.95, 0.88) * BRDF_Lambert(material.diffuseColor);",
+      );
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nvarying float vBack;")
       .replace("#include <beginnormal_vertex>", "#include <beginnormal_vertex>\nvBack = smoothstep(-0.35, -0.75, objectNormal.z) * step(-0.062, position.y);");
