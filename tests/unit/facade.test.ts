@@ -95,7 +95,7 @@ describe("downtown shader", () => {
     expect(frag).toContain(FACADE_GLSL);
     const body = frag.slice(frag.indexOf("#include <color_fragment>"));
     for (const call of ["facMasonry(", "facCurtain(", "facPane("]) expect(body).toContain(call);
-    // pane tilt and joint relief reach the lights and the reflections; panes tint what they reflect
+    // pane bow and joint relief reach the lights and the reflections; panes tint what they reflect
     expect(body.slice(body.indexOf("#include <normal_fragment_maps>"))).toContain("facBend");
     expect(body.slice(body.indexOf("#include <emissivemap_fragment>"))).toMatch(/glassEnv\([^;]*facGlass/);
   });
@@ -110,9 +110,17 @@ describe("downtown shader", () => {
   });
 
   it("keeps oil-canning subtle, so the city in the glass stays crisp", () => {
-    // A pane 15 units from what it mirrors shifts the image by 2 x tilt x 15: under a fifth of a pane (0.4 wide).
-    expect(OIL_CANNING.tilt).toBeLessThanOrEqual(0.008);
+    // A pane 15 units from what it mirrors shifts the image by 2 x bow x 15: under a fifth of a pane (0.4 wide).
+    expect(OIL_CANNING).toEqual({ pillow: expect.any(Number) });
     expect(OIL_CANNING.pillow).toBeLessThanOrEqual(0.008);
+  });
+
+  it("keeps the city in curtain glass whole: no per-pane lean, plenum band or weaker panes", () => {
+    // Each of these broke the 12:00 tower's reflection into a grey haze (city-scene.md).
+    const curtain = FACADE_GLSL.slice(FACADE_GLSL.indexOf("vec3 facCurtain("));
+    expect(curtain.match(/vec2 a = [^;]*;/)?.[0]).not.toContain("rnd");
+    expect(curtain).not.toContain("plenum");
+    expect(curtain).not.toContain("out vec3 glass");
   });
 
   it("lets one material keep plain curtain glass (the Pyramid) on the same program", () => {

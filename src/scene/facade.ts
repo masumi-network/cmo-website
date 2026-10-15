@@ -26,11 +26,11 @@ export const GLASS_TINTS: [number, number, number][] = [
 /** Seed thresholds between the glass tints. */
 const GLASS_SPLIT = [0.5, 0.78];
 /**
- * Oil-canning on curtain walls: each pane leans up to `tilt` (about a third of
- * a degree) and bows `pillow` across. Reflections travel far, so a little goes
- * a long way: more and the city in the glass breaks up into a blur.
+ * Oil-canning on curtain walls: each pane bows `pillow` across, the same in
+ * every pane. Reflections travel far, so a little goes a long way. A lean per
+ * pane broke the city in the glass up pane by pane, into a grey haze.
  */
-export const OIL_CANNING = { tilt: 0.006, pillow: 0.006 };
+export const OIL_CANNING = { pillow: 0.006 };
 /** Masonry reads this much darker than its tint on average (as before this pass). */
 const LEVEL = 0.85;
 /**
@@ -78,8 +78,8 @@ export function masonryCell(x: number, y: number, brick: boolean) {
  *   joint groove bent into the normal (`bend`, world space) only up close.
  * - facPane: a punched window pane: per-tower frame colour and glass tint,
  *   reveal shadow, blinds and curtains. `glass` is the reflection's tint and strength.
- * - facCurtain: a curtain wall cell: per-pane tint, a darker plenum band at
- *   the top of each pane, shadow-box spandrels; `bend` leans each pane a little.
+ * - facCurtain: a curtain wall cell: per-pane tint, shadow-box spandrels;
+ *   `bend` bows each pane a little.
  * The caller adds `facBend` to the normal (lights and reflections) and
  * multiplies the glass reflection by `facGlass`.
  */
@@ -173,22 +173,17 @@ export const FACADE_GLSL = /* glsl */ `
   }
 
   // k: 1 for the full detail, 0 for plain glass (the Pyramid keeps its own look).
-  vec3 facCurtain(vec3 tint, vec2 uv, vec3 n, float rnd, float spandrel, float mullion, float k, out vec3 glass, out vec3 bend) {
+  vec3 facCurtain(vec3 tint, vec2 uv, vec3 n, float rnd, float spandrel, float mullion, float k, out vec3 bend) {
     vec2 p = fract(uv);
-    float aa = fwidth(uv.y);
     float r2 = fract(rnd * 31.7);
     // Each pane a little lighter or darker, a hair warmer or cooler.
     vec3 c = tint * (0.62 + 0.12 * rnd) * (1.0 + k * 0.03 * (2.0 * r2 - 1.0) * vec3(1.0, 0.0, -1.0));
-    // The ceiling void behind the top of each pane reads darker (its average once storeys get small).
-    float plenum = mix(smoothstep(0.8 - aa, 0.8 + aa, p.y), 0.2, smoothstep(0.2, 0.5, aa));
-    c *= 1.0 - k * 0.35 * plenum;
     // Shadow-box spandrels: the same glass over a dark panel.
     vec3 col = mix(mix(c, mix(tint * 0.3, c * 0.5, 0.5 * k), spandrel), vec3(0.5, 0.52, 0.54), mullion);
-    glass = vec3(1.0 - k * 0.1 * fract(rnd * 5.3));
-    // Oil-canning: each pane leans a little (a flat per-pane hash) and bows across.
+    // Oil-canning: each pane bows across.
     vec3 tx = normalize(vec3(-n.z, 0.0, n.x) + vec3(1e-5, 0.0, 0.0));
     vec3 ty = normalize(cross(n, tx));
-    vec2 a = (vec2(fract(rnd * 17.3), fract(rnd * 43.1)) - 0.5) * ${f(2 * OIL_CANNING.tilt)} + (p - 0.5) * ${f(OIL_CANNING.pillow)};
+    vec2 a = (p - 0.5) * ${f(OIL_CANNING.pillow)};
     bend = (tx * a.x + ty * a.y) * (1.0 - spandrel) * (1.0 - mullion) * k;
     return col;
   }`;

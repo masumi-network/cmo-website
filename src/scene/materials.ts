@@ -252,7 +252,7 @@ export function downtownMaterial(stone: Texture, curtain = true) {
         // Half the towers have deep spandrel bands, half read as nearly all glass.
         float fS = fLine(vTUv.y, mix(0.04, 0.11, step(0.5, vInfo.y)));
         float fPane = (1.0 - fM) * (1.0 - fS);
-        diffuseColor.rgb = facCurtain(fTint, vTUv, vFNormal, fRnd, fS, fM, uCurtain, facGlass, facBend);
+        diffuseColor.rgb = facCurtain(fTint, vTUv, vFNormal, fRnd, fS, fM, uCurtain, facBend);
         fRough = mix(0.5, 0.14, fPane);
         fMetal = mix(0.4, 0.2, fPane);
         fGl = fPane;
@@ -320,7 +320,7 @@ export function downtownMaterial(stone: Texture, curtain = true) {
         totalEmissiveRadiance += glassEnv(vFPos, reflect(fV, fN), vec3(0.0)) * fF * fGl * facGlass;
       }
       totalEmissiveRadiance += (fLitC * fLit * 1.4 + diffuseColor.rgb * vec3(1.0, 0.8, 0.58) * fFl * 0.85) * uNight;`,
-    // pane tilt and joint grooves (facade.ts)
+    // pane bow and joint grooves (facade.ts)
     normal: "normal = normalize(normal + mat3(viewMatrix) * facBend);",
     // once the probe is ready, glass reflects the city instead of the studio environment
     lights: "radiance *= 1.0 - fGl * uGlassMix;",
