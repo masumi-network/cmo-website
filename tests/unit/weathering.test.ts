@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { MeshStandardMaterial, type WebGLProgramParametersWithUniforms } from "three";
 import { HILLS, PLAZA, heightAt } from "@/lib/terrain";
 import { LAND_BOUNDS } from "@/scene/grid";
-import { downtownMaterial, houseMaterial } from "@/scene/materials";
+import { CITY } from "@/scene/layout";
+import { downtownMaterial, groundMaterial, houseMaterial } from "@/scene/materials";
+import { contactRects } from "@/scene/textures";
 import { GRIME_TOP, GROUND_GLSL, MAX_GRIME, TONE, WEATHER_GLSL, grime, tone, weather } from "@/scene/weathering";
 
 const seeds = Array.from({ length: 200 }, (_, i) => (i * 0.618034) % 1);
@@ -87,6 +89,26 @@ describe("tone per building", () => {
   it("is subtle: houses keep their curated palettes", () => {
     expect(TONE.downtown).toBeLessThanOrEqual(0.04);
     expect(TONE.house).toBeLessThanOrEqual(0.02);
+  });
+});
+
+describe("contact shade on the ground", () => {
+  it("covers every house and tower footprint, a little past its walls", () => {
+    const rects = contactRects(CITY);
+    expect(rects).toHaveLength(CITY.houses.length + CITY.towers.length);
+    [...CITY.houses, ...CITY.towers].forEach(({ x, z, w, d }, i) => {
+      const [x0, x1, z0, z1] = rects[i];
+      expect(x0).toBeLessThan(x - w / 2);
+      expect(x1).toBeGreaterThan(x + w / 2);
+      expect(z0).toBeLessThan(z - d / 2);
+      expect(z1).toBeGreaterThan(z + d / 2);
+      expect(x1 - x0 - w).toBeLessThan(0.5);
+    });
+  });
+
+  it("darkens the ground under it, at most 0.3", () => {
+    const s = compile(groundMaterial(...(Array(6).fill({ isTexture: true }) as Parameters<typeof groundMaterial>)));
+    expect(s.fragmentShader).toMatch(/diffuseColor\.rgb \*= 1\.0 - 0\.3 \* texture2D\(uLamp, vMapUv\)\.g;/);
   });
 });
 

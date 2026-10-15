@@ -27,7 +27,7 @@ import { CITY } from "./layout";
 import { groundMaterial, worldMaterial } from "./materials";
 import { Grass } from "./grass";
 import { Houses } from "./houses";
-import { groundMask, lampLight } from "./textures";
+import { contactRects, groundMask, lampLight } from "./textures";
 import { StreetFurniture } from "./street";
 import { Towers } from "./towers";
 import { Trees } from "./trees";
@@ -110,7 +110,7 @@ function Land({ tex, lite }: { tex: Textures; lite: boolean }) {
   const kerbs = useMemo(() => (lite ? tiles(kerbGeometry()) : [kerbGeometry()]), [lite]);
   // Concrete kerbs: the shade (top edge, face, gutter) is in the vertex colours.
   const kerbMaterial = useMemo(() => new MeshStandardMaterial({ map: tex.concrete, vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), [tex.concrete]);
-  const ground = useMemo(() => groundMaterial(groundMask(), lampLight(CITY.lamps), tex.asphalt, tex.concrete, tex.grass, tex.hills), [tex.asphalt, tex.concrete, tex.grass, tex.hills]);
+  const ground = useMemo(() => groundMaterial(groundMask(), lampLight(CITY.lamps, contactRects(CITY)), tex.asphalt, tex.concrete, tex.grass, tex.hills), [tex.asphalt, tex.concrete, tex.grass, tex.hills]);
 
   return (
     <>

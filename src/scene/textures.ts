@@ -97,18 +97,35 @@ export function groundMask() {
   });
 }
 
-/** The street lamps' light pools on the ground (night), for groundMaterial: brightness in red. */
-export function lampLight(lamps: { x: number; z: number }[]) {
+type Footprint = { x: number; z: number; w: number; d: number };
+/** How far the contact shade reaches past a building's walls at full strength (it then fades over about as much). */
+const CONTACT_PAD = 0.15;
+
+/** Every house and tower footprint [x0, x1, z0, z1], a little larger, for the contact shade in lampLight. */
+export function contactRects(city: { houses: Footprint[]; towers: Footprint[] }) {
+  return [...city.houses, ...city.towers].map(({ x, z, w, d }) => [x - w / 2 - CONTACT_PAD, x + w / 2 + CONTACT_PAD, z - d / 2 - CONTACT_PAD, z + d / 2 + CONTACT_PAD] as const);
+}
+
+/**
+ * For groundMaterial: the street lamps' light pools (night) in red, and in
+ * green a soft shade where buildings meet the ground (`contact`, from
+ * contactRects), which ambient occlusion used to give.
+ */
+export function lampLight(lamps: { x: number; z: number }[], contact: readonly (readonly [number, number, number, number])[]) {
   const PX = 4;
   const R = 1.8; // world units
   return landTexture(PX, (ctx, X, Z) => {
     ctx.globalCompositeOperation = "lighter";
     for (const { x, z } of lamps) {
       const g = ctx.createRadialGradient(X(x), Z(z), 0, X(x), Z(z), R * PX);
-      for (const [t, a] of [[0, 1], [0.3, 0.7], [0.65, 0.22], [1, 0]]) g.addColorStop(t, `rgba(255,255,255,${a})`);
+      for (const [t, a] of [[0, 1], [0.3, 0.7], [0.65, 0.22], [1, 0]]) g.addColorStop(t, `rgba(255,0,0,${a})`);
       ctx.fillStyle = g;
       ctx.fillRect(X(x - R), Z(z - R), 2 * R * PX, 2 * R * PX);
     }
+    // Blurred by drawing each rectangle off the canvas and only its shadow on it (ctx.filter is not everywhere).
+    const off = ctx.canvas.width;
+    Object.assign(ctx, { shadowColor: "#00ff00", shadowBlur: 4 * CONTACT_PAD * PX, shadowOffsetX: off, fillStyle: "#00ff00" });
+    for (const [x0, x1, z0, z1] of contact) ctx.fillRect(X(x0) - off, Z(z0), (x1 - x0) * PX, (z1 - z0) * PX);
   });
 }
 
