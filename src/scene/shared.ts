@@ -3,12 +3,11 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
-import { Vector2, Vector3, type Mesh, type MeshStandardMaterial, type Texture } from "three";
+import { Vector2, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { chapters, type Vec3 } from "@/content/day";
 import { shownHour } from "@/lib/navigate";
 import { travel } from "@/lib/time";
 import { useCity } from "@/lib/store";
-import type { PlateEntry } from "@/lib/plates";
 
 export const rig = {
   /** Where the camera looks. The sun's shadow box follows it. */
@@ -27,24 +26,7 @@ export const rig = {
   blinks: 0,
   /** 0 = day, 1 = night. */
   night: 0,
-  /** Photo-real mode: plates ready at the chapter(s) the day is at (plates.tsx offers them). */
-  plates: [] as PlateEntry[],
-  /** The plate the camera has come to rest on (camera-rig.tsx decides from its eased pose, then snaps to it; the water mirror pauses). */
-  rest: null as PlateEntry | null,
-  /**
-   * The scene is drawn as a plate's shadow catcher right now (plates.tsx): the water's mirror and the glass probe
-   * must not render it (the frame a plate lets go, the mirror ran first and reflected the white catchers: a flash).
-   */
-  plateDrawn: false,
-  /** Explore's live trace (explore-trace.tsx), a plate taken from the camera's own pose: shown while the camera holds it. */
-  live: null as { entry: PlateEntry; texture: Texture } | null,
 };
-
-/**
- * userData for objects drawn live over photo-real plates and left out of them
- * (F12, plates.tsx): they move, or show the visitor's brand.
- */
-export const LIVE = Object.freeze({ live: true }); // shared by reference: never write to it
 
 /**
  * Layer for small details (grass, interiors, street furniture, cars): the

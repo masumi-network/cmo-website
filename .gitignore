@@ -56,5 +56,3 @@ next-env.d.ts
 # raw 3D source files (converted copies live in public/models)
 /3d-assets-raw/
 
-# photo-real spike: OIDN denoiser weights (docs/features/photoreal.md)
-/public/lab/

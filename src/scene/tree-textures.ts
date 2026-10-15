@@ -193,55 +193,6 @@ function frondSprite(ctx: Ctx, rand: Rand, w: number, h: number, angle: number, 
 }
 
 /** The leaf atlas: one quadrant per kind (LEAF), transparent between the leaves. */
-/**
- * Spreads leaves into the gaps between them (RGBA, in place): a box blur of
- * colour weighted by alpha, `radius` px, with the blurred alpha doubled.
- * Opaque pixels keep their colour; a gap among leaves turns leaf-coloured
- * and opaque, a wide clear space stays clear. For the photo-real bake: the
- * raster keeps far crowns full by boosting mipmapped alpha (KEEP_ALPHA in
- * trees.tsx), the path tracer reads the full-size sprite and saw lace.
- */
-export function fillGaps(data: Uint8ClampedArray, w: number, h: number, radius: number) {
-  const blur = (src: Float32Array, horizontal: boolean) => {
-    const out = new Float32Array(src.length);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const sum = [0, 0, 0, 0];
-        for (let k = -radius; k <= radius; k++) {
-          const [sx, sy] = horizontal ? [x + k, y] : [x, y + k];
-          if (sx < 0 || sy < 0 || sx >= w || sy >= h) continue;
-          for (let c = 0; c < 4; c++) sum[c] += src[(sy * w + sx) * 4 + c];
-        }
-        for (let c = 0; c < 4; c++) out[(y * w + x) * 4 + c] = sum[c] / (2 * radius + 1);
-      }
-    }
-    return out;
-  };
-  const premultiplied = new Float32Array(data.length);
-  for (let i = 0; i < data.length; i += 4) {
-    const a = data[i + 3] / 255;
-    premultiplied.set([data[i] * a, data[i + 1] * a, data[i + 2] * a, a], i);
-  }
-  const blurred = blur(blur(premultiplied, true), false);
-  for (let i = 0; i < data.length; i += 4) {
-    const a = blurred[i + 3];
-    if (data[i + 3] === 255 || a <= 0) continue;
-    data.set([blurred[i] / a, blurred[i + 1] / a, blurred[i + 2] / a, Math.max(data[i + 3], Math.min(255, a * 2 * 255))], i);
-  }
-  return data;
-}
-
-/** The leaf atlas with its gaps filled (fillGaps), for the photo-real bake. */
-export function fullerLeaves(t: CanvasTexture) {
-  const canvas = t.image as HTMLCanvasElement;
-  const ctx = canvas.getContext("2d")!;
-  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  fillGaps(image.data, canvas.width, canvas.height, 4);
-  ctx.putImageData(image, 0, 0);
-  t.needsUpdate = true;
-  return t;
-}
-
 export function leafAtlas() {
   const N = LEAF.size;
   const half = N / 2;

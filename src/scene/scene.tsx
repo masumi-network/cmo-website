@@ -24,9 +24,6 @@ import { UnionSquare } from "./union-square";
 import { Shadowless } from "./parts";
 import { Pier } from "./pier";
 import { Pins } from "./pins";
-import { useCity } from "@/lib/store";
-import { Plates } from "./plates";
-import { Probes, patchProbes } from "./probes";
 import { Reflections } from "./reflections";
 import { DETAIL, rig } from "./shared";
 
@@ -36,28 +33,7 @@ const PerfOverlay =
     ? lazy(() => import("./perf-overlay"))
     : null;
 
-/** Dev only: `?raytrace` path-traces the city with WebGPU over this canvas (the photo-real spike). Compiled out of production builds. */
-const RaytraceLab =
-  process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("raytrace")
-    ? lazy(() => import("./raytrace-lab"))
-    : null;
-
-/** Photo-real in Explore: the map traced live (explore-trace.tsx), loaded the first time Explore opens. */
-const ExploreTrace = lazy(() => import("./explore-trace"));
-
-function ExploreTraceOnce() {
-  const explore = useCity((s) => s.mode === "explore");
-  const [opened, setOpened] = useState(false);
-  if (explore && !opened) setOpened(true);
-  // its own boundary: while its code loads, the city must not blank out
-  return opened ? (
-    <Suspense fallback={null}>
-      <ExploreTrace />
-    </Suspense>
-  ) : null;
-}
-
-type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean; photoreal: boolean };
+type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean };
 
 /**
  * Ready once every shader is compiled and every texture uploaded, so the
@@ -65,13 +41,11 @@ type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean
  * when the lights, shadows and environment are in place (they are part of
  * each shader), and compiles in parallel where the browser can.
  */
-function Ready({ onReady, probes }: { onReady: () => void; probes: boolean }) {
+function Ready({ onReady }: { onReady: () => void }) {
   const started = useRef(false);
   useFrame(({ gl, scene, camera }) => {
     if (started.current) return;
     started.current = true;
-    // photo-real's probe light (probes.tsx), compiled in now so switching it on later costs nothing; phones never get it
-    if (probes) patchProbes(scene);
     scene.traverse((o) => {
       for (const m of [(o as Mesh).material ?? []].flat() as Material[])
         for (const v of Object.values(m)) if ((v as Texture | null)?.isTexture) gl.initTexture(v as Texture);
@@ -127,15 +101,14 @@ const Studio = memo(function Studio() {
   );
 });
 
-function Scene({ onReady, onGo, lite, photoreal }: Props) {
+function Scene({ onReady, onGo, lite }: Props) {
   // Sharp on retina screens, until the GPU can't keep up: then one pixel per pixel.
   const [dpr, setDpr] = useState<[number, number]>(lite ? [1, 1.5] : [1, 2]);
   useEffect(() => {
-    if (photoreal) return; // the camera must hold still on a plate: no pointer parallax
     const move = (e: PointerEvent) => rig.pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     window.addEventListener("pointermove", move, { passive: true });
     return () => window.removeEventListener("pointermove", move);
-  }, [photoreal]);
+  }, []);
 
   return (
     <Canvas
@@ -173,12 +146,8 @@ function Scene({ onReady, onGo, lite, photoreal }: Props) {
         <Cuso />
         <Pins onGo={onGo} />
         <Reflections lite={lite} />
-        <Ready onReady={onReady} probes={!lite} />
+        <Ready onReady={onReady} />
         {PerfOverlay && <PerfOverlay />}
-        {RaytraceLab && <RaytraceLab />}
-        {photoreal && <Plates />}
-        {photoreal && <ExploreTraceOnce />}
-        {!lite && <Probes on={photoreal} />}
       </Suspense>
       <CameraRig />
       {lite ? (

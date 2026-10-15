@@ -6,7 +6,7 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
-import { PerspectiveCamera, Quaternion, Vector3, type Camera } from "three";
+import { PerspectiveCamera, Vector3, type Camera } from "three";
 import { chapters, overview } from "@/content/day";
 import { jumpEase } from "@/lib/navigate";
 import { usePan } from "@/lib/pan";
@@ -14,7 +14,6 @@ import { useCity } from "@/lib/store";
 import { type Plan, flightPlan, flightPoint, flightTime } from "./flight";
 import { insideBuilding, sightClear, sightHit } from "./layout";
 import { damp, dayNow, overlays, rig, setLerp } from "./shared";
-import { liveRest, newSettle, settle } from "@/lib/plates";
 
 const pos = new Vector3();
 const tgt = new Vector3();
@@ -395,9 +394,6 @@ function place(t: Trail, cuso: Vector3, at: Vector3) {
   t.last = (t.last ?? new Vector3()).copy(cuso);
 }
 
-const platePos = new Vector3();
-const plateRot = new Quaternion();
-
 export function CameraRig() {
   const me = useRef({
     /** Where the camera stands and looks before the boom: damped towards the shot, or flown on a rail jump. */
@@ -415,10 +411,6 @@ export function CameraRig() {
     blinks: 0,
     /** The chapter a rail jump landed on: its shot holds (no lead cam) until the page scrolls away. */
     held: -1,
-    /** Photo-real mode: gliding onto a plate's view at rest (lib/plates.ts). */
-    settle: newSettle(),
-    /** Explore: the camera held on the live trace last frame (lib/plates.ts liveRest). */
-    liveHeld: false,
   });
 
   useFrame(({ camera, size, gl }, delta) => {
@@ -563,24 +555,6 @@ export function CameraRig() {
     // swung in close, it looks at him (the shot's aim is past him: he would drop out of the bottom)
     rig.target.lerpVectors(r.look, tmp.copy(eye).setY(eye.y - 0.4), Math.min(1, Math.max(0, r.boom.x) * 2));
     camera.lookAt(rig.target);
-    // Photo-real mode: the plate defines the rest view. Once the rig's own camera has settled near a plate
-    // (it never lands twice the same: it follows where Cuso stopped), glide onto it, and let go when it moves on.
-    const s = settle(r.settle, camera.position, camera.quaternion, rig.plates.filter((p) => p.fov === cam.fov), dt);
-    if (s.plate && s.pull > 0) {
-      const e = smoothstep(0, 1, s.pull);
-      camera.position.lerp(platePos.fromArray(s.plate.position), e);
-      camera.quaternion.slerp(plateRot.fromArray(s.plate.quaternion), e);
-    }
-    rig.rest = s.plate && s.pull === 1 ? s.plate : null;
-    // Explore: the live trace holds while the camera stays where it was traced from (a drag lets go at once, no glide)
-    const traced = day.mode === "explore" ? (rig.live?.entry ?? null) : null;
-    const held = liveRest(r.liveHeld, traced, camera.position, camera.quaternion);
-    r.liveHeld = held.held;
-    if (traced && held.snap) {
-      camera.position.fromArray(traced.position);
-      camera.quaternion.fromArray(traced.quaternion);
-    }
-    if (traced && held.rest) rig.rest = traced;
     publishCuso(gl.domElement, camera, size.height);
   });
 

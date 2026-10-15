@@ -34,7 +34,7 @@ import type { Vec3 } from "@/content/day";
 import { MARIN_ROAD, heightAt, surfaceAt } from "@/lib/terrain";
 import { DECKS, ROADS, ROAD_WIDTH, onRoad } from "./roads";
 import { SHADOW_REACH } from "./parts";
-import { DETAIL, LIVE, rig, useNightGlow } from "./shared";
+import { DETAIL, rig, useNightGlow } from "./shared";
 
 // ---------------------------------------------------------------------------
 // Layout and driving (pure, tested in tests/unit/traffic.test.ts)
@@ -758,7 +758,7 @@ export function Cars({ lite = false }: { lite?: boolean }) {
   });
 
   return (
-    <group userData={LIVE}>
+    <>
       {pieces.map((piece, k) => (
         <instancedMesh
           key={piece.key}
@@ -774,6 +774,6 @@ export function Cars({ lite = false }: { lite?: boolean }) {
         />
       ))}
       <instancedMesh ref={shadows} args={[shadow.geometry, shadow.material, cars.length]} frustumCulled={false} renderOrder={-1} layers={DETAIL} />
-    </group>
+    </>
   );
 }

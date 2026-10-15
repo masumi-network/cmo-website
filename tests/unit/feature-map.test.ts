@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
 const DIR = join(ROOT, "docs/features");
-const STATUS = ["done", "dummy", "v0", "planned"];
+const STATUS = ["done", "dummy", "v0", "planned", "removed"];
 const LAUNCH = ["ok", "blocker"];
 
 type Row = { id: string; feature: string; status: string; launch: string; doc: string; code: string[]; tests: string[] };
@@ -47,7 +47,7 @@ describe("feature map", () => {
     for (const p of [...row.code, ...row.tests]) expect(existsSync(join(ROOT, p)), p).toBe(true);
   });
 
-  it.each(rows.filter((r) => r.status !== "planned"))("$id is built, so it has code and tests", (row) => {
+  it.each(rows.filter((r) => r.status !== "planned" && r.status !== "removed"))("$id is built, so it has code and tests", (row) => {
     expect(row.code.length).toBeGreaterThan(0);
     expect(row.tests.length).toBeGreaterThan(0);
   });

@@ -76,8 +76,6 @@ export function Atmosphere({ lite }: { lite: boolean }) {
           sunColor: { value: new Color() },
           sunDir: { value: new Vector3(0, 1, 0) },
           night: { value: 0 },
-          // photo-real plates at rest (plates.tsx): only the stars, added over the plate's sky
-          starsOnly: { value: 0 },
         },
         vertexShader: /* glsl */ `
           varying vec3 vDir;
@@ -88,7 +86,7 @@ export function Atmosphere({ lite }: { lite: boolean }) {
           }`,
         fragmentShader: /* glsl */ `
           uniform vec3 top, horizon, sunColor, sunDir;
-          uniform float night, starsOnly;
+          uniform float night;
           varying vec3 vDir;
           float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
           void main() {
@@ -97,7 +95,7 @@ export function Atmosphere({ lite }: { lite: boolean }) {
             float d = max(dot(vDir, normalize(sunDir)), 0.0);
             col += sunColor * (pow(d, 600.0) * 2.5 + pow(d, 12.0) * 0.25) * (1.0 - night * 0.6);
             float stars = step(0.9975, hash(floor(vDir * 420.0))) * smoothstep(0.05, 0.4, h) * night;
-            col = mix(col + vec3(stars), vec3(stars), starsOnly);
+            col += vec3(stars);
             gl_FragColor = vec4(col, 1.0);
           }`,
       }),
@@ -165,7 +163,7 @@ export function Atmosphere({ lite }: { lite: boolean }) {
   return (
     <>
       <primitive object={fog} attach="fog" />
-      <mesh ref={domeRef} name="sky" material={sky} renderOrder={-1} frustumCulled={false}>
+      <mesh ref={domeRef} material={sky} renderOrder={-1} frustumCulled={false}>
         <sphereGeometry args={[480, 32, 16]} />
       </mesh>
       <hemisphereLight ref={hemi} />

@@ -15,7 +15,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { surfaceAt } from "@/lib/terrain";
 import { useBrand, useGlow, type V3 } from "./parts";
-import { detail, LIVE, useNightGlow } from "./shared";
+import { detail, useNightGlow } from "./shared";
 import { useSign } from "./textures";
 import { GAUGE } from "./grid";
 
@@ -321,14 +321,14 @@ export function CarModel({ moving = false }: { moving?: boolean }) {
   useEffect(() => () => boardMat.dispose(), [boardMat]);
   const layer = moving ? detail : undefined;
   return (
-    <group userData={LIVE}>
+    <>
       {SOLID.map((k) => (
         <mesh key={k} ref={layer} geometry={parts[k]} material={m[k]} castShadow receiveShadow />
       ))}
       <mesh ref={layer} geometry={parts.glass} material={glass} />
       <mesh ref={layer} geometry={parts.lamp} material={lamp} />
       <mesh ref={layer} geometry={parts.board} material={boardMat} receiveShadow />
-    </group>
+    </>
   );
 }
 

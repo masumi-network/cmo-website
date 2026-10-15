@@ -20,10 +20,9 @@ import { PALETTES, SLOT, builder, palette, type Frame, type Rect } from "./house
 import { box, cyl, drawn, merged, placed, placer, useLandmarkTextures } from "./landmark-kit";
 import { glassMaterial, houseMaterial } from "./materials";
 import { Instances, useBrand, type V3 } from "./parts";
-import { LIVE, useInterior, useNightGlow } from "./shared";
+import { useInterior, useNightGlow } from "./shared";
 import { Lamps } from "./street";
 import { useSign } from "./textures";
-import { traceInfo } from "./trace-info";
 
 /** The sign face in world units [width, height]; its canvas follows the same shape. */
 export const SHOP_SIGN = [6.8, 0.8] as const;
@@ -929,7 +928,6 @@ const glslList = (list: number[][]) => list.map((v) => `vec${v.length}(${v.map((
 function paintedMaterial(atlas: { value: Texture | null }) {
   const M = CAFE_MAT;
   const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.7, emissive: "#ffc98c", emissiveIntensity: 0 });
-  traceInfo.set(m, { kind: "painted", atlas });
   m.customProgramCacheKey = () => "shop-painted";
   m.onBeforeCompile = (s) => {
     s.uniforms.uNight = facadeNight;
@@ -1247,10 +1245,10 @@ export function Shopfront() {
       <group position={[local.x, local.ground, local.z]}>
         <mesh geometry={parts.front} material={m.painted} castShadow receiveShadow />
         {/* the cafe: its light is baked in the shader, so it casts no shadows (its leaf cards would cast squares) */}
-        <mesh ref={interior} geometry={parts.interior} material={m.painted} receiveShadow userData={LIVE} />
+        <mesh ref={interior} geometry={parts.interior} material={m.painted} receiveShadow />
         <mesh geometry={parts.glass} material={m.glass} />
         {/* the visitor's brand on the fascia */}
-        <mesh position={[...SHOP.sign]} material={signMat} userData={LIVE}>
+        <mesh position={[...SHOP.sign]} material={signMat}>
           <planeGeometry args={SHOP_SIGN} />
         </mesh>
       </group>

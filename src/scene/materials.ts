@@ -8,7 +8,6 @@ import { facadeNight } from "./facade";
 import { SLOT, SLOTS } from "./house-models";
 import { LAWN_GLSL, lawnTexture } from "./lawn";
 import { GLASS_ENV_GLSL, glassUniforms } from "./reflections";
-import { traceInfo } from "./trace-info";
 
 /** Footing below ground on every building (see city.tsx). */
 export const FOOTING = 1.4;
@@ -76,7 +75,6 @@ const VALUE_NOISE = /* glsl */ `
 export function houseMaterial(siding: Texture, shingles: Texture, palette: Float32Array) {
   const n = SLOTS.length;
   const material = new MeshStandardMaterial({ roughness: 0.82 });
-  traceInfo.set(material, { kind: "house", siding, shingles, palette, night: facadeNight });
   return patch(material, "house", {
     uniforms: { uSiding: { value: siding }, uShingles: { value: shingles }, uPalette: { value: palette }, ...glassUniforms },
     vertHead: "attribute float aSlot;\nattribute float aWin;\nattribute vec2 aPane;\nattribute float aPalette;\nattribute vec2 aOrigin;\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;",
@@ -169,7 +167,6 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
 /** Towers: a tileable facade texture repeated in world units (one tile = 4 x 4 windows). */
 export function towerMaterial(facade: Texture, tile: { w: number; h: number }, glassy: boolean) {
   const material = new MeshStandardMaterial({ roughness: glassy ? 0.35 : 0.8, metalness: glassy ? 0.25 : 0 });
-  traceInfo.set(material, { kind: "tower", facade, tile, glassy });
   return patch(material, `tower-${glassy ? 1 : 0}`, {
     uniforms: { uFacade: { value: facade }, uTile: { value: [tile.w, tile.h] } },
     fragHead: "uniform sampler2D uFacade;\nuniform vec2 uTile;\nfloat fLit = 0.0;\nfloat fIsGlass = 0.0;",
@@ -210,7 +207,6 @@ export function towerMaterial(facade: Texture, tile: { w: number; h: number }, g
  */
 export function downtownMaterial(stone: Texture) {
   const material = new MeshStandardMaterial({ vertexColors: true });
-  traceInfo.set(material, { kind: "downtown", stone, night: facadeNight });
   return patch(material, "downtown", {
     uniforms: { uStone: { value: stone }, ...glassUniforms },
     // vInfo is flat: interpolating a constant is not exact on every GPU (SwiftShader), and the window
@@ -343,7 +339,6 @@ export function downtownMaterial(stone: Texture) {
  */
 export function groundMaterial(mask: Texture, light: Texture, asphalt: Texture, concrete: Texture, grass: Texture, dry: Texture) {
   const material = new MeshStandardMaterial({ map: mask, roughness: 0.95 });
-  traceInfo.set(material, { kind: "ground", mask });
   return patch(material, "ground", {
     uniforms: { uLamp: { value: light }, uAsphalt: { value: asphalt }, uConcrete: { value: concrete }, uGrass: { value: grass }, uDry: { value: dry }, uLawn: { value: lawnTexture() } },
     fragHead: /* glsl */ `
@@ -403,7 +398,6 @@ export function groundMaterial(mask: Texture, light: Texture, asphalt: Texture, 
 /** Any texture mapped in world units: walls by (along, height), tops by (x, z). */
 export function worldMaterial(map: Texture, scale: number, top?: string) {
   const material = new MeshStandardMaterial({ roughness: 0.6, metalness: 0.2 });
-  traceInfo.set(material, { kind: "world", map, scale, top });
   return patch(material, `world-${top ?? "same"}`, {
     uniforms: { uMap: { value: map }, uScale: { value: scale } },
     fragHead: "uniform sampler2D uMap;\nuniform float uScale;",
@@ -430,7 +424,6 @@ function hexToVec(hex: string) {
  */
 export function concreteMaterial(map: Texture, waterline: number) {
   const material = new MeshStandardMaterial({ color: "#b4aea3", roughness: 0.9 });
-  traceInfo.set(material, { kind: "concrete", map, color: material.color });
   return patch(material, "concrete", {
     uniforms: { uConcrete: { value: map }, uWater: { value: waterline } },
     vertHead: "attribute float aTop;\nvarying float vTop;",

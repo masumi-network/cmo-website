@@ -1,7 +1,6 @@
 "use client";
 
-import { LocateFixed, Settings2 } from "lucide-react";
-import { Popover, Switch } from "radix-ui";
+import { LocateFixed } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { chapterIndex, chapters } from "@/content/day";
@@ -11,15 +10,8 @@ import { useCity } from "@/lib/store";
 
 const RAIL = chapters.filter((c) => c.id !== "join");
 
-type Props = {
-  onGo: (index: number) => void;
-  /** Photo-real mode (F12) as it is now, or null where it can't run (phones, lite, no 3D): no settings then. */
-  photoreal: boolean | null;
-  onPhotoreal: (on: boolean) => void;
-};
-
-/** Top bar: wordmark, the day rail, Story/Explore, settings, and the waitlist button. */
-export function Hud({ onGo, photoreal, onPhotoreal }: Props) {
+/** Top bar: wordmark, the day rail, Story/Explore, and the waitlist button. */
+export function Hud({ onGo }: { onGo: (index: number) => void }) {
   const active = useCity((s) => activeIndex(s.progress, chapters.length));
   const mode = useCity((s) => s.mode);
   const setMode = useCity((s) => s.setMode);
@@ -83,7 +75,6 @@ export function Hud({ onGo, photoreal, onPhotoreal }: Props) {
               Explore
             </button>
           </div>
-          {photoreal !== null && <Settings photoreal={photoreal} onPhotoreal={onPhotoreal} />}
           <Button className="rounded-full" size="sm" onClick={() => { setMode("story"); onGo(chapterIndex("join")); }}>
             Join the waitlist
           </Button>
@@ -104,34 +95,3 @@ export function Hud({ onGo, photoreal, onPhotoreal }: Props) {
   );
 }
 
-/** Desktop settings: one switch for now. */
-function Settings({ photoreal, onPhotoreal }: { photoreal: boolean; onPhotoreal: (on: boolean) => void }) {
-  return (
-    <Popover.Root>
-      <Popover.Trigger
-        aria-label="Settings"
-        className="hidden size-11 cursor-pointer items-center justify-center rounded-full bg-card/92 text-foreground backdrop-blur-sm transition-colors hover:bg-muted md:flex"
-      >
-        <Settings2 className="size-4" aria-hidden />
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content align="end" sideOffset={8} className="z-40 w-72 rounded-lg bg-card p-4 text-card-foreground shadow-sm">
-          <label className="flex cursor-pointer items-center justify-between gap-4">
-            <span>
-              <span className="block text-sm font-medium">Photo-real light</span>
-              <span className="block text-[13px] text-muted-foreground">Traced light and shadows when the city rests. Turn off if the page feels slow.</span>
-            </span>
-            <Switch.Root
-              checked={photoreal}
-              onCheckedChange={onPhotoreal}
-              aria-label="Photo-real light"
-              className="relative h-6 w-10 shrink-0 cursor-pointer rounded-full bg-muted transition-colors data-[state=checked]:bg-primary"
-            >
-              <Switch.Thumb className="block size-5 translate-x-0.5 rounded-full bg-background shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
-            </Switch.Root>
-          </label>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
-  );
-}

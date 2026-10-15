@@ -15,7 +15,7 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { AdditiveBlending, BoxGeometry, BufferGeometry, type Group, CircleGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, LatheGeometry, Matrix4, MeshBasicMaterial, MeshStandardMaterial, OctahedronGeometry, PlaneGeometry, Quaternion, SphereGeometry, TorusGeometry, Vector2, Vector3 } from "three";
 import { heightAt } from "@/lib/terrain";
-import { damp, LIVE, rig, useInterior, useNightGlow } from "./shared";
+import { damp, rig, useInterior, useNightGlow } from "./shared";
 import { CarModel, Rails } from "./cable-car";
 import { LINE, carGround, holdsAtUnion, stepCar, unionCar, type CusoAt } from "./cable-line";
 import { chapters } from "@/content/day";
@@ -651,7 +651,7 @@ export function UnionSquare() {
       <mesh geometry={lampGeometry} material={glow} />
       <mesh ref={interior} geometry={display.content} material={shops} />
       <mesh geometry={display.glass} material={shopGlass} />
-      <mesh position={[BOARD.x, BOARD.y, FACE_Z]} material={adMat} userData={LIVE}>
+      <mesh position={[BOARD.x, BOARD.y, FACE_Z]} material={adMat}>
         <planeGeometry args={AD_PANEL} />
       </mesh>
     </group>
