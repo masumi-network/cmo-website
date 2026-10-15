@@ -11,6 +11,7 @@ import { Atmosphere } from "./atmosphere";
 import { Backdrop } from "./backdrop";
 import { CameraRig } from "./camera-rig";
 import { City } from "./city";
+import { RoofClutter } from "./clutter";
 import { CoitTower } from "./coit-tower";
 import { Cuso } from "./cuso";
 import { FerryBuilding } from "./ferry";
@@ -130,6 +131,7 @@ function Scene({ onReady, onGo, lite }: Props) {
         <Atmosphere lite={lite} />
         <Studio />
         <City lite={lite} />
+        <RoofClutter lite={lite} />
         <Backdrop lite={lite} />
         <Rooftop />
         <Shopfront />
