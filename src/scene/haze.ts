@@ -31,7 +31,9 @@ const hazy: Chunks = {
   ),
   fog_fragment: three.fog_fragment.replace(
     "float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );",
-    `float fogFactor = smoothstep( fogNear, fogFar * ( 1.0 + ${f(HAZE.gain)} * smoothstep( ${f(HAZE.y0)}, ${f(HAZE.y1)}, vFogY ) ), vFogDepth );`,
+    `float fogLow = smoothstep( fogNear, fogFar, vFogDepth );
+		float fogHigh = min( fogLow, 1.0 - exp( - max( vFogDepth - fogNear, 0.0 ) / ( ${f(HAZE.reach)} * fogFar ) ) );
+		float fogFactor = mix( fogLow, fogHigh, smoothstep( ${f(HAZE.y0)}, ${f(HAZE.y1)}, vFogY ) );`,
   ),
 };
 

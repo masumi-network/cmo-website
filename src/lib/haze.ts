@@ -5,9 +5,12 @@
 
 /**
  * `y0`: at or below this world height the fog is three's linear fog (water, shore).
- * `y1`: from this height up the fog's far distance is (1 + gain) times longer.
+ * `y1`: from this height up the fog is the high ground's: it starts as fast as
+ * linear fog (a far bridge tower stays paler than a near one), then eases off
+ * (1 - e^-(depth - near) / (reach * far)), so far hills fade layer by layer
+ * instead of to the fog colour by the fog's far distance.
  */
-export const HAZE = { y0: 1, y1: 30, gain: 1 };
+export const HAZE = { y0: 1, y1: 30, reach: 1.1 };
 
 const smoothstep = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -18,5 +21,8 @@ const smoothstep = (a: number, b: number, x: number) => {
 export const hazeLift = (y: number) => smoothstep(HAZE.y0, HAZE.y1, y);
 
 /** How much fog covers a point `depth` in front of the camera at world height `y` (0 clear, 1 fog colour). */
-export const hazeFactor = (depth: number, y: number, near: number, far: number) =>
-  smoothstep(near, far * (1 + HAZE.gain * hazeLift(y)), depth);
+export function hazeFactor(depth: number, y: number, near: number, far: number) {
+  const low = smoothstep(near, far, depth);
+  const high = Math.min(low, 1 - Math.exp(-Math.max(depth - near, 0) / (HAZE.reach * far)));
+  return low + (high - low) * hazeLift(y);
+}

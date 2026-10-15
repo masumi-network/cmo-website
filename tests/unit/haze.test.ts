@@ -55,7 +55,7 @@ describe("height-aware haze", () => {
     }
   });
 
-  it("at every chapter shows the Marin crest clearer than the water under it, desktop and phone", () => {
+  it("at every chapter keeps the Marin crest: never foggier than before, and readable where the water under it is fog", () => {
     // The crest: the highest ground in each 20 unit band across the headlands.
     const crest: Vector3[] = [];
     for (let x = HEADLANDS.x0 + 10; x < HEADLANDS.x1 - 10; x += 20) {
@@ -67,6 +67,7 @@ describe("height-aware haze", () => {
       if (best.y > 10) crest.push(best);
     }
     expect(crest.length).toBeGreaterThan(5);
+    let fogged = 0;
     for (const ch of chapters) {
       for (const shot of [ch.camera, ch.phone]) {
         const cam = new PerspectiveCamera();
@@ -76,12 +77,16 @@ describe("height-aware haze", () => {
         const { near, far } = fogRange(cam.position.distanceTo(new Vector3(...shot.target)), false, skyAt(ch.hour).fogScale);
         const depth = (p: Vector3) => -p.clone().applyMatrix4(cam.matrixWorldInverse).z;
         for (const p of crest) {
-          const water = new Vector3(p.x, WATER_Y, p.z);
-          if (depth(water) < near) continue;
-          expect(hazeFactor(depth(p), p.y, near, far), `${ch.id} crest at x ${p.x}`).toBeLessThan(hazeFactor(depth(water), WATER_Y, near, far));
+          const d = depth(p);
+          const id = `${ch.id} crest at x ${p.x}`;
+          expect(hazeFactor(d, p.y, near, far), id).toBeLessThanOrEqual(smoothstep(near, far, d));
+          if (hazeFactor(depth(new Vector3(p.x, WATER_Y, p.z)), WATER_Y, near, far) < 0.95) continue;
+          fogged++;
+          expect(hazeFactor(d, p.y, near, far), id).toBeLessThan(0.75);
         }
       }
     }
+    expect(fogged).toBeGreaterThan(20);
   });
 });
 
@@ -97,9 +102,9 @@ describe("the fog chunks", () => {
 
   it("lift only the linear fog; exp2 fog stays three's", () => {
     expect(ShaderChunk.fog_fragment).toContain("1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth )");
-    expect(ShaderChunk.fog_fragment).not.toContain("smoothstep( fogNear, fogFar, vFogDepth )");
-    expect(ShaderChunk.fog_fragment).toContain("vFogY");
-    expect(ShaderChunk.fog_fragment).toContain(HAZE.y1.toFixed(3));
+    expect(ShaderChunk.fog_fragment).not.toContain("float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );");
+    expect(ShaderChunk.fog_fragment).toContain(`float fogFactor = mix( fogLow, fogHigh, smoothstep( ${HAZE.y0.toFixed(3)}, ${HAZE.y1.toFixed(3)}, vFogY ) );`);
+    expect(ShaderChunk.fog_fragment).toContain(`${HAZE.reach.toFixed(3)} * fogFar`);
   });
 
   it("apply once, also when applied again (hot reload), and switch off back to three's", () => {
