@@ -208,20 +208,14 @@ describe("what the chapter cameras see", () => {
     for (let x = 470; x < 960; x += 40) expect(south.some((s) => s.x >= x && s.x < x + 40), `column ${x}`).toBe(true);
   });
 
-  it("the East Bay and North Bay fill most of the horizon at 22:00 (desktop) and in the finale (phone)", () => {
+  // The finale's shots look down over Russian Hill: the horizon is above both frames (checked on screen).
+  it("the East Bay and North Bay fill most of the horizon in the 22:00 desktop frame", () => {
     const night = chapters.find((c) => c.id === "night")!;
-    const join = chapters.find((c) => c.id === "join")!;
-    const frames = [
-      { id: "night", px: desktopCamera(night.camera), size: { width: 1440, height: 900 } },
-      { id: "join phone", px: desktopCamera(join.phone, { width: 390, height: 844 }, 52), size: { width: 390, height: 844 } },
-    ];
-    for (const f of frames) {
-      const seen = crests.filter((c) => c.ridge.region === "east" || c.ridge.region === "north").map((c) => f.px(...c.p)).filter((s) => s.front && s.y > 0 && s.y < f.size.height);
-      const step = f.size.width / 30;
-      let filled = 0;
-      for (let x = 0; x < f.size.width; x += step) if (seen.some((s) => s.x >= x && s.x < x + step)) filled++;
-      expect(filled / 30, f.id).toBeGreaterThan(0.75);
-    }
+    const px = desktopCamera(night.camera);
+    const seen = crests.filter((c) => c.ridge.region === "east" || c.ridge.region === "north").map((c) => px(...c.p)).filter((s) => s.front && s.y > 0 && s.y < 900);
+    let filled = 0;
+    for (let x = 0; x < 1440; x += 48) if (seen.some((s) => s.x >= x && s.x < x + 48)) filled++;
+    expect(filled / 30).toBeGreaterThan(0.9);
   });
 });
 

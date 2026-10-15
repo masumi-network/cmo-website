@@ -24,8 +24,10 @@ const CENTRE: P2 = [-15, 5];
 export type Peak = { x: number; z: number; h: number; w: number };
 /** Named tops on the crests (x, z of the crest, height, width). */
 export const PEAKS = {
-  tam: { x: -280, z: -445, h: 74, w: 55 },
-  sutro: { x: -168, z: 352, h: 48, w: 46 },
+  tam: { x: -272, z: -445, h: 74, w: 36 },
+  /** Tam's long western shoulder. */
+  tamWest: { x: -330, z: -432, h: 56, w: 70 },
+  sutro: { x: -168, z: 352, h: 47, w: 40 },
   grizzly: { x: 462, z: -170, h: 52, w: 75 },
 } satisfies Record<string, Peak>;
 
@@ -58,7 +60,7 @@ export type Ridge = {
 
 export const RIDGES: Ridge[] = [
   // Mount Tam's ridge behind the headlands, peak behind the bridge's north tower from Russian Hill
-  { name: "tam", region: "marin", base: [[-440, -330], [-340, -372], [-220, -388], [-110, -386], [-10, -394], [72, -412]], depth: 58, rows: HILL, lo: 26, hi: 46, peaks: [PEAKS.tam], town: 0.12, seed: 1 },
+  { name: "tam", region: "marin", base: [[-440, -330], [-340, -372], [-220, -388], [-110, -386], [-10, -394], [72, -412]], depth: 58, rows: HILL, lo: 26, hi: 46, peaks: [PEAKS.tam, PEAKS.tamWest], town: 0.12, seed: 1 },
   // Bolinas ridge, farther and paler, over Tam's western shoulder
   { name: "bolinas", region: "marin", base: [[-610, -425], [-500, -480], [-370, -530], [-240, -560], [-110, -578]], depth: 48, rows: HILL, lo: 42, hi: 60, peaks: [], town: 0, seed: 2 },
   // North Bay: a low, very hazy ridge behind Angel Island and Tiburon
@@ -143,6 +145,8 @@ export function ridgeColumns(ridge: Ridge): Column[] {
     const cz = z + nz * depth * ridge.rows[crestRow][0];
     let h = ridge.lo + (ridge.hi - ridge.lo) * fbm1(s / 45 + seed * 3);
     for (const p of ridge.peaks) h = smax(h, p.h * Math.exp(-(((cx - p.x) ** 2 + (cz - p.z) ** 2) / p.w ** 2)), 8);
+    // a rough skyline: knolls and saddles on every crest, peaks included
+    h *= 1 + 0.14 * (fbm1(s / 13 + seed * 5) - 0.5);
     h = TOE + (h - TOE) * smoothstep(0, taper, s) * smoothstep(0, taper, total - s);
     const points = ridge.rows.map(([o, f], r): P3 => {
       // interior rows wander up and down a little: gullies and spurs, not bands
@@ -319,12 +323,12 @@ export type BackdropLook = {
 };
 
 const DAY: BackdropLook = { hazeNear: 0.36, hazeFar: 0.7, blue: 0.3, glow: 0.25, lights: 0 };
-const DAWN: BackdropLook = { hazeNear: 0.46, hazeFar: 0.76, blue: 0.35, glow: 0.9, lights: 0 };
+const DAWN: BackdropLook = { hazeNear: 0.6, hazeFar: 0.85, blue: 0.25, glow: 0.9, lights: 0 };
 const KEYS: [number, BackdropLook][] = [
   // 06:00: warm haze, backlit toward the Gate
   [6, DAWN],
   [7, { hazeNear: 0.42, hazeFar: 0.74, blue: 0.32, glow: 0.5, lights: 0 }],
-  [9, { ...DAY, hazeNear: 0.38, hazeFar: 0.72, glow: 0.3 }],
+  [9, { ...DAY, hazeNear: 0.32, hazeFar: 0.7, glow: 0.3 }],
   // day: gold hills in blue haze
   [12, DAY],
   [15, { ...DAY, glow: 0.35 }],
