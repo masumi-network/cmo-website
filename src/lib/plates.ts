@@ -7,6 +7,7 @@
 // and sRGB-encoded in 8 bits, so the post chain tone-maps it with the live objects.
 
 import { z } from "zod";
+import { HOLD } from "./live-trace";
 
 /** Linear colour above this clips (sun glints only). */
 export const PLATE_RANGE = 2;
@@ -151,3 +152,6 @@ export function settle(s: Settle, position: V3, quaternion: Q, plates: PlateEntr
   s.pull = Math.min(1, Math.max(0, s.pull + ((hold ? 1 : -1) * dt) / GLIDE));
   return s;
 }
+
+/** A live plate (Explore's trace, explore-trace.tsx) holds while the camera stays on the pose it was traced from (lib/live-trace.ts HOLD). */
+export const holdsLive = (live: PlateEntry | null, position: V3, quaternion: Q) => !!live && poseWithin(position, quaternion, live, HOLD.dist, HOLD.angle);

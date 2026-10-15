@@ -7,6 +7,7 @@ Last updated: 2026-10-15 · Status: v0, on by itself on capable desktops · Laun
 - When it is on (`photorealOn` in lib/plates.ts), first that applies: `?photoreal` (or `?photoreal=0`) for development, `NEXT_PUBLIC_PHOTOREAL=1`, the visitor's setting, and else on by itself where the GPU has a WebGPU adapter (`webgpuCapable`: a software fallback adapter does not count). Plates draw in WebGL; the adapter is only the sign of a capable desktop.
 - The settings button in the top bar (desktop, 3D, not lite) holds one switch, "Photo-real light". It is remembered in `localStorage` (`cmo.photoreal`, `on` or `off`); blocked storage means it works for the visit only. Turning it off at rest restores the city at once (`leave` in plates.tsx); turning it on at rest shows the plate in about a second.
 - The adapter check is async, so on a capable desktop the mode turns on a moment after load, before the camera first rests.
+- In Explore, the map is path-traced live once it comes to rest, and shown the same way (below).
 - While scrolling, the city renders as today, but lit by baked light probes: the traced bounce and sky light for the hour, in place of today's flat studio and hemisphere light (below). Screen-space effects were measured and left out: too slow for what they add.
 - Team research page: https://claude.ai/code/artifact/02617856-3933-4608-98f4-9c6aa0bfe0ca
 
@@ -18,6 +19,26 @@ Last updated: 2026-10-15 · Status: v0, on by itself on capable desktops · Laun
 - Then the plate fades in over the city (0.4 s). At rest the static city is drawn only as a shadow catcher (`splitScene`): its depth hides live objects behind walls, and live objects' shadows multiply onto the plate (static casters off, the plate has their shadows). The sky dome, lines and transparent bits hide; custom shader effects (the fog bank) stay live.
 - Moving again restores the city at once. The canvas carries `data-plate` = `off`, `fade` or `rest` for tests.
 - Live objects are marked `userData={LIVE}` (shared.ts): Cuso, cars, boats and ferry, cable cars, the Union Square billboard, the shop sign and interior.
+
+## Explore: the map traced live (`src/scene/explore-trace.tsx`, `src/lib/live-trace.ts`)
+- Desktop with photo-real on. Once the map has been still 0.3 s (its easing under 5 mm a second, `stepLive`), the static city is traced from the camera's own pose, at half the screen's resolution, and handed to the plates as a live plate (`rig.live`): Cuso, cars and boats stay live on top and cast their shadows on it, as at a chapter.
+- Any drag or zoom drops it: the camera rig holds the camera on the traced pose (`holdsLive`, 5 cm and 1 degree) and lets go the moment the map moves; a trace still running is thrown away. The canvas's `data-plate` goes back to `off` within 50 ms of grabbing the map.
+- The tracer's code loads the first time Explore opens (its own Suspense, so the city never blanks), and is set up the first time the map comes to rest: twins, ground bake and BVH, about 2.6 s, the page blocked for part of it. Later traces reuse it.
+- The denoiser's weights are not shipped (public/lab/oidn is gitignored). Dev builds use them when present: 16 samples, then OIDN. The site traces 64 samples and shows them raw (a little grain on the towers).
+- Not traced: live objects (drawn on top), the fog bank (GLSL). Shadows of far casters are traced as they are (no shadow box), so dawn shadows run long across the water.
+- `node scripts/explore-bench.mjs <dir>` (real GPU): opens Explore with photo-real on, times the first and a second trace, checks a drag drops it. `TRACE=<scale>,<samples>` (dev) and `NODENOISE=1` for the variants below.
+
+From the map coming to rest to the image on screen (1440 x 900, this Mac, 06:00):
+
+| Trace | First (with setup) | Later |
+| --- | --- | --- |
+| Full resolution, 16 samples + denoiser | 8.4 s | 5.3 s |
+| Full resolution, 8 samples + denoiser | 6.6 s | 3.6 s |
+| Half resolution, 16 samples + denoiser (dev default) | 5.5 s | 2.6 s |
+| Half resolution, 8 samples + denoiser | 5.0 s | 2.0 s |
+| Half resolution, 64 samples, no denoiser (the site today) | 8.3 s | 5.5 s |
+
+- Gotchas: the Explore camera eases in for about a second after a drag; a trace started while it still crept was carried off its pose by the time it showed and dropped at once. Once shown, the rig snaps the camera back onto the pose (a centimetre in one frame): `stepLive` judges a shown trace by distance from its pose, not by speed. The first trace's setup freezes the page for seconds, and the easing jumps in that long frame: a trace that drifted off its pose while running starts over.
 
 ## Light probes while moving (`src/scene/probes.tsx`, `src/lib/probes.ts`)
 - A grid of probes over the city: 64 x 14 x 54 at 3 m (x -96..96, y -3..39, z -96..66; the chapter cameras sit within 35 m of the middle). Each holds the light arriving from every direction as L1 spherical harmonics (12 numbers), per chapter hour (06, 07, 09, 12, 15, 18, 22; 06:00 tomorrow reuses 06:00).

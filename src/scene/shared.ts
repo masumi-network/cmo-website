@@ -3,7 +3,7 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
-import { Vector2, Vector3, type Mesh, type MeshStandardMaterial } from "three";
+import { Vector2, Vector3, type Mesh, type MeshStandardMaterial, type Texture } from "three";
 import { chapters, type Vec3 } from "@/content/day";
 import { shownHour } from "@/lib/navigate";
 import { travel } from "@/lib/time";
@@ -31,6 +31,8 @@ export const rig = {
   plates: [] as PlateEntry[],
   /** The plate the camera has come to rest on (camera-rig.tsx decides from its eased pose, then snaps to it; the water mirror pauses). */
   rest: null as PlateEntry | null,
+  /** Explore's live trace (explore-trace.tsx), a plate taken from the camera's own pose: shown while the camera holds it. */
+  live: null as { entry: PlateEntry; texture: Texture } | null,
 };
 
 /**

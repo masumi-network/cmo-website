@@ -251,7 +251,7 @@ export function Plates() {
     };
     rig.plates = day.mode === "explore" ? [] : [day.from, day.to].map((i) => plateFor(m, i)).filter(ready);
     const entry = rig.rest; // from the last frame: the rig runs after this
-    const texture = entry ? s.textures.get(entry.file) : undefined;
+    const texture = entry ? (entry === rig.live?.entry ? rig.live.texture : s.textures.get(entry.file)) : undefined;
     const scale = entry ? cropScale(entry.width / entry.height, size.width / size.height) : null;
     const resting = !!entry && texture !== undefined && texture !== "loading" && scale !== null;
 

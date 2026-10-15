@@ -14,7 +14,7 @@ import { useCity } from "@/lib/store";
 import { type Plan, flightPlan, flightPoint, flightTime } from "./flight";
 import { insideBuilding, sightClear, sightHit } from "./layout";
 import { damp, dayNow, overlays, rig, setLerp } from "./shared";
-import { newSettle, settle } from "@/lib/plates";
+import { holdsLive, newSettle, settle } from "@/lib/plates";
 
 const pos = new Vector3();
 const tgt = new Vector3();
@@ -570,6 +570,13 @@ export function CameraRig() {
       camera.quaternion.slerp(plateRot.fromArray(s.plate.quaternion), e);
     }
     rig.rest = s.plate && s.pull === 1 ? s.plate : null;
+    // Explore: the live trace holds while the camera stays where it was traced from (a drag lets go at once, no glide)
+    const traced = day.mode === "explore" ? (rig.live?.entry ?? null) : null;
+    if (traced && holdsLive(traced, camera.position, camera.quaternion)) {
+      camera.position.fromArray(traced.position);
+      camera.quaternion.fromArray(traced.quaternion);
+      rig.rest = traced;
+    }
     publishCuso(gl.domElement, camera, size.height);
   });
 

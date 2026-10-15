@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Quaternion, Vector3 } from "three";
-import { PLATE_RANGE, cropScale, decodePlate, encodePlate, newSettle, parseManifest, PHOTOREAL_KEY, photorealOn, readPhotorealChoice, savePhotorealChoice, webgpuCapable, plateFor, poseNear, settle, type PlateEntry } from "@/lib/plates";
+import { PLATE_RANGE, cropScale, decodePlate, encodePlate, holdsLive, newSettle, parseManifest, PHOTOREAL_KEY, photorealOn, readPhotorealChoice, savePhotorealChoice, webgpuCapable, plateFor, poseNear, settle, type PlateEntry } from "@/lib/plates";
 
 const entry = (o: Partial<PlateEntry> = {}): PlateEntry => ({
   chapter: 0,
@@ -164,5 +164,21 @@ describe("settling onto a plate", () => {
     const s = run(120, () => new Vector3(1.5, 2, 10));
     expect(s.plate).toBeNull();
     expect(s.pull).toBe(0);
+  });
+});
+
+describe("a live plate (Explore's trace)", () => {
+  const live = entry({ chapter: -1, position: [10, 40, 0], quaternion: [0, 0, 0, 1] });
+  const pos = (x: number) => new Vector3(x, 40, 0);
+  const yaw = (deg: number) => new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), (deg * Math.PI) / 180);
+
+  it("holds while the camera stays on the pose it was traced from (its last easing included)", () => {
+    expect(holdsLive(live, pos(10.03), yaw(0.3))).toBe(true);
+  });
+
+  it("lets go the moment the map is dragged or turned", () => {
+    expect(holdsLive(live, pos(10.2), yaw(0))).toBe(false);
+    expect(holdsLive(live, pos(10), yaw(2))).toBe(false);
+    expect(holdsLive(null, pos(10), yaw(0))).toBe(false);
   });
 });

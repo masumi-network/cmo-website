@@ -24,6 +24,7 @@ import { UnionSquare } from "./union-square";
 import { Shadowless } from "./parts";
 import { Pier } from "./pier";
 import { Pins } from "./pins";
+import { useCity } from "@/lib/store";
 import { Plates } from "./plates";
 import { Probes, patchProbes } from "./probes";
 import { Reflections } from "./reflections";
@@ -40,6 +41,21 @@ const RaytraceLab =
   process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("raytrace")
     ? lazy(() => import("./raytrace-lab"))
     : null;
+
+/** Photo-real in Explore: the map traced live (explore-trace.tsx), loaded the first time Explore opens. */
+const ExploreTrace = lazy(() => import("./explore-trace"));
+
+function ExploreTraceOnce() {
+  const explore = useCity((s) => s.mode === "explore");
+  const [opened, setOpened] = useState(false);
+  if (explore && !opened) setOpened(true);
+  // its own boundary: while its code loads, the city must not blank out
+  return opened ? (
+    <Suspense fallback={null}>
+      <ExploreTrace />
+    </Suspense>
+  ) : null;
+}
 
 type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean; photoreal: boolean };
 
@@ -161,6 +177,7 @@ function Scene({ onReady, onGo, lite, photoreal }: Props) {
         {PerfOverlay && <PerfOverlay />}
         {RaytraceLab && <RaytraceLab />}
         {photoreal && <Plates />}
+        {photoreal && <ExploreTraceOnce />}
         {!lite && <Probes on={photoreal} />}
       </Suspense>
       <CameraRig />

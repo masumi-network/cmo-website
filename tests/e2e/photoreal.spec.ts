@@ -59,6 +59,24 @@ test.describe("photo-real plates", () => {
   });
 });
 
+test.describe("photo-real in Explore", () => {
+  test.skip(({ isMobile }) => isMobile, "desktop only");
+
+  // The live trace needs a WebGPU adapter, which headless Chrome lacks: the map must stay as it is, without errors.
+  // Tracing itself is measured on the real GPU: scripts/explore-bench.mjs.
+  test("without WebGPU the map stays as it is", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(String(e)));
+    await page.goto("/?photoreal");
+    await expect(page.locator('[data-scene="ready"]')).toBeAttached({ timeout: 120_000 });
+    await page.getByRole("button", { name: "Explore" }).click();
+    // software WebGL is slow: the map takes a while to come to rest, then the tracer finds no adapter
+    await expect.poll(() => page.evaluate(() => (window as Window & { __explore?: { phase: string } }).__explore?.phase), { timeout: 60_000 }).toBe("failed");
+    await expect(page.locator("canvas").first()).not.toHaveAttribute("data-plate", "rest");
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe("photo-real on phones", () => {
   test.skip(({ isMobile }) => !isMobile, "phones only");
 
