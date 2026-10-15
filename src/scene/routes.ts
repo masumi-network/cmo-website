@@ -45,18 +45,14 @@ const APPROACH: Record<ChapterId, Step[]> = {
   ads: [ground(5.6, lineZ(14)), ground(5.6, 12.2), { p: [5.6, UNION_SQUARE_ROOF + 0.5, 12.2], how: "jump" }, { p: [5.6, UNION_SQUARE_ROOF, 11.2], how: "jump" }],
   // up beside the pyramid's south face to just above the platform's edge, then a hop to the middle
   seo: [ground(6.5, lineZ(-6)), ground(6.5, -7.0), { p: [6.5, PYRAMID_TIP + 0.5, -10.1], how: "jump" }],
-  newsletter: [ground(19.95, lineZ(4))],
+  newsletter: [ground(19.15, lineZ(4))],
   night: [ground(lineX(29), 24.2), ground(30.2, 24.2), { p: [31.4, 0.55, 24.2], how: "jump" }],
   join: ROOFTOP_WAY,
 };
-/** Moves onto the spot that are jumps (the pyramid tip, the cable car step). */
-const JUMP_TO_SPOT: ChapterId[] = ["seo", "newsletter"];
-/**
- * Spots he faces a fixed way on (and hops on and off facing it) instead of
- * turning to the camera. The cable car's running board is too narrow to turn
- * on: he rides it facing out, his back to the car.
- */
-export const FACE: Partial<Record<ChapterId, number>> = { newsletter: 0 };
+/** Moves onto the spot that are jumps (the pyramid tip). */
+const JUMP_TO_SPOT: ChapterId[] = ["seo"];
+/** Spots he faces a fixed way on (and hops on and off facing it) instead of turning to the camera. None today. */
+export const FACE: Partial<Record<ChapterId, number>> = {};
 
 type Node = { x: number; z: number; lines: string[] };
 

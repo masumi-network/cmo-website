@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PerspectiveCamera, Vector3 } from "three";
 import { chapters, type Chapter } from "@/content/day";
 import { PORTRAIT_FOV, fitBand, largestGap } from "@/scene/camera-rig";
-import { insideBuilding, sightClear } from "@/scene/layout";
+import { FERRY, insideBuilding, sightClear } from "@/scene/layout";
 import { BAY_TOWERS, GG } from "@/scene/landmarks";
 import { RIDGES, ridgeColumns } from "@/scene/skyline";
 import { overlays, rig } from "@/scene/shared";
@@ -162,3 +162,19 @@ describe("the 15:00 desktop shot", () => {
   });
 });
 
+describe("the 18:00 desktop shot", () => {
+  // Option 1 (2026-10-15): down the street past the cable car to the Ferry Building and the gold water.
+  it("looks past Cuso to the Ferry Building, in frame and right of the chapter card", () => {
+    const top = new Vector3(FERRY.x - FERRY.plinth[0] / 2 - 1.2, FERRY.hall[1] * 0.75, FERRY.z + FERRY.hall[2] / 2 - 1); // just off the front, high, by its south end
+    const at = onDesktop("newsletter", top);
+    expect(rightOfCards(at), JSON.stringify(at)).toBe(true);
+    expect(sightClear(at.from, top)).toBe(true);
+  });
+
+  it("has Cuso right of the chapter card, his feet above the bottom of the screen", () => {
+    const ch = chapters.find((c) => c.id === "newsletter")!;
+    const feet = onDesktop("newsletter", new Vector3(...ch.spot));
+    const head = onDesktop("newsletter", new Vector3(ch.spot[0], ch.spot[1] + 1.9, ch.spot[2]));
+    expect(rightOfCards(feet) && rightOfCards(head), JSON.stringify({ feet, head })).toBe(true);
+  });
+});

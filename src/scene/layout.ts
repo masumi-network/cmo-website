@@ -21,17 +21,19 @@ export const CLEAR: [number, number, number][] = [
   [-35, 34, 10], // Twin Peaks: open grass on both peaks, trees only low down
 ];
 
-/** True if something at x,z (radius r, height h) gets between a camera and its subject. */
+/** True if something at x,z (radius r, height h) gets between a camera (desktop or phone) and its subject. */
 export function blocksView(x: number, z: number, h: number, r: number) {
-  return chapters.some(({ camera: { position: p, target: q } }) => {
-    for (let s = 0; s <= 1.0001; s += 0.04) {
-      const px = p[0] + (q[0] - p[0]) * s;
-      const py = p[1] + (q[1] - p[1]) * s;
-      const pz = p[2] + (q[2] - p[2]) * s;
-      if (Math.hypot(px - x, pz - z) < r + 1.2 && py < h + 0.8) return true;
-    }
-    return false;
-  });
+  return chapters.some((c) =>
+    [c.camera, c.phone].some(({ position: p, target: q }) => {
+      for (let s = 0; s <= 1.0001; s += 0.04) {
+        const px = p[0] + (q[0] - p[0]) * s;
+        const py = p[1] + (q[1] - p[1]) * s;
+        const pz = p[2] + (q[2] - p[2]) * s;
+        if (Math.hypot(px - x, pz - z) < r + 1.2 && py < h + 0.8) return true;
+      }
+      return false;
+    }),
+  );
 }
 
 function rng(seed: number) {

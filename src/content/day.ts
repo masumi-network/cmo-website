@@ -158,8 +158,10 @@ export const chapters: readonly Chapter[] = [
     place: "Ferry Building",
     bubble: "Special delivery!",
     poster: "/concepts/06-newsletter.jpg",
-    spot: at(19.95, 0.34, 5.1),
-    camera: frame(at(19.95, 0.34, 5.1), { yaw: 42, distance: 7, height: 0.8, look: 1.5 }),
+    // He waits on the sidewalk beside the cable car's step (at(19.95, 0.34, 5.1)), which both shots frame:
+    // on the step itself the car's roof is in the way of turning to the lens.
+    spot: at(19.95, 0, 5.7),
+    camera: frame(at(19.95, 0.34, 5.1), { yaw: 290, distance: 8, height: 1.4, look: 1.7, side: 0.3 }),
     phone: frame(at(19.95, 0.34, 5.1), { yaw: 42, distance: 9, height: 1, look: 1, side: 0 }),
     dark: false,
   },
