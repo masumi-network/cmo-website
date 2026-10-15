@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { PerspectiveCamera, Vector3 } from "three";
 import { chapters, type Chapter } from "@/content/day";
 import { PORTRAIT_FOV, fitBand, largestGap } from "@/scene/camera-rig";
-import { insideBuilding } from "@/scene/layout";
+import { insideBuilding, sightClear } from "@/scene/layout";
+import { GG } from "@/scene/landmarks";
 import { overlays, rig } from "@/scene/shared";
 import { AD_PANEL, FACE_Z, UNION } from "@/scene/union-square";
 
@@ -116,5 +117,27 @@ describe("phone framing", () => {
     expect(brand.bottom).toBeLessThanOrEqual(band[1]);
     expect(brand.left).toBeGreaterThanOrEqual(0);
     expect(brand.right).toBeLessThanOrEqual(size.width);
+  });
+});
+
+describe("the 12:00 desktop shot", () => {
+  // Shot like a photo (F13): past Cuso and the billboard to the Golden Gate in the haze, not up at two towers.
+  it("looks past Cuso to the Golden Gate, in frame and right of the chapter card", () => {
+    const ads = chapters.find((c) => c.id === "ads")!;
+    const size = { width: 1440, height: 900 };
+    const cam = new PerspectiveCamera(35, size.width / size.height);
+    cam.position.set(...ads.camera.position);
+    cam.lookAt(new Vector3(...ads.camera.target));
+    cam.updateMatrixWorld();
+    const top = new Vector3(GG.x, GG.top + 1, GG.towers[0]); // just over the south tower
+    const n = top.clone().project(cam);
+    const x = ((n.x + 1) * size.width) / 2;
+    const y = ((1 - n.y) * size.height) / 2;
+    expect(n.z).toBeLessThan(1); // in front of the lens
+    expect(x).toBeGreaterThan(458); // clear of the card column
+    expect(x).toBeLessThan(size.width);
+    expect(y).toBeGreaterThan(0);
+    expect(y).toBeLessThan(size.height);
+    expect(sightClear(cam.position, top)).toBe(true);
   });
 });

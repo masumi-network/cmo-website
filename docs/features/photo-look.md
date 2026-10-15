@@ -57,6 +57,15 @@ Code: `src/scene/foreground.tsx` (mounted in `src/scene/union-square.tsx`). Test
 - **Cost:** 1 draw call (one quad) at the 12:00 desktop shot, nothing elsewhere.
 - **Tried and dropped:** thin leaves on visible twigs read as a sprig, and the blur washed them out; a dense mound of small leaves read as a hedge.
 
+## Camera
+
+- **12:00 desktop shot (2026-10-15):** `frame([5.6, UNION_SQUARE_ROOF, 10.4], { yaw: 36, distance: 17.5, height: 1.5, look: 1.1, side: 0.3 })` in `src/content/day.ts`. South-east of Cuso, just over the roof. Past him and the billboard you see the Golden Gate in the haze, the Marin hills, a strip of bay and a street of painted houses. Before, it looked up at two near towers from the next roof.
+- **Test:** `tests/unit/framing.test.ts` checks the Golden Gate's south tower is in frame, right of the card column, with a clear line of sight.
+- **Phone shot unchanged:** turning it to match breaks the "ad words stay readable, clear of the bubble" tests.
+- **Why not closer to the concept:** the ground around Union Square is flat (no downhill street), the board faces south (so the background is to the north), and the Bay Bridge and Transamerica can never sit behind a readable board. Matching the concept would mean re-siting the billboard over a downhill street.
+- **Gotcha:** `blocksView` (layout.ts) removes towers on each shot's camera-to-target line, and towers draw random numbers only when kept, so a new shot can reshuffle the skyline. This shot leaves the city unchanged (15 towers).
+- **Not used:** a longer lens (needs a per-shot fov in camera-rig.tsx; fov 26 to 30 hits towers), a long-lens shot down Nob Hill (removes the glass tower, breaks 4 tests, the bubble covers the ad).
+
 ## Measurements
 
 Look test, 2026-10-15. Union Square at rest, 1440x900, DPR 1, headed Chromium on an M-series Mac (Metal), GPU timer queries over 10 s, 3 runs each, back to back in one session. "Before" is `?look=off` (same code, today's look).
@@ -73,4 +82,5 @@ Look test, 2026-10-15. Union Square at rest, 1440x900, DPR 1, headed Chromium on
 - The GPU clock swings about 1.5 ms between runs: compare runs from one session.
 - Ambient occlusion was then dropped (see Post): it showed only under cornices and in window recesses here.
 - Without it, same method, same day: before 6.1 to 7.3 ms (216 to 219 draw calls), after 9.0 ms (232 draw calls). About +2.4 ms GPU at 12:00 on desktop, CPU unchanged, 120 fps held.
+- New 12:00 shot, same method: look off 9.2 ms (286 draw calls), look on 9.6 to 11.3 ms (299). The wider view itself costs about 2.6 ms over the old shot (more city in frame); the look adds about 1 ms there. 120 fps held.
 - The biggest gap left to the concept is the shot itself: the concept looks down a hill at the skyline and the bay. Ours looks up at the billboard from the next roof.
