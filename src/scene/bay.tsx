@@ -964,7 +964,7 @@ export function Water({ lite }: { lite: boolean }) {
     }
     // Not before `Ready` (scene.tsx) has compiled every shader: a mirror render would compile them one by one.
     // At rest on a photo-real plate (plates.tsx) the water is in the plate: no mirror.
-    if (!mirror || !mesh.current || !scene.userData.shadersReady || rig.rest) return;
+    if (!mirror || !mesh.current || !scene.userData.shadersReady || rig.rest || rig.plateDrawn) return;
     gl.getDrawingBufferSize(_size);
     const w = Math.min(1024, Math.round(_size.x / 2));
     const h = Math.round((w * _size.y) / _size.x);

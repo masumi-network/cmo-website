@@ -14,7 +14,7 @@ import { chapters, type Vec3 } from "@/content/day";
 import { activeIndex } from "@/lib/time";
 import { heightAt } from "@/lib/terrain";
 import { useCity } from "@/lib/store";
-import { dayNow } from "./shared";
+import { dayNow, rig } from "./shared";
 
 /** Cube face size: a window never shows more detail than this at chapter distances. */
 export const PROBE_SIZE = { full: 256, lite: 128 };
@@ -165,7 +165,7 @@ export function Reflections({ lite }: { lite: boolean }) {
   useEffect(() => () => probe.dispose(), [probe]);
   useFrame(({ gl, scene, clock }) => {
     // `Ready` (scene.tsx) sets this once every shader is compiled: the probe must not trigger compiles
-    if (!scene.userData.shadersReady) return;
+    if (!scene.userData.shadersReady || rig.plateDrawn) return; // a plate's catchers would end up in the glass
     const day = dayNow();
     const index = activeIndex(useCity.getState().progress, chapters.length);
     const time = clock.elapsedTime;

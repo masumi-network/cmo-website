@@ -199,6 +199,7 @@ export function Plates() {
     () => () => {
       // turned off in settings, maybe at rest: the city as it was
       leave(state.current, quad);
+      rig.plateDrawn = false;
       delete gl.domElement.dataset.plate;
       for (const t of state.current.textures.values()) if (t !== "loading") t.dispose();
       quad.geometry.dispose();
@@ -295,6 +296,7 @@ export function Plates() {
     if (!resting && s.phase !== "off") leave(s, quad);
     // for tests and scripts: off, fade or rest
     if (gl.domElement.dataset.plate !== s.phase) gl.domElement.dataset.plate = s.phase;
+    rig.plateDrawn = s.phase !== "off";
   });
 
   return <primitive object={quad} />;

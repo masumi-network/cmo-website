@@ -51,8 +51,7 @@ type Tracing = {
 
 /** Everything the tracer needs, built once: its renderer, the city's plain twins, the BVH (the slow part). */
 async function setUp(gl: Parameters<typeof bakeGround>[0], scene: Scene, width: number, height: number): Promise<Tracing> {
-  const canvas = document.createElement("canvas");
-  const renderer = await tracerRenderer(canvas);
+  const renderer = await tracerRenderer(document.createElement("canvas"));
   renderer.setPixelRatio(1);
   renderer.setSize(width, height, false);
   const twins = buildTwins(scene, bakeGround(gl, scene));
@@ -68,6 +67,10 @@ async function setUp(gl: Parameters<typeof bakeGround>[0], scene: Scene, width: 
   for (const f of fills) scene.add(f, f.target);
   const denoiser = newDenoiser();
   const tracer = new WebGPUPathTracer(renderer);
+  // By default the tracer adds the normals and tangents it is missing to every geometry it reads: the city's own.
+  // A tangent changes a normal-mapped material's WebGL shader, so after the first trace, meshes coming into view
+  // while dragging compiled new shaders mid-frame and the canvas flashed blank. The city has what the tracer needs.
+  tracer.generateMissingAttributes = false;
   tracer.renderScale = SCALE;
   tracer.setDenoiser(denoiser);
   tracer.maxSamples = SPP;
@@ -122,6 +125,21 @@ export default function ExploreTrace() {
   });
   const stats = useMemo<Stats>(() => ({ phase: "idle", setupMs: 0, traceMs: 0, traces: 0 }), []);
 
+  // the pointer down on the page: a pause mid-drag is not a rest
+  const pressed = useRef(false);
+  useEffect(() => {
+    const down = () => void (pressed.current = true);
+    const up = () => void (pressed.current = false);
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", up, true);
+    };
+  }, []);
+
   useEffect(() => {
     (window as Window & { __explore?: Stats }).__explore = stats;
     const s = state.current;
@@ -139,7 +157,7 @@ export default function ExploreTrace() {
   useFrame((_, dt) => {
     const s = state.current;
     const pose = { position: camera.position, quaternion: camera.quaternion };
-    const action = stepLive(live, { pose, dt, explore: dayNow().mode === "explore", done: s.ready !== null });
+    const action = stepLive(live, { pose, dt, explore: dayNow().mode === "explore", done: s.ready !== null, pressed: pressed.current });
 
     if (action === "drop") {
       s.gen++;

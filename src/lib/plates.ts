@@ -167,3 +167,15 @@ export function settle(s: Settle, position: V3, quaternion: Q, plates: PlateEntr
 
 /** A live plate (Explore's trace, explore-trace.tsx) holds while the camera stays on the pose it was traced from (lib/live-trace.ts HOLD). */
 export const holdsLive = (live: PlateEntry | null, position: V3, quaternion: Q) => !!live && poseWithin(position, quaternion, live, HOLD.dist, HOLD.angle);
+
+/**
+ * A frame of the camera rig on a live plate: `snap` the camera onto it, `rest` on it, and whether it `held`. The rig
+ * runs after the plates and the water's mirror have read the last frame's rest, so on the frame a drag lets go the
+ * camera stays on the plate once more while the rest ends: the plate and the mirror switch over on the next frame,
+ * where the camera moves. Moving it at once drew the traced image under a moved camera, with a stale mirror (a flash).
+ */
+export function liveRest(held: boolean, live: PlateEntry | null, position: V3, quaternion: Q) {
+  if (!live) return { snap: false, rest: false, held: false };
+  if (holdsLive(live, position, quaternion)) return { snap: true, rest: true, held: true };
+  return { snap: held, rest: false, held: false };
+}

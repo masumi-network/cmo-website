@@ -31,6 +31,11 @@ export const rig = {
   plates: [] as PlateEntry[],
   /** The plate the camera has come to rest on (camera-rig.tsx decides from its eased pose, then snaps to it; the water mirror pauses). */
   rest: null as PlateEntry | null,
+  /**
+   * The scene is drawn as a plate's shadow catcher right now (plates.tsx): the water's mirror and the glass probe
+   * must not render it (the frame a plate lets go, the mirror ran first and reflected the white catchers: a flash).
+   */
+  plateDrawn: false,
   /** Explore's live trace (explore-trace.tsx), a plate taken from the camera's own pose: shown while the camera holds it. */
   live: null as { entry: PlateEntry; texture: Texture } | null,
 };

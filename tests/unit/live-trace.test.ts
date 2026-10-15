@@ -80,6 +80,18 @@ describe("the live trace in Explore", () => {
     expect(stepLive(s, { pose: at(0.08), dt: 2.5, explore: true, done: false })).toBe("drop");
   });
 
+  it("never starts while the pointer is down (a pause mid-drag), and starts once it is up", () => {
+    const s = newLive();
+    expect(hold(s, at(0), 1, { pressed: true })).toEqual([]);
+    expect(hold(s, at(0), 0.5)).toEqual(["start"]);
+  });
+
+  it("drops a trace still running when the pointer goes down", () => {
+    const s = newLive();
+    hold(s, at(0), 0.5);
+    expect(stepLive(s, { pose: at(0), dt: frame, explore: true, done: false, pressed: true })).toBe("drop");
+  });
+
   it("drops everything when leaving Explore", () => {
     const s = newLive();
     hold(s, at(0), 0.5);

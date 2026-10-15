@@ -14,7 +14,7 @@ import { useCity } from "@/lib/store";
 import { type Plan, flightPlan, flightPoint, flightTime } from "./flight";
 import { insideBuilding, sightClear, sightHit } from "./layout";
 import { damp, dayNow, overlays, rig, setLerp } from "./shared";
-import { holdsLive, newSettle, settle } from "@/lib/plates";
+import { liveRest, newSettle, settle } from "@/lib/plates";
 
 const pos = new Vector3();
 const tgt = new Vector3();
@@ -417,6 +417,8 @@ export function CameraRig() {
     held: -1,
     /** Photo-real mode: gliding onto a plate's view at rest (lib/plates.ts). */
     settle: newSettle(),
+    /** Explore: the camera held on the live trace last frame (lib/plates.ts liveRest). */
+    liveHeld: false,
   });
 
   useFrame(({ camera, size, gl }, delta) => {
@@ -572,11 +574,13 @@ export function CameraRig() {
     rig.rest = s.plate && s.pull === 1 ? s.plate : null;
     // Explore: the live trace holds while the camera stays where it was traced from (a drag lets go at once, no glide)
     const traced = day.mode === "explore" ? (rig.live?.entry ?? null) : null;
-    if (traced && holdsLive(traced, camera.position, camera.quaternion)) {
+    const held = liveRest(r.liveHeld, traced, camera.position, camera.quaternion);
+    r.liveHeld = held.held;
+    if (traced && held.snap) {
       camera.position.fromArray(traced.position);
       camera.quaternion.fromArray(traced.quaternion);
-      rig.rest = traced;
     }
+    if (traced && held.rest) rig.rest = traced;
     publishCuso(gl.domElement, camera, size.height);
   });
 

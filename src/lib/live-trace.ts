@@ -27,7 +27,7 @@ export type Live = ReturnType<typeof newLive>;
 const copy = (p: Pose): Pose => ({ position: { ...p.position }, quaternion: { ...p.quaternion } });
 
 /** One frame: `start` a trace from `pose`, `show` the finished one, `drop` what is traced or shown, or `wait`. */
-export function stepLive(s: Live, { pose, dt, explore, done }: { pose: Pose; dt: number; explore: boolean; done: boolean }): "wait" | "start" | "show" | "drop" {
+export function stepLive(s: Live, { pose, dt, explore, done, pressed = false }: { pose: Pose; dt: number; explore: boolean; done: boolean; pressed?: boolean }): "wait" | "start" | "show" | "drop" {
   const had = s.tracing !== null || s.shown !== null;
   if (!explore) {
     Object.assign(s, newLive());
@@ -48,6 +48,13 @@ export function stepLive(s: Live, { pose, dt, explore, done }: { pose: Pose; dt:
     s.tracing = null;
     s.shown = null;
     return had ? "drop" : "wait";
+  }
+  if (pressed) {
+    // the pointer is down: a pause mid-drag, not a rest (a trace would only be thrown away)
+    s.still = 0;
+    if (!s.tracing) return "wait";
+    s.tracing = null;
+    return "drop";
   }
   s.still += dt;
   if (done && s.tracing) {

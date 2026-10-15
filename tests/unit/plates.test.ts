@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Quaternion, Vector3 } from "three";
-import { PLATE_RANGE, cropScale, decodePlate, encodePlate, holdsLive, newSettle, parseManifest, unpadRows, PHOTOREAL_KEY, photorealOn, readPhotorealChoice, savePhotorealChoice, webgpuCapable, plateFor, poseNear, settle, type PlateEntry } from "@/lib/plates";
+import { PLATE_RANGE, cropScale, decodePlate, encodePlate, holdsLive, liveRest, newSettle, parseManifest, unpadRows, PHOTOREAL_KEY, photorealOn, readPhotorealChoice, savePhotorealChoice, webgpuCapable, plateFor, poseNear, settle, type PlateEntry } from "@/lib/plates";
 
 const entry = (o: Partial<PlateEntry> = {}): PlateEntry => ({
   chapter: 0,
@@ -203,5 +203,23 @@ describe("reading a trace back from the GPU", () => {
   it("leaves a width that fills whole rows as it is (1440 wide, as the plates were made)", () => {
     const data = padded(16, 2);
     expect(unpadRows(data, 16, 2)).toBe(data);
+  });
+});
+
+describe("letting go of a live plate", () => {
+  const live = entry({ chapter: -1, position: [10, 40, 0], quaternion: [0, 0, 0, 1] });
+  const still = new Quaternion();
+
+  it("holds the camera on it while it holds", () => {
+    expect(liveRest(false, live, new Vector3(10.02, 40, 0), still)).toEqual({ snap: true, rest: true, held: true });
+  });
+
+  it("on the frame a drag lets go, keeps the camera on it one more frame but ends the rest, so the plate and the water's mirror switch on a frame that matches", () => {
+    expect(liveRest(true, live, new Vector3(10.4, 40, 0), still)).toEqual({ snap: true, rest: false, held: false });
+    expect(liveRest(false, live, new Vector3(10.8, 40, 0), still)).toEqual({ snap: false, rest: false, held: false });
+  });
+
+  it("does nothing without a live plate", () => {
+    expect(liveRest(true, null, new Vector3(), still)).toEqual({ snap: false, rest: false, held: false });
   });
 });
