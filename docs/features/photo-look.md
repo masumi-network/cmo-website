@@ -29,7 +29,20 @@ Tried and dropped: soft wide edges (softness 0.3, scale 2.4) read as wispy strea
 
 ## Foreground
 
-(one foreground prop at the 12:00 shot)
+Code: `src/scene/foreground.tsx` (mounted in `src/scene/union-square.tsx`). Tests: `tests/unit/foreground.test.ts`.
+
+- **What:** out-of-focus leaves close to the lens, in the bottom-right corner of the 12:00 desktop shot, so it reads like a photo taken from behind a tree (like the concept `04-ads.jpg`).
+- **Where:** `FOREGROUNDS` lists props per chapter. One so far, on `ads`: seed 7, depth 1, height 0.28 of the frame, overhang 0.06, opacity 0.96. At 1440x900 its quad covers about x 965 to 1440, y 665 to 900 (under 9% of the frame; the leaves fill part of that).
+- **Never covers** Cuso, his bubble, the billboard ad or the chapter card (x < 458), at 4:3 to 2:1 and at every pointer corner. The test checks it.
+- **Rides with the camera:** the quad faces the lens and sits in the frame's corner for any fov and aspect (`propPose`), so the boom and the pointer never push it onto Cuso. It drifts a little against the pointer and stirs in the breeze (a few px).
+- **Shows only at rest** (`propFade`): full within 0.8 of the shot, gone from 2.0 away, gone when the camera looks more than about 20 degrees away (flights) and in Explore. Phone and tablet shots stand farther off, so they never see it. The opacity eases (no pops after a rail cut).
+- **Per-hour table** `foregroundAt(hour)`, keys like `lightingAt`: only 12:00 has leaves; 09:00 and 15:00 are today's look, so the leaves blend in and out with the hour.
+- **Texture:** a 512x256 canvas, painted at load. About 34 leaves on a bough from the corner (`leafLayout`, seeded): dark and big nearest the lens, lit and smaller at the tips, a few warm sunlit rims. Pre-blurred (canvas `filter: blur`; near leaves 12 px, far leaves 7 px; a shrink-and-stretch where the filter is missing), so it looks right without depth of field and on lite.
+- **Material:** `MeshBasicMaterial`, transparent, no depth write, no depth test, no fog, `renderOrder` 10, DETAIL layer (not in the mirror or the glass probe), no shadows. Always mounted so Ready compiles it; hidden when not shown.
+- **With the post stack:** it writes no depth, so depth of field and AO read the scene behind it: DOF does not blur it twice, and AO from the building behind may darken it a touch.
+- **Dev:** `?look=off` hides it.
+- **Cost:** 1 draw call (one quad) at the 12:00 desktop shot, nothing elsewhere.
+- **Tried and dropped:** thin leaves on visible twigs read as a sprig, and the blur washed them out; a dense mound of small leaves read as a hedge.
 
 ## Measurements
 
