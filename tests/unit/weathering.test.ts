@@ -4,8 +4,8 @@ import { HILLS, PLAZA, heightAt } from "@/lib/terrain";
 import { LAND_BOUNDS } from "@/scene/grid";
 import { CITY } from "@/scene/layout";
 import { downtownMaterial, groundMaterial, houseMaterial } from "@/scene/materials";
-import { contactRects } from "@/scene/textures";
-import { GRIME_TOP, GROUND_GLSL, MAX_GRIME, TONE, WEATHER_GLSL, grime, tone, weather } from "@/scene/weathering";
+import { CONTACT, contactRects } from "@/scene/textures";
+import { FOOT, GRIME_TOP, GROUND_GLSL, MAX_GRIME, TONE, WEATHER_GLSL, grime, tone, weather } from "@/scene/weathering";
 
 const seeds = Array.from({ length: 200 }, (_, i) => (i * 0.618034) % 1);
 const noises = [0, 0.25, 0.5, 0.75, 1];
@@ -51,27 +51,38 @@ describe("grime", () => {
   it("darkens most at the ground and is gone above GRIME_TOP", () => {
     for (const s of seeds) {
       for (const n of noises) {
-        let last = Infinity;
-        for (let h = -0.5; h <= GRIME_TOP + 0.5; h += 0.05) {
-          const g = grime(h, s, n);
-          expect(g).toBeLessThanOrEqual(last + 1e-12);
-          last = g;
+        for (const st of noises) {
+          let last = Infinity;
+          for (let h = -0.5; h <= GRIME_TOP + 0.5; h += 0.05) {
+            const g = grime(h, s, n, st);
+            expect(g).toBeLessThanOrEqual(last + 1e-12);
+            last = g;
+          }
+          expect(grime(0, s, n, st)).toBeGreaterThan(0.25);
+          expect(grime(GRIME_TOP, s, n, st)).toBe(0);
+          expect(grime(GRIME_TOP + 3, s, n, st)).toBe(0);
         }
-        expect(grime(0, s, n)).toBeGreaterThan(0.15);
-        expect(grime(GRIME_TOP, s, n)).toBe(0);
-        expect(grime(GRIME_TOP + 3, s, n)).toBe(0);
       }
     }
   });
 
   it("never darkens more than MAX_GRIME", () => {
-    expect(MAX_GRIME).toBeLessThanOrEqual(0.3);
-    for (const s of seeds) for (const n of noises) for (const h of [-2, -0.1, 0, 0.1]) expect(grime(h, s, n)).toBeLessThanOrEqual(MAX_GRIME);
+    // 0.5, not 0.3: lit walls sit in the tone curve's shoulder, where 0.3 at the ground did not show at the chapter cameras.
+    expect(MAX_GRIME).toBeLessThanOrEqual(0.5);
+    for (const s of seeds) for (const n of noises) for (const st of noises) for (const h of [-2, -0.1, 0, 0.1]) expect(grime(h, s, n, st)).toBeLessThanOrEqual(MAX_GRIME + 1e-12);
   });
 
-  it("varies from building to building", () => {
-    const at0 = seeds.map((s) => grime(0, s, 0.5));
-    expect(Math.max(...at0) - Math.min(...at0)).toBeGreaterThan(0.05);
+  it("reads as a band, not a line: still there half a storey up", () => {
+    for (const s of seeds) expect(grime(0.5, s, 0.5, 0.5)).toBeGreaterThan(0.06);
+    // the foot line is a thin share of it
+    expect(FOOT.h).toBeLessThan(0.3);
+    expect(FOOT.share).toBeLessThan(0.5);
+  });
+
+  it("varies from building to building and stain to stain", () => {
+    const at0 = seeds.map((s) => grime(0.3, s, 0.5, 0.5));
+    expect(Math.max(...at0) - Math.min(...at0)).toBeGreaterThan(0.03);
+    expect(grime(0.3, 0.5, 0.5, 1) - grime(0.3, 0.5, 0.5, 0)).toBeGreaterThan(0.05);
   });
 });
 
@@ -93,22 +104,25 @@ describe("tone per building", () => {
 });
 
 describe("contact shade on the ground", () => {
-  it("covers every house and tower footprint, a little past its walls", () => {
-    const rects = contactRects(CITY);
-    expect(rects).toHaveLength(CITY.houses.length + CITY.towers.length);
-    [...CITY.houses, ...CITY.towers].forEach(({ x, z, w, d }, i) => {
+  it("covers every house, tower and landmark footprint, a little past its walls", () => {
+    const landmarks = [{ x: 7, z: 9, w: 7, d: 5.2 }];
+    const rects = contactRects(CITY, landmarks);
+    expect(rects).toHaveLength(CITY.houses.length + CITY.towers.length + 1);
+    expect(CITY.houses.length + CITY.towers.length).toBeGreaterThan(50);
+    [...CITY.houses, ...CITY.towers, ...landmarks].forEach(({ x, z, w, d }, i) => {
       const [x0, x1, z0, z1] = rects[i];
       expect(x0).toBeLessThan(x - w / 2);
       expect(x1).toBeGreaterThan(x + w / 2);
       expect(z0).toBeLessThan(z - d / 2);
       expect(z1).toBeGreaterThan(z + d / 2);
-      expect(x1 - x0 - w).toBeLessThan(0.5);
+      expect(x1 - x0 - w).toBeCloseTo(2 * CONTACT.pad, 9);
+      expect(CONTACT.pad).toBeLessThanOrEqual(0.3);
     });
   });
 
-  it("darkens the ground under it, at most 0.3", () => {
+  it("darkens the ground under it, at most 0.45", () => {
     const s = compile(groundMaterial(...(Array(6).fill({ isTexture: true }) as Parameters<typeof groundMaterial>)));
-    expect(s.fragmentShader).toMatch(/diffuseColor\.rgb \*= 1\.0 - 0\.3 \* texture2D\(uLamp, vMapUv\)\.g;/);
+    expect(s.fragmentShader).toMatch(/diffuseColor\.rgb \*= 1\.0 - 0\.45 \* texture2D\(uLamp, vMapUv\)\.g;/);
   });
 });
 

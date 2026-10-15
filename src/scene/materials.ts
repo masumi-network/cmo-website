@@ -379,7 +379,7 @@ export function groundMaterial(mask: Texture, light: Texture, asphalt: Texture, 
       vec3 fPaint = vec3(0.6, 0.59, 0.55) * (0.8 + 0.6 * fLuma(fAsphalt));
       diffuseColor.rgb = mix(fBase, fPaint, fMark * (1.0 - fWear));
       // soft shade where buildings meet the ground (contactRects in textures.ts)
-      diffuseColor.rgb *= 1.0 - 0.3 * texture2D(uLamp, vMapUv).g;`,
+      diffuseColor.rgb *= 1.0 - 0.45 * texture2D(uLamp, vMapUv).g;`,
     roughness: "roughnessFactor = mix(roughnessFactor, 0.8, fM.r);",
     // The street lamps' light pools at night (lampLight in textures.ts).
     emissive: "totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.76, 0.48) * texture2D(uLamp, vMapUv).r * uNight * 1.3;",

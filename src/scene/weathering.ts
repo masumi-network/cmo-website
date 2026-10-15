@@ -9,8 +9,10 @@ import { HILLS, PLAZA } from "@/lib/terrain";
 
 /** Grime fades out by this height above the ground (world units, about a storey and a half). */
 export const GRIME_TOP = 1.6;
-/** The most grime darkens anything, right at the ground on the dirtiest building. */
-export const MAX_GRIME = 0.3;
+/** The most grime darkens anything, right at the ground on the dirtiest stain of the dirtiest building. */
+export const MAX_GRIME = 0.5;
+/** A darker line where every wall meets the sidewalk: its height, and its share of MAX_GRIME. */
+export const FOOT = { h: 0.2, share: 0.3 };
 /** How much buildings differ in tone (each channel within ±this); mottle is 1.5 times it. Houses keep their curated palettes. */
 export const TONE = { house: 0.02, downtown: 0.04 };
 /** Undersides (cornices, bays, sills, eaves): this much darker, the contact shade AO used to give. */
@@ -32,11 +34,16 @@ ${HILLS.map(([x, z, a, rx, rz]) => `    wD = (p - vec2(${f(x)}, ${f(z)})) / vec2
     return wH;
   }`;
 
-/** Grime at height h above the ground: n (0..1, noise) moves its top edge, seed sets how dirty the building is. */
-export function grime(h: number, seed: number, n: number) {
+/**
+ * Grime at height h above the ground: the foot line on every wall, and
+ * splash-back whose top edge n (0..1, noise) moves, as dirty as the building
+ * (seed) and the stain it is in (stain, 0..1, a slower noise along the wall).
+ */
+export function grime(h: number, seed: number, n: number, stain: number) {
   const top = GRIME_TOP * (0.6 + 0.4 * n);
   const g = 1 - smoothstep(0, top, h);
-  return MAX_GRIME * (0.65 + 0.35 * fract(seed * 7.13)) * g * g;
+  const dirt = (0.7 + 0.3 * fract(seed * 7.13)) * (0.55 + 0.45 * stain);
+  return MAX_GRIME * (FOOT.share * (1 - smoothstep(0, FOOT.h, h)) + (1 - FOOT.share) * dirt * g);
 }
 
 /** A building's tone: lighter or darker and a little warmer or cooler, each channel within ±a. */
@@ -57,6 +64,7 @@ export const WEATHER_GLSL = /* glsl */ `
   uniform float uWeather;
   const float W_TOP = ${f(GRIME_TOP)};
   const float W_MAX = ${f(MAX_GRIME)};
+  const vec2 W_FOOT = vec2(${f(FOOT.h)}, ${f(FOOT.share)});
   float wHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
   float wNoise(vec2 p) {
     vec2 wI = floor(p);
@@ -66,10 +74,11 @@ export const WEATHER_GLSL = /* glsl */ `
   }
   // Noise whose cells are k pixels across: its average (0.5) once they get too small to show.
   float wFine(float n, float k) { return mix(n, 0.5, smoothstep(0.3, 0.7, k)); }
-  float wGrime(float h, float seed, float n) {
+  float wGrime(float h, float seed, float n, float stain) {
     float wTop = W_TOP * (0.6 + 0.4 * n);
     float wG = 1.0 - smoothstep(0.0, wTop, h);
-    return W_MAX * (0.65 + 0.35 * fract(seed * 7.13)) * wG * wG;
+    float wD = (0.7 + 0.3 * fract(seed * 7.13)) * (0.55 + 0.45 * stain);
+    return W_MAX * (W_FOOT.y * (1.0 - smoothstep(0.0, W_FOOT.x, h)) + (1.0 - W_FOOT.y) * wD * wG);
   }
   vec3 wTone(float seed, float a) {
     float wL = fract(seed * 3.71) * 2.0 - 1.0;
@@ -92,9 +101,11 @@ export function weather(seed: string, glass: string, amount: number) {
     // walls by (along, height), tops by (x, z)
     vec2 wS = wWall > 0.5 ? vec2(dot(vFPos.xz, wAx), vFPos.y) : vFPos.xz;
     float wPx = length(fwidth(vFPos)); // a pixel, in world units
-    // splash-back from the street: the top edge wanders along the wall; half as much on ledges and steps
+    // splash-back from the street: the top edge wanders along the wall, stains come and go along it;
+    // half as much on ledges and steps
     float wN = wFine(wNoise(vec2(wS.x * 2.2, vFPos.y * 0.7) + wSeed * 37.0), wPx * 2.2);
-    float wDirt = wGrime(vFPos.y - wGround(vFPos.xz), wSeed, wN) * (0.5 + 0.5 * wWall);
+    float wStain = wFine(wNoise(vec2(wS.x * 0.9, vFPos.y * 0.5) + wSeed * 19.0), wPx * 0.9);
+    float wDirt = wGrime(vFPos.y - wGround(vFPos.xz), wSeed, wN, wStain) * (0.5 + 0.5 * wWall);
     // varied concrete: big soft patches, and faint streaks down the walls
     float wMot = wFine(wNoise(wS * 0.4 + wSeed * 53.0), wPx * 0.4) * 2.0 - 1.0;
     float wStreak = wWall * smoothstep(0.62, 0.9, wNoise(vec2(wS.x * 4.0, wS.y * 0.15))) * (1.0 - smoothstep(0.3, 0.7, wPx * 4.0));

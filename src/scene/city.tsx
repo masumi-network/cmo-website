@@ -23,11 +23,15 @@ import { Bay, Hills, Water } from "./bay";
 import { HEADLANDS, heightAt, headlandHeight } from "@/lib/terrain";
 import { LAND, streetDrop } from "./grid";
 import { kerbGeometry, relief, terrainGeometry, tiles } from "./ground";
-import { CITY } from "./layout";
+import { CITY, FERRY } from "./layout";
+import { MISSION } from "./mission";
+import { ROOFTOP } from "./rooftop";
+import { SHOP } from "./shop";
+import { UNION } from "./union-square";
 import { groundMaterial, worldMaterial } from "./materials";
 import { Grass } from "./grass";
 import { Houses } from "./houses";
-import { contactRects, groundMask, lampLight } from "./textures";
+import { contactRects, groundMask, lampLight, type Footprint } from "./textures";
 import { StreetFurniture } from "./street";
 import { Towers } from "./towers";
 import { Trees } from "./trees";
@@ -82,6 +86,12 @@ export function City({ lite }: { lite: boolean }) {
 const HILL = 1.5;
 
 /** Cliffs around the shore, and the hilly ground on top with the street map. */
+/** The landmark buildings that stand on the street, for the contact shade: their walls plus what stands out of them (the shopfront), the Ferry Building's plinth. */
+const LANDMARKS: Footprint[] = [
+  ...([[SHOP, SHOP.relief], [UNION, UNION.relief], [MISSION, 0], [ROOFTOP, 0]] as const).map(([{ x0, x1, z0, z1 }, out]) => ({ x: (x0 + x1) / 2, z: (z0 + z1) / 2, w: x1 - x0 + 2 * out, d: z1 - z0 + 2 * out })),
+  { x: FERRY.x, z: FERRY.z, w: FERRY.plinth[0], d: FERRY.plinth[2] },
+];
+
 function Land({ tex, lite }: { tex: Textures; lite: boolean }) {
   const cliffs = useMemo(() => {
     // One point per unit along the shore, so the wall's top can follow the hills.
@@ -110,7 +120,7 @@ function Land({ tex, lite }: { tex: Textures; lite: boolean }) {
   const kerbs = useMemo(() => (lite ? tiles(kerbGeometry()) : [kerbGeometry()]), [lite]);
   // Concrete kerbs: the shade (top edge, face, gutter) is in the vertex colours.
   const kerbMaterial = useMemo(() => new MeshStandardMaterial({ map: tex.concrete, vertexColors: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), [tex.concrete]);
-  const ground = useMemo(() => groundMaterial(groundMask(), lampLight(CITY.lamps, contactRects(CITY)), tex.asphalt, tex.concrete, tex.grass, tex.hills), [tex.asphalt, tex.concrete, tex.grass, tex.hills]);
+  const ground = useMemo(() => groundMaterial(groundMask(), lampLight(CITY.lamps, contactRects(CITY, LANDMARKS)), tex.asphalt, tex.concrete, tex.grass, tex.hills), [tex.asphalt, tex.concrete, tex.grass, tex.hills]);
 
   return (
     <>

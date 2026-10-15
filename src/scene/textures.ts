@@ -97,13 +97,14 @@ export function groundMask() {
   });
 }
 
-type Footprint = { x: number; z: number; w: number; d: number };
-/** How far the contact shade reaches past a building's walls at full strength (it then fades over about as much). */
-const CONTACT_PAD = 0.15;
+export type Footprint = { x: number; z: number; w: number; d: number };
+/** The contact shade: `pad` past a building's walls at about full strength, then it fades out over `blur` (world units). */
+export const CONTACT = { pad: 0.25, blur: 0.6 };
 
-/** Every house and tower footprint [x0, x1, z0, z1], a little larger, for the contact shade in lampLight. */
-export function contactRects(city: { houses: Footprint[]; towers: Footprint[] }) {
-  return [...city.houses, ...city.towers].map(({ x, z, w, d }) => [x - w / 2 - CONTACT_PAD, x + w / 2 + CONTACT_PAD, z - d / 2 - CONTACT_PAD, z + d / 2 + CONTACT_PAD] as const);
+/** Every house, tower and landmark footprint [x0, x1, z0, z1], a little larger, for the contact shade in lampLight. */
+export function contactRects(city: { houses: Footprint[]; towers: Footprint[] }, landmarks: Footprint[] = []) {
+  const p = CONTACT.pad;
+  return [...city.houses, ...city.towers, ...landmarks].map(({ x, z, w, d }) => [x - w / 2 - p, x + w / 2 + p, z - d / 2 - p, z + d / 2 + p] as const);
 }
 
 /**
@@ -124,7 +125,7 @@ export function lampLight(lamps: { x: number; z: number }[], contact: readonly (
     }
     // Blurred by drawing each rectangle off the canvas and only its shadow on it (ctx.filter is not everywhere).
     const off = ctx.canvas.width;
-    Object.assign(ctx, { shadowColor: "#00ff00", shadowBlur: 4 * CONTACT_PAD * PX, shadowOffsetX: off, fillStyle: "#00ff00" });
+    Object.assign(ctx, { shadowColor: "#00ff00", shadowBlur: CONTACT.blur * PX, shadowOffsetX: off, fillStyle: "#00ff00" });
     for (const [x0, x1, z0, z1] of contact) ctx.fillRect(X(x0) - off, Z(z0), (x1 - x0) * PX, (z1 - z0) * PX);
   });
 }

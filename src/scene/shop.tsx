@@ -23,6 +23,7 @@ import { Instances, useBrand, type V3 } from "./parts";
 import { useInterior, useNightGlow } from "./shared";
 import { Lamps } from "./street";
 import { useSign } from "./textures";
+import { GROUND_GLSL, TONE, WEATHER_GLSL, weather } from "./weathering";
 
 /** The sign face in world units [width, height]; its canvas follows the same shape. */
 export const SHOP_SIGN = [6.8, 0.8] as const;
@@ -923,7 +924,8 @@ const glslList = (list: number[][]) => list.map((v) => `vec${v.length}(${v.map((
  * light is baked from the room itself: daylight from the shopfront, fading to
  * the back; darker corners and floor edges; soft contact shadows under the
  * tables, the counter and the banquette; a warm pool under each pendant. No
- * real-time lights or shadows inside.
+ * real-time lights or shadows inside. Outside (glow 0), the shopfront weathers
+ * like the buildings (weathering.ts): grime up from the sidewalk.
  */
 function paintedMaterial(atlas: { value: Texture | null }) {
   const M = CAFE_MAT;
@@ -932,9 +934,13 @@ function paintedMaterial(atlas: { value: Texture | null }) {
   m.onBeforeCompile = (s) => {
     s.uniforms.uNight = facadeNight;
     s.uniforms.uAtlas = atlas;
+    s.uniforms.uWeather = { value: TONE.house };
     s.vertexShader = s.vertexShader
-      .replace("#include <common>", "#include <common>\nattribute float aGlow;\nattribute float aMat;\nvarying float vGlow;\nvarying float vMat;\nvarying vec3 vLocal;\nvarying vec3 vObjN;\nvarying vec2 vAtlasUv;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvGlow = aGlow;\nvMat = aMat;\nvLocal = position;\nvObjN = normal;\nvAtlasUv = uv;");
+      .replace("#include <common>", "#include <common>\nattribute float aGlow;\nattribute float aMat;\nvarying float vGlow;\nvarying float vMat;\nvarying vec3 vLocal;\nvarying vec3 vObjN;\nvarying vec2 vAtlasUv;\nvarying vec3 vFPos;\nvarying vec3 vFNormal;")
+      .replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\nvGlow = aGlow;\nvMat = aMat;\nvLocal = position;\nvObjN = normal;\nvAtlasUv = uv;\nvFPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvFNormal = normalize(mat3(modelMatrix) * objectNormal);",
+      );
     s.fragmentShader = s.fragmentShader
       .replace(
         "#include <common>",
@@ -946,6 +952,10 @@ function paintedMaterial(atlas: { value: Texture | null }) {
         varying vec3 vLocal;
         varying vec3 vObjN;
         varying vec2 vAtlasUv;
+        varying vec3 vFPos;
+        varying vec3 vFNormal;
+        ${GROUND_GLSL}
+        ${WEATHER_GLSL}
         int sMat = 0;
         vec3 sP = vec3(0.0);
         vec3 sN = vec3(0.0, 1.0, 0.0);
@@ -1160,7 +1170,8 @@ function paintedMaterial(atlas: { value: Texture | null }) {
             // what the real scene lights add on top (environment, the sun through the glass) stays small
             diffuseColor.rgb *= mix(0.2, 0.12, uNight) * ao;
           }
-        }`,
+        }
+        ${weather("0.37", "step(0.5, vGlow)", TONE.house).glsl}`,
       )
       .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nif (sRough >= 0.0) roughnessFactor = sRough;")
       .replace("#include <metalnessmap_fragment>", "#include <metalnessmap_fragment>\nmetalnessFactor = max(metalnessFactor, sMetal);")
