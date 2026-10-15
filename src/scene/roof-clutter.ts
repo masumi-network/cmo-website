@@ -11,7 +11,7 @@
 
 import { chapters } from "@/content/day";
 import { BODY_DEPTH, H, W } from "./house-models";
-import { CITY, HOUSE_GAP, type House, type Tower } from "./layout";
+import { CITY, HOUSE_GAP, blocksView, type House, type Tower } from "./layout";
 import { towerPieces, towerStyle } from "./towers";
 
 export type Kind = "hvac" | "vent" | "bulkhead" | "skylight" | "antenna";
@@ -55,21 +55,6 @@ const inside = (a: Rect, b: Rect) => a.x0 >= b.x0 && a.x1 <= b.x1 && a.z0 >= b.z
 export function footprint({ kind, x, z, turn }: Pick<Item, "kind" | "x" | "z" | "turn">): Rect {
   const { w, d } = SIZE[kind];
   return turn ? rect(x, z, d, w) : rect(x, z, w, d);
-}
-
-/** Same test as layout.ts blocksView, over every chapter's desktop and phone shot. */
-function blocksShot(x: number, z: number, h: number, r: number) {
-  return chapters.some((c) =>
-    [c.camera, c.phone].some(({ position: p, target: q }) => {
-      for (let s = 0; s <= 1.0001; s += 0.04) {
-        const px = p[0] + (q[0] - p[0]) * s;
-        const py = p[1] + (q[1] - p[1]) * s;
-        const pz = p[2] + (q[2] - p[2]) * s;
-        if (Math.hypot(px - x, pz - z) < r + 1.2 && py < h + 0.8) return true;
-      }
-      return false;
-    }),
-  );
 }
 
 const nearSpot = (r: Rect) =>
@@ -149,7 +134,7 @@ export function roofClutter(lite: boolean): Item[] {
         const z = roof.z0 + fd / 2 + rand() * (roof.z1 - roof.z0 - fd);
         const f = rect(x, z, fw, fd);
         if (!inside(f, roof) || roof.taken.some((t) => overlap(f, t)) || placed.some((p) => overlap(f, shrink(p, -GAP)))) continue;
-        if (blocksShot(x, z, roof.y + h, Math.max(w, d) / 2)) continue;
+        if (blocksView(x, z, roof.y + h, Math.max(w, d) / 2)) continue;
         placed.push(f);
         out.push({ kind, x, y: roof.y, z, turn, roof: index });
         break;

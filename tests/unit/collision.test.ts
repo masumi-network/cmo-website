@@ -21,7 +21,7 @@ import { MISSION } from "@/scene/mission";
 import { HULL } from "@/scene/rig";
 import { SHOP } from "@/scene/shop";
 import { HYDRANT, LAMP, SIGN } from "@/scene/street";
-import { DAY_LENGTH, FACE, arrival, dayDistance, sampleDay, walkOn } from "@/scene/routes";
+import { DAY_LENGTH, arrival, dayDistance, sampleDay, walkOn } from "@/scene/routes";
 
 /** An axis-aligned box. `slope`: each side moves in by this much per unit up (the pyramid). */
 type Solid = { name: string; x0: number; x1: number; y0: number; y1: number; z0: number; z1: number; slope?: number };
@@ -186,10 +186,9 @@ function hit(pos: readonly number[], heading: number, solids = SOLIDS): string |
   return null;
 }
 
-/** Where he faces while moving (as cuso.tsx does): the move's fixed heading, or a point 1.6 ahead on the line. */
+/** Where he faces while moving (as cuso.tsx does): a point 1.6 ahead on the line. */
 function facing(d: number, dir: 1 | -1, prev: number) {
-  const { pos: here, face } = sampleDay(d);
-  if (face !== null) return face;
+  const { pos: here } = sampleDay(d);
   const ahead = sampleDay(d + dir * 1.6).pos;
   const dx = ahead[0] - here[0];
   const dz = ahead[2] - here[2];
@@ -221,19 +220,21 @@ describe("Cuso's body never goes through anything", () => {
     expect([...misses.values()]).toEqual([]);
   });
 
-  it("standing on each spot: turning to the camera and cheering", () => {
+  it("standing on each spot: turning to the camera (desktop or phone) and cheering", () => {
     const misses = new Set<string>();
     chapters.forEach((ch, i) => {
-      const rest = FACE[ch.id] ?? Math.atan2(ch.camera.position[0] - ch.spot[0], ch.camera.position[2] - ch.spot[2]);
-      // the way he faces when he gets there, from either side
-      const d = dayDistance(i, 0);
-      const arrivals = [i > 0 && facing(d - STEP, 1, rest), i < chapters.length - 1 && facing(d + STEP, -1, rest)].filter((h): h is number => h !== false);
-      for (const from of arrivals.length ? arrivals : [rest]) {
-        const turn = Math.atan2(Math.sin(rest - from), Math.cos(rest - from));
-        for (let k = 0; k <= 12; k++) {
-          for (const hop of [0, 0.55]) {
-            const thing = hit([ch.spot[0], ch.spot[1] + hop, ch.spot[2]], from + (turn * k) / 12);
-            if (thing) misses.add(`${ch.id}${hop ? " (cheering)" : ""}: inside ${thing}`);
+      for (const shot of [ch.camera, ch.phone]) {
+        const rest = Math.atan2(shot.position[0] - ch.spot[0], shot.position[2] - ch.spot[2]);
+        // the way he faces when he gets there, from either side
+        const d = dayDistance(i, 0);
+        const arrivals = [i > 0 && facing(d - STEP, 1, rest), i < chapters.length - 1 && facing(d + STEP, -1, rest)].filter((h): h is number => h !== false);
+        for (const from of arrivals.length ? arrivals : [rest]) {
+          const turn = Math.atan2(Math.sin(rest - from), Math.cos(rest - from));
+          for (let k = 0; k <= 12; k++) {
+            for (const hop of [0, 0.55]) {
+              const thing = hit([ch.spot[0], ch.spot[1] + hop, ch.spot[2]], from + (turn * k) / 12);
+              if (thing) misses.add(`${ch.id}${hop ? " (cheering)" : ""}: inside ${thing}`);
+            }
           }
         }
       }

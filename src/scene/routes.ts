@@ -14,8 +14,8 @@ import { STREET, WALK_OFFSET, WALK_X, WALK_Z, X_STREETS, Z_STREETS, streetDrop }
 
 export type Mode = "walk" | "dash" | "jump";
 
-/** How a move arrives at `p`. "street" becomes walk near the ends, dash in between. `face`: a fixed heading for the move. */
-type Step = { p: Vec3; how?: "walk" | "jump" | "street"; face?: number };
+/** How a move arrives at `p`. "street" becomes walk near the ends, dash in between. */
+type Step = { p: Vec3; how?: "walk" | "jump" | "street" };
 
 /** Walk this far at each end of a street stretch before/after dashing. */
 const WALK_ENDS = 4;
@@ -51,8 +51,6 @@ const APPROACH: Record<ChapterId, Step[]> = {
 };
 /** Moves onto the spot that are jumps (the pyramid tip). */
 const JUMP_TO_SPOT: ChapterId[] = ["seo"];
-/** Spots he faces a fixed way on (and hops on and off facing it) instead of turning to the camera. None today. */
-export const FACE: Partial<Record<ChapterId, number>> = {};
 
 type Node = { x: number; z: number; lines: string[] };
 
@@ -100,20 +98,19 @@ function routeSteps(a: number, b: number): Step[] {
   const out = [...APPROACH[A.id]].reverse();
   // Leaving retraces the approach: a jump in is a jump out.
   const leave: Step[] = [{ p: A.spot }];
-  out.forEach((s, i) => leave.push({ p: s.p, how: (i === 0 ? JUMP_TO_SPOT.includes(A.id) : out[i - 1].how === "jump") ? "jump" : "walk", face: i === 0 ? FACE[A.id] : undefined }));
+  out.forEach((s, i) => leave.push({ p: s.p, how: (i === 0 ? JUMP_TO_SPOT.includes(A.id) : out[i - 1].how === "jump") ? "jump" : "walk" }));
   const inn = APPROACH[B.id].map((s, i) => (i === 0 ? { ...s, how: "street" as const } : s));
   const middle = streetWalk(leave[leave.length - 1].p, inn[0].p);
-  return [...leave, ...middle, ...inn, { p: B.spot, how: JUMP_TO_SPOT.includes(B.id) ? "jump" : "walk", face: FACE[B.id] }];
+  return [...leave, ...middle, ...inn, { p: B.spot, how: JUMP_TO_SPOT.includes(B.id) ? "jump" : "walk" }];
 }
 
-/** `modes[i]` / `ground[i]` / `face[i]`: how the move arriving at point i goes, whether it follows the terrain, a fixed heading. */
-export type Path = { points: Vec3[]; modes: Mode[]; ground: boolean[]; face: (number | null)[]; cum: number[]; length: number };
+/** `modes[i]` / `ground[i]`: how the move arriving at point i goes, whether it follows the terrain. */
+export type Path = { points: Vec3[]; modes: Mode[]; ground: boolean[]; cum: number[]; length: number };
 
 function makePath(steps: Step[]): Path {
   const points: Vec3[] = [steps[0].p];
   const how: Step["how"][] = ["walk"];
   const ground: boolean[] = [false];
-  const face: (number | null)[] = [null];
   for (let i = 1; i < steps.length; i++) {
     const a = steps[i - 1].p;
     const b = steps[i].p;
@@ -127,7 +124,6 @@ function makePath(steps: Step[]): Path {
       points.push(onGround ? [x, surfaceAt(x, z), z] : [x, a[1] + (b[1] - a[1]) * t, z]);
       how.push(h);
       ground.push(onGround);
-      face.push(steps[i].face ?? null);
     }
   }
   const cum = [0];
@@ -151,7 +147,7 @@ function makePath(steps: Step[]): Path {
     for (let k = i; k <= j; k++) modes[k] = cum[k] - start > WALK_ENDS && end - cum[k - 1] > WALK_ENDS ? "dash" : "walk";
     i = j + 1;
   }
-  return { points, modes, ground, face, cum, length: cum[cum.length - 1] };
+  return { points, modes, ground, cum, length: cum[cum.length - 1] };
 }
 
 /** One path per move: PATHS[i] goes from chapter i to chapter i + 1. */
@@ -173,8 +169,6 @@ export type Sample = {
   mode: Mode;
   /** 0..1 through the current segment (the jump arc uses it). */
   u: number;
-  /** A fixed heading for this move (see FACE), or null: face where he goes. */
-  face: number | null;
 };
 
 /** He hops a kerb: up this far before it, down this far after it. */
@@ -219,7 +213,7 @@ export function samplePath(path: Path, t: number): Sample {
   // straight up beside a wall: fast off the ground, slowing at the top; straight down: falling faster
   else if (mode === "jump") pos[1] = a[1] + (b[1] - a[1]) * (b[1] > a[1] ? 1 - (1 - u) ** 2 : u * u);
   const heading = Math.atan2(b[0] - a[0], b[2] - a[2]);
-  return { pos, heading, s, mode, u, face: path.face[i] };
+  return { pos, heading, s, mode, u };
 }
 
 /** Sample anywhere on the day line: which move, and where on it. */

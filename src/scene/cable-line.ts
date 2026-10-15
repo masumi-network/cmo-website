@@ -99,8 +99,7 @@ const SAMPLE = 0.05;
 
 /** Which way he faces at day distance d going `dir` along it (as cuso.tsx turns him). */
 function facing(d: number, dir: number) {
-  const { pos, face } = sampleDay(d);
-  if (face !== null) return face;
+  const { pos } = sampleDay(d);
   const ahead = sampleDay(d + dir * 1.6).pos;
   return Math.atan2(ahead[0] - pos[0], ahead[2] - pos[2]);
 }

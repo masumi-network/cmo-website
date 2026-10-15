@@ -123,12 +123,8 @@ export function Cuso() {
     rig.placed = true;
 
     // Face where he is going (looking a bit ahead so corners are smooth), or the camera at rest.
-    // Some moves and spots have a fixed heading (the cable car step is too narrow to turn on):
-    // he spins to it quickly, before he lands.
     let yaw: number;
-    if (now.face !== null) {
-      yaw = now.face;
-    } else if (moving) {
+    if (moving) {
       const ahead = sampleDay(m.d + Math.sign(gap) * 1.6).pos;
       const dx = ahead[0] - now.pos[0];
       const dz = ahead[2] - now.pos[2];
@@ -136,7 +132,7 @@ export function Cuso() {
     } else {
       yaw = Math.atan2(camera.position.x - now.pos[0], camera.position.z - now.pos[2]);
     }
-    b.rotation.y = m.turnNow ? yaw : angleDamp(b.rotation.y, yaw, damp(now.face !== null ? 25 : moving ? 7 : 3, dt));
+    b.rotation.y = m.turnNow ? yaw : angleDamp(b.rotation.y, yaw, damp(moving ? 7 : 3, dt));
     m.turnNow = false;
     rig.heading = b.rotation.y;
 
