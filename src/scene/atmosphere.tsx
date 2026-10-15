@@ -40,6 +40,25 @@ function shadowsMoved(camera: Camera) {
   );
 }
 
+const FOG = { story: { near: 70, far: 340 }, explore: { near: 260, far: 900 } };
+
+/**
+ * Distance fog for a camera `distance` from what it looks at. Explore pushes it far out, so the whole map shows. In
+ * the story it is close (shots stand 6 to 36 m off), except while the camera is still high above the city after an
+ * Explore pin: the fog eases in as it comes down (switched with the mode, it hid the city in a white haze).
+ */
+export function fogRange(distance: number, explore: boolean) {
+  if (explore) return { ...FOG.explore };
+  const e = overhead(distance);
+  return { near: FOG.story.near + (FOG.explore.near - FOG.story.near) * e, far: FOG.story.far + (FOG.explore.far - FOG.story.far) * e };
+}
+
+/** 0 within 50 of what the camera looks at (every story shot), 1 from 120 (Explore's map), eased between. */
+export function overhead(distance: number) {
+  const k = Math.min(Math.max((distance - 50) / (120 - 50), 0), 1);
+  return k * k * (3 - 2 * k);
+}
+
 export function Atmosphere({ lite }: { lite: boolean }) {
   const sun = useRef<DirectionalLight>(null);
   const hemi = useRef<HemisphereLight>(null);
@@ -129,8 +148,7 @@ export function Atmosphere({ lite }: { lite: boolean }) {
     }
 
     fog.color.set(L.fog);
-    fog.near = explore ? 260 : 70;
-    fog.far = explore ? 900 : 340;
+    Object.assign(fog, fogRange(camera.position.distanceTo(rig.target), explore));
 
     sky.uniforms.top.value.set(L.skyTop);
     sky.uniforms.horizon.value.set(L.skyHorizon);

@@ -17,7 +17,8 @@ import { headlandHeight, heightAt } from "@/lib/terrain";
 import { WATER_Y } from "./bay";
 import { insideLand } from "./grid";
 import { GG } from "./landmarks";
-import { dayNow, detail } from "./shared";
+import { overhead } from "./atmosphere";
+import { dayNow, detail, rig } from "./shared";
 
 const PALE = "#fbf8f2";
 const SUNSET = "#f1c6a2";
@@ -240,6 +241,7 @@ const fragmentShader = /* glsl */ `
   uniform vec4 uBox;
   uniform vec3 uColor;
   uniform float uAlpha;
+  uniform float uFade;
   uniform float uTime;
   uniform float uSpacing;
   uniform mat4 projectionMatrix;
@@ -294,7 +296,7 @@ const fragmentShader = /* glsl */ `
     float a = edgeOn * smoothstep(top + 0.5, top - 2.9, y) * smoothstep(ground, ground + fade, vWorld.y);
     if (a < 0.004) discard;
     // Brighter on top, where the sky lights it; softer and a little darker underneath.
-    gl_FragColor = vec4(uColor * (0.76 + 0.2 * smoothstep(top - 2.5, top, y)), a * uAlpha);
+    gl_FragColor = vec4(uColor * (0.76 + 0.2 * smoothstep(top - 2.5, top, y)), a * uAlpha * uFade);
     #include <colorspace_fragment>
     #include <fog_fragment>
   }
@@ -319,6 +321,8 @@ export function Fog({ lite }: { lite: boolean }) {
         // The whole stack at full density lets a few percent of what is behind through.
         uAlpha: { value: 1 - Math.pow(0.06, 1 / count) },
         uTime: { value: 0 },
+        /** 1 in the story; fades in as the camera comes down from Explore's height (it popped in, a cloud by the city) */
+        uFade: { value: 1 },
         uSpacing: { value: (LAYER_Y[1] - LAYER_Y[0]) / (count - 1) },
       },
     ]);
@@ -327,9 +331,10 @@ export function Fog({ lite }: { lite: boolean }) {
     return [make({}), make({ SAMPLE_DEPTH: "" })];
   }, [map, count]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
     const u = materials[0].uniforms;
     u.uTime.value = clock.elapsedTime;
+    u.uFade.value = 1 - overhead(camera.position.distanceTo(rig.target));
     (u.uColor.value as Color).set(fogTint(dayNow().hour));
   });
 
