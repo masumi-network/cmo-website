@@ -17,6 +17,7 @@ import { AdditiveBlending, BoxGeometry, BufferGeometry, type Group, CircleGeomet
 import { heightAt } from "@/lib/terrain";
 import { damp, rig, useInterior, useNightGlow } from "./shared";
 import { CarModel, Rails } from "./cable-car";
+import { Foreground } from "./foreground";
 import { LINE, carGround, holdsAtUnion, stepCar, unionCar, type CusoAt } from "./cable-line";
 import { chapters } from "@/content/day";
 import { useCity } from "@/lib/store";
@@ -658,6 +659,7 @@ export function UnionSquare() {
     {/* its cable line runs along the street below, west of the Bay Bridge ramp */}
     <Rails x0={LINE.rails[0]} x1={LINE.rails[1]} z={LINE.z} />
     <RunningCar />
+    <Foreground />
     </>
   );
 }
