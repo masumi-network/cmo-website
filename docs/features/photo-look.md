@@ -72,4 +72,5 @@ Look test, 2026-10-15. Union Square at rest, 1440x900, DPR 1, headed Chromium on
 - Other hours and phones: no measurable change (passes off, grade only).
 - The GPU clock swings about 1.5 ms between runs: compare runs from one session.
 - Ambient occlusion was then dropped (see Post): it showed only under cornices and in window recesses here.
+- Without it, same method, same day: before 6.1 to 7.3 ms (216 to 219 draw calls), after 9.0 ms (232 draw calls). About +2.4 ms GPU at 12:00 on desktop, CPU unchanged, 120 fps held.
 - The biggest gap left to the concept is the shot itself: the concept looks down a hill at the skyline and the bay. Ours looks up at the billboard from the next roof.
