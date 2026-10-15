@@ -1,13 +1,13 @@
 # F12 · Photo-real mode (v0)
 
-Last updated: 2026-10-14 · Status: v0, on by itself on capable desktops · Launch: ok
+Last updated: 2026-10-15 · Status: v0, on by itself on capable desktops · Launch: ok
 
 ## What it is
 - On desktop, each chapter's rest view shows as a pre-traced plate: the static city path-traced once, at build time, with Cuso, cars, boats and the visitor's brand drawn live on top. Phones and lite mode never get it.
 - When it is on (`photorealOn` in lib/plates.ts), first that applies: `?photoreal` (or `?photoreal=0`) for development, `NEXT_PUBLIC_PHOTOREAL=1`, the visitor's setting, and else on by itself where the GPU has a WebGPU adapter (`webgpuCapable`: a software fallback adapter does not count). Plates draw in WebGL; the adapter is only the sign of a capable desktop.
 - The settings button in the top bar (desktop, 3D, not lite) holds one switch, "Photo-real light". It is remembered in `localStorage` (`cmo.photoreal`, `on` or `off`); blocked storage means it works for the visit only. Turning it off at rest restores the city at once (`leave` in plates.tsx); turning it on at rest shows the plate in about a second.
 - The adapter check is async, so on a capable desktop the mode turns on a moment after load, before the camera first rests.
-- While scrolling, the city renders as today. Screen-space effects were measured and left out: too slow for what they add (below).
+- While scrolling, the city renders as today, but lit by baked light probes: the traced bounce and sky light for the hour, in place of today's flat studio and hemisphere light (below). Screen-space effects were measured and left out: too slow for what they add.
 - Team research page: https://claude.ai/code/artifact/02617856-3933-4608-98f4-9c6aa0bfe0ca
 
 ## How it works (`src/scene/plates.tsx`, `src/lib/plates.ts`)
@@ -18,6 +18,33 @@ Last updated: 2026-10-14 · Status: v0, on by itself on capable desktops · Laun
 - Then the plate fades in over the city (0.4 s). At rest the static city is drawn only as a shadow catcher (`splitScene`): its depth hides live objects behind walls, and live objects' shadows multiply onto the plate (static casters off, the plate has their shadows). The sky dome, lines and transparent bits hide; custom shader effects (the fog bank) stay live.
 - Moving again restores the city at once. The canvas carries `data-plate` = `off`, `fade` or `rest` for tests.
 - Live objects are marked `userData={LIVE}` (shared.ts): Cuso, cars, boats and ferry, cable cars, the Union Square billboard, the shop sign and interior.
+
+## Light probes while moving (`src/scene/probes.tsx`, `src/lib/probes.ts`)
+- A grid of probes over the city: 64 x 14 x 54 at 3 m (x -96..96, y -3..39, z -96..66; the chapter cameras sit within 35 m of the middle). Each holds the light arriving from every direction as L1 spherical harmonics (12 numbers), per chapter hour (06, 07, 09, 12, 15, 18, 22; 06:00 tomorrow reuses 06:00).
+- Traced without the sun's direct light or the lamps' (rays leaving a probe never meet a punctual light): bounced light and sky only. The raster keeps drawing the sun, lamps and shadows itself. At night the trace's two fill lights (`studioFill`) are added to each probe directly, as the raster's studio light shows them.
+- Every lit material gets a small patch at load, desktop only (`patchProbes` in `Ready`, before shaders compile; phones and lite never get it). Where `cityProbesMix` is above 0 the probes' irradiance replaces the environment's diffuse part and the hemisphere light; reflections stay as they are. The hour blends between the two baked hours around it (`hourBlend`), 8 texture reads a pixel. Past the grid's edge (the last 4%) it fades back to today's light.
+- `<Probes on={photoreal}>` downloads `public/probes/` the first time photo-real is on, then fades the probes in or out in about half a second: the settings switch costs no recompile. Off, the materials draw exactly as today. The canvas carries `data-probes` = `on` or `off` for tests.
+- Storage: 8 bits a number, scaled per hour by the 99.9th percentile probe (a few inside glowing things clip), gzipped. Unzipped in the page (`probeBytes`), or taken as is if a host already unzipped it.
+
+Measured (2026-10-15, this Mac, 1440 x 900):
+
+| | Before | After |
+| --- | --- | --- |
+| Download (desktop, photo-real on) | plates only | + 1.41 MB (`probes.bin.gz`, 4.06 MB unzipped) and a 1 KB manifest |
+| Phones and lite | today | today: no patch, no download |
+| GPU per frame, chapter views with the city drawn live (median of 480 frames, 7 chapters) | 5.48 ms (switch off) | 5.39 ms (probes on): no measurable cost, views vary by about 1 ms run to run |
+| GPU per frame mid-leg, today's code vs probes on (120 frames a leg) | 6.47 ms | 5.33 ms: within the noise of a moving camera |
+
+- Look: shaded sides turn cool and darker like the traced plates (Union Square's towers and parapet), open ground gets blue sky from above and warm bounce from below, night is close to today. Roofs read a little lighter than the trace (probes just above a roof see more sky than the roof does).
+- Measure again: `SWITCH=1 FRAMES=480 node scripts/frame-bench.mjs` (plates blocked, photo-real switched on and off on the same frame, EXT_disjoint_timer_query_webgl2).
+
+## Baking probes
+- `node scripts/probes.mjs` with the dev server running (`SPP`, default 64). About 7 minutes on this Mac; one GPU browser at a time. Writes `public/probes/probes.bin.gz` and `manifest.json`.
+- The lab's `?raytrace=probes` mode (`src/scene/probe-lab.ts`) swaps the tracer's camera for one that starts every ray at a probe: each 8 x 8 tile of a 2000 x 1552 image is one probe, each pixel one equal-area direction cell (`getCameraRayFn`, WGSL). The twins, sky and hour are as for plates.
+- Fireflies: a ray off glass or water can catch the sun's glint in one cell. Cells are clamped at radiance 4 before projecting (sky and sunlit walls stay under 2); unclamped, one outlier set 18:00's scale to 1,246 and rounded most probes to zero.
+- Probes inside buildings or under the ground: the tracer passes through the back of one-sided surfaces, so they saw open sky and brightened walls blue. Of 16 rays from each probe (three-mesh-bvh raycasts on the tracer's BVHs, every material two-sided for the test), more than 4 meeting a back face means inside: 4,022 probes (8%). Each takes the mean of its outside neighbours, 3 passes (`dilateProbes`).
+- The readback comes out upside down; the last tile row is part empty, so its side shows which way up it is (by colour: the copy writes alpha 1 everywhere).
+- Re-bake after changing the static city, its materials, or the lighting at an hour.
 
 ## Baking plates
 - Needs the dev server and a real GPU: `node scripts/plates.mjs <check-dir> [chapters]` (default all 8). About 70 s a chapter at 128 samples, then a check: `<i>-photoreal.png` next to `<i>-today.png`.
@@ -66,14 +93,10 @@ What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `ray
 - House windows: about half light up at night, warm, by window and house as the shader picks them (the GPU's 32-bit hash picks a similar share, not the same windows).
 - Downtown towers (`downtown`): the vertex tint times a generated window tile per surface kind (curtain wall, sash, steel, shopfront; `facade-maps.ts`), laid on the wall grid (`aUv`) with a whole-cell offset per tower and face. Each tile carries colour, roughness and metalness, and the night's lit windows (runs along busy floors) as an emissive map scaled by the hour's night. Flat tops are tar. Landmark stone (`tower`): the facade tile in world units, like bridge steel.
 
-## Lightmaps: first measure (2026-10-15)
-- Goal (team doc): bake light per chapter hour so the city keeps bounced light while moving.
-- Dev only: `?raytrace=uv` (`src/scene/lightmap-lab.ts`) unwraps every static mesh with `xatlas-web` and puts the numbers on `window.__uv`. It needs the wasm in the gitignored `public/lab/`: `cp node_modules/xatlas-web/dist/xatlas-web.wasm public/lab/`. The package is a web-only build (it will not load in Node).
-- The static city: 352 meshes. 332 plain (1.9 M vertices, 819 k triangles), 16 instanced (1,853 instances: the shop shell, small parts), 2 batched (trees).
-- Unwrapping all 332 took 552 s on this Mac; one 38 k-vertex mesh alone took 500 s. Without it, about 52 s. Far too slow for the page: UVs would have to ship.
-- xatlas re-indexes each mesh (seams split vertices): 1.75 M new vertices. Shipping a second UV set means UVs, a vertex remap and new index buffers, about 20 MB before compression, plus every custom attribute remapped. Any change to the city's geometry breaks both the UVs and the lightmaps.
-- `xatlas-web` 0.1.0 takes no options (texel density, padding, atlas size), and three-gpu-pathtracer's own wrapper writes 16-bit indices: meshes over 65,535 vertices (eight of ours) are not safe with it.
-- The bake side is open: the tracer takes any camera with a `getCameraRayFn()` (WGSL `getCameraRay`, see `EquirectCameraShim`). A camera that starts each ray on a surface point (a lightmap texel or a probe) reuses the whole tracer, twins and sky included. Rays leaving a surface never see the sun directly (it is a directional light, sampled only at hits), so the result is bounced light plus sky: exactly what the raster lacks next to its own sun and shadows.
+## Lightmaps: measured and set aside (2026-10-15)
+- The team doc asked for light baked per chapter hour. Lightmaps on a second UV set were measured first (a dev probe, since removed): xatlas-web took 552 s to unwrap the 332 static meshes (1.9 M vertices; one mesh alone 500 s) and split them into 1.75 M vertices, about 20 MB of UVs, vertex maps and index buffers to ship, all invalid after any geometry change. `xatlas-web` 0.1.0 also takes no options and the tracer's wrapper writes 16-bit indices.
+- Decision (Francis, 2026-10-15): light probes instead (above). No second UV set, nothing tied to the geometry, and Cuso and the traffic get the bounced light too. They are softer: no sharp contact shading.
+- three r186 ships its own `LightProbeGrid` (L2), but it only adds light and clamps below zero, so it cannot darken shaded corners or stand in for today's ambient: hence the small patch of our own.
 
 ## Spike (2026-10-14)
 - Dev only: `?raytrace` (`src/scene/raytrace-lab.tsx`) path-traces the live city over the WebGL canvas. R hides the traced image, F freezes the WebGL city, P restarts. Options: `&scale=0.5` (half resolution), `&spp=8` (denoise sooner), `&denoise=0`, `&pose=0` (keep load-time poses).

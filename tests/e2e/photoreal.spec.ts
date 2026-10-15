@@ -16,10 +16,13 @@ test.describe("photo-real plates", () => {
     await expect(page.locator('[data-scene="ready"]')).toBeAttached({ timeout: 120_000 });
     const canvas = page.locator("canvas").first();
     await expect(canvas).toHaveAttribute("data-plate", "rest", { timeout: 60_000 });
+    // the baked light probes (public/probes) loaded and in use
+    await expect(canvas).toHaveAttribute("data-probes", "on");
 
-    // half-way between chapters 3 and 4: no plate, the city as usual
+    // half-way between chapters 3 and 4: no plate, the city lit by the probes
     await page.evaluate(() => window.scrollTo(0, document.querySelector<HTMLElement>("main > section")!.offsetHeight * 3.5));
     await expect(canvas).toHaveAttribute("data-plate", "off");
+    await expect(canvas).toHaveAttribute("data-probes", "on");
     await page.waitForTimeout(3000);
     await expect(canvas).toHaveAttribute("data-plate", "off");
     expect(errors).toEqual([]);
@@ -46,6 +49,7 @@ test.describe("photo-real plates", () => {
 
     await toggle.click();
     await expect(canvas).not.toHaveAttribute("data-plate");
+    await expect(canvas).toHaveAttribute("data-probes", "off");
     await page.reload();
     await expect(page.locator('[data-scene="ready"]')).toBeAttached({ timeout: 120_000 });
     await page.getByRole("button", { name: "Settings" }).click();
@@ -63,6 +67,7 @@ test.describe("photo-real on phones", () => {
     await expect(page.locator('[data-scene="ready"]')).toBeAttached({ timeout: 120_000 });
     await page.waitForTimeout(2000);
     await expect(page.locator("canvas").first()).not.toHaveAttribute("data-plate");
+    await expect(page.locator("canvas").first()).not.toHaveAttribute("data-probes");
     await expect(page.getByRole("button", { name: "Settings" })).toHaveCount(0);
   });
 });

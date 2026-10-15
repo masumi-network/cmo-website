@@ -1,6 +1,6 @@
 # Feature map
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
 
 Every feature of the site, where it lives, and what proves it works.
 `tests/unit/feature-map.test.ts` checks this table: every doc, code path and
@@ -23,7 +23,7 @@ feature? Update its doc and its row in the same change.
 | F09 | Waitlist: email (and website) signup | done | ok | [waitlist](waitlist.md) | `src/lib/waitlist.ts`, `src/components/waitlist-form.tsx`, `src/app/api/waitlist/route.ts` | `tests/unit/waitlist.test.ts`, `tests/unit/waitlist-route.test.ts`, `tests/unit/components.test.tsx`, `tests/e2e/day.spec.ts` |
 | F10 | Without 3D: posters, reduced motion, accessibility | done | ok | [fallback-and-access](fallback-and-access.md) | `src/components/experience.tsx`, `public/concepts` | `tests/e2e/day.spec.ts` |
 | F11 | Site check: Cuso reviews your site and reports back | planned | ok | [site-check](site-check.md) | | |
-| F12 | Photo-real mode: pre-traced chapter plates, on by itself on WebGPU desktops, a settings switch to turn it off (`?photoreal` forces it) | v0 | ok | [photoreal](photoreal.md) | `src/lib/plates.ts`, `src/scene/plates.tsx`, `src/components/hud.tsx`, `src/components/experience.tsx`, `public/plates`, `src/scene/raytrace-lab.tsx`, `src/scene/traced.ts`, `src/scene/facade-maps.ts`, `src/scene/bake-ground.ts`, `src/scene/trace-info.ts`, `src/scene/fx-lab.ts`, `src/scene/lightmap-lab.ts`, `scripts/plates.mjs`, `scripts/raytrace-bench.mjs`, `scripts/fx-bench.mjs` | `tests/unit/plates.test.ts`, `tests/unit/photoreal.test.ts`, `tests/unit/components.test.tsx`, `tests/e2e/photoreal.spec.ts` |
+| F12 | Photo-real mode: pre-traced chapter plates at rest and baked light probes while moving, on by itself on WebGPU desktops, a settings switch to turn it off (`?photoreal` forces it) | v0 | ok | [photoreal](photoreal.md) | `src/lib/plates.ts`, `src/scene/plates.tsx`, `src/lib/probes.ts`, `src/scene/probes.tsx`, `public/probes`, `src/components/hud.tsx`, `src/components/experience.tsx`, `public/plates`, `src/scene/raytrace-lab.tsx`, `src/scene/traced.ts`, `src/scene/facade-maps.ts`, `src/scene/bake-ground.ts`, `src/scene/trace-info.ts`, `src/scene/fx-lab.ts`, `src/scene/probe-lab.ts`, `scripts/plates.mjs`, `scripts/probes.mjs`, `scripts/frame-bench.mjs`, `scripts/raytrace-bench.mjs`, `scripts/fx-bench.mjs` | `tests/unit/plates.test.ts`, `tests/unit/probes.test.ts`, `tests/unit/photoreal.test.ts`, `tests/unit/components.test.tsx`, `tests/e2e/photoreal.spec.ts` |
 
 ## How we verify
 

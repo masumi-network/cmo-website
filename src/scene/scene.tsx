@@ -25,6 +25,7 @@ import { Shadowless } from "./parts";
 import { Pier } from "./pier";
 import { Pins } from "./pins";
 import { Plates } from "./plates";
+import { Probes, patchProbes } from "./probes";
 import { Reflections } from "./reflections";
 import { DETAIL, rig } from "./shared";
 
@@ -48,11 +49,13 @@ type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean
  * when the lights, shadows and environment are in place (they are part of
  * each shader), and compiles in parallel where the browser can.
  */
-function Ready({ onReady }: { onReady: () => void }) {
+function Ready({ onReady, probes }: { onReady: () => void; probes: boolean }) {
   const started = useRef(false);
   useFrame(({ gl, scene, camera }) => {
     if (started.current) return;
     started.current = true;
+    // photo-real's probe light (probes.tsx), compiled in now so switching it on later costs nothing; phones never get it
+    if (probes) patchProbes(scene);
     scene.traverse((o) => {
       for (const m of [(o as Mesh).material ?? []].flat() as Material[])
         for (const v of Object.values(m)) if ((v as Texture | null)?.isTexture) gl.initTexture(v as Texture);
@@ -154,10 +157,11 @@ function Scene({ onReady, onGo, lite, photoreal }: Props) {
         <Cuso />
         <Pins onGo={onGo} />
         <Reflections lite={lite} />
-        <Ready onReady={onReady} />
+        <Ready onReady={onReady} probes={!lite} />
         {PerfOverlay && <PerfOverlay />}
         {RaytraceLab && <RaytraceLab />}
         {photoreal && <Plates />}
+        {!lite && <Probes on={photoreal} />}
       </Suspense>
       <CameraRig />
       {lite ? (

@@ -48,7 +48,7 @@ import { dayNow } from "./shared";
 import { CHAINS, screenSpace, type Chain } from "./fx-lab";
 import { splitScene } from "./plates";
 import { bakeGround } from "./bake-ground";
-import { uvProbe } from "./lightmap-lab";
+import { GRID, probeBaker } from "./probe-lab";
 import { TRACE_LAYER, buildTwins, farCasters, lightHousings, studioFill } from "./traced";
 
 type Stats = {
@@ -79,6 +79,8 @@ declare global {
     __rtCamera?: () => number[];
     /** plate mode: the plate (base64 WebP) and its manifest entry, for scripts/plates.mjs */
     __plate?: { webp: string; entry: PlateEntry };
+    /** probes mode: bake the hour on screen, for scripts/probes.mjs */
+    __probes?: { bake: ReturnType<typeof probeBaker>["bake"]; hour: () => number; grid: typeof GRID };
   }
 }
 
@@ -429,9 +431,16 @@ export default function RaytraceLab() {
         twins.group.traverse((o) => (o as Mesh).geometry?.dispose());
       });
 
-      if (mode === "uv") {
-        (window as Window & { __uv?: unknown }).__uv = "running";
-        uvProbe(scene).then((r) => ((window as Window & { __uv?: unknown }).__uv = r), (e: unknown) => ((window as Window & { __uv?: unknown }).__uv = { error: String(e) }));
+      if (mode === "probes") {
+        // the static city's light probes for the hour on screen (probe-lab.ts), for scripts/probes.mjs
+        const hidden = [...twins.originals, ...splitScene(scene).live];
+        const probeTracer = new WebGPUPathTracer(renderer);
+        const baker = probeBaker({ renderer, tracer: probeTracer, scene, hour: () => dayNow().hour, sky: skyTexture, traced: (s, fn) => asTraced(scene, s, hidden, fn), refresh: twins.refresh });
+        cleanup.push(() => {
+          baker.dispose();
+          probeTracer.dispose();
+        });
+        window.__probes = { bake: baker.bake, hour: () => dayNow().hour, grid: GRID };
         return;
       }
       if (fxMode) {
