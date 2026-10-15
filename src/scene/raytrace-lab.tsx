@@ -218,7 +218,7 @@ export default function RaytraceLab() {
 
       tracer = new WebGPUPathTracer(gpu);
       tracer.renderScale = Number(params.get("scale") ?? 1);
-      // OIDN runs once the tracer stops at maxSamples. Weights (gitignored): public/lab/oidn, see photoreal.md.
+      // OIDN runs once the tracer stops at maxSamples (weights in public/oidn).
       const denoiser = params.get("denoise") === "0" ? null : newDenoiser();
       if (denoiser) {
         tracer.setDenoiser(denoiser);

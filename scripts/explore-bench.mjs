@@ -1,7 +1,7 @@
 // Photo-real in Explore (F12, explore-trace.tsx): time from the map coming to rest to the traced image on screen,
 // on the real GPU. Opens Explore, waits for the trace, drags the map (the trace must go at once), waits again.
 // Usage: node scripts/explore-bench.mjs <shots-dir>
-// Optional env: BASE (default http://localhost:3000), TRACE=<scale>,<samples> (dev builds: render scale, samples before denoising), NODENOISE=1. Writes <dir>/explore-traced.png and explore-today.png.
+// Optional env: BASE (default http://localhost:3000), TRACE=<scale>,<samples> (dev builds: render scale, samples before denoising). Writes <dir>/explore-traced.png and explore-today.png.
 import { mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
 
@@ -13,8 +13,6 @@ const base = process.env.BASE ?? "http://localhost:3000";
 const browser = await chromium.launch({ headless: false, args: ["--use-angle=metal", "--enable-unsafe-webgpu", "--window-position=-2400,0"] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
-// NODENOISE=1: as a build without the denoiser's weights (public/lab/oidn is not shipped): raw samples instead
-if (process.env.NODENOISE === "1") await page.route("**/lab/oidn/**", (r) => r.abort());
 page.on("pageerror", (e) => errors.push(String(e).slice(0, 300)));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text().slice(0, 300)));
 await page.goto(`${base}/?photoreal${process.env.TRACE ? `&trace=${process.env.TRACE}` : ""}`);

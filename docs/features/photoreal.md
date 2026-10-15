@@ -24,9 +24,9 @@ Last updated: 2026-10-15 · Status: v0, on by itself on capable desktops · Laun
 - Desktop with photo-real on. Once the map has been still 0.3 s (its easing under 5 mm a second, `stepLive`), the static city is traced from the camera's own pose, at half the screen's resolution, and handed to the plates as a live plate (`rig.live`): Cuso, cars and boats stay live on top and cast their shadows on it, as at a chapter.
 - Any drag or zoom drops it: the camera rig holds the camera on the traced pose (`holdsLive`, 5 cm and 1 degree) and lets go the moment the map moves; a trace still running is thrown away. The canvas's `data-plate` goes back to `off` within 50 ms of grabbing the map.
 - The tracer's code loads the first time Explore opens (its own Suspense, so the city never blanks), and is set up the first time the map comes to rest: twins, ground bake and BVH, about 2.6 s, the page blocked for part of it. Later traces reuse it.
-- The denoiser's weights are not shipped (public/lab/oidn is gitignored). Dev builds use them when present: 16 samples, then OIDN. The site traces 64 samples and shows them raw (a little grain on the towers).
+- 16 samples a pixel, then the OIDN denoiser. Its weights ship in `public/oidn` (3.6 MB, Apache 2.0, checksums in its README) and load with the tracer, the first time Explore opens.
 - Not traced: live objects (drawn on top), the fog bank (GLSL). Shadows of far casters are traced as they are (no shadow box), so dawn shadows run long across the water.
-- `node scripts/explore-bench.mjs <dir>` (real GPU): opens Explore with photo-real on, times the first and a second trace, checks a drag drops it. `TRACE=<scale>,<samples>` (dev) and `NODENOISE=1` for the variants below.
+- `node scripts/explore-bench.mjs <dir>` (real GPU): opens Explore with photo-real on, times the first and a second trace, checks a drag drops it. `TRACE=<scale>,<samples>` (dev) for the variants below.
 
 From the map coming to rest to the image on screen (1440 x 900, this Mac, 06:00):
 
@@ -34,9 +34,10 @@ From the map coming to rest to the image on screen (1440 x 900, this Mac, 06:00)
 | --- | --- | --- |
 | Full resolution, 16 samples + denoiser | 8.4 s | 5.3 s |
 | Full resolution, 8 samples + denoiser | 6.6 s | 3.6 s |
-| Half resolution, 16 samples + denoiser (dev default) | 5.5 s | 2.6 s |
+| Half resolution, 16 samples + denoiser (the site) | 5.5 s | 2.6 s |
 | Half resolution, 8 samples + denoiser | 5.0 s | 2.0 s |
-| Half resolution, 64 samples, no denoiser (the site today) | 8.3 s | 5.5 s |
+| Half resolution, 64 samples, no denoiser (before the weights shipped) | 8.3 s | 5.5 s |
+| The site with the shipped weights, two runs on 2026-10-15 (a slower GPU state than the rows above) | 7.1 s | 3.4 s |
 
 - Gotchas: the Explore camera eases in for about a second after a drag; a trace started while it still crept was carried off its pose by the time it showed and dropped at once. Once shown, the rig snaps the camera back onto the pose (a centimetre in one frame): `stepLive` judges a shown trace by distance from its pose, not by speed. The first trace's setup freezes the page for seconds, and the easing jumps in that long frame: a trace that drifted off its pose while running starts over.
 
@@ -72,7 +73,7 @@ Measured (2026-10-15, this Mac, 1440 x 900):
 - It runs the dev lab's plate mode (`?raytrace=plate&dpr=2`): traced twins of the patched materials, live objects hidden, OIDN denoiser, the scene's fog mixed in linear, then `encodePlate`.
 - `CHECK=1` skips the bake and only checks. A chapter whose camera does not settle in 60 s fails with a message instead of hanging.
 - The traced sky turns to the fog colour near the horizon (haze), so fogged far water and hills meet it without an edge (a hard line and a cut-off hill showed before).
-- Re-bake after changing the static city, its materials, a chapter's camera, or the lighting at its hour. The OIDN weights for the denoiser are gitignored in `public/lab/oidn/` (see Denoiser below).
+- Re-bake after changing the static city, its materials, a chapter's camera, or the lighting at its hour. The OIDN weights for the denoiser are in `public/oidn/` (see Denoiser below).
 
 ## Which chapters have plates (2026-10-14)
 All eight chapters ship. Reviewed against today's frame:
@@ -182,8 +183,8 @@ Gotchas:
 - Fog's depth pass must skip lines and points, or the unfogged hills behind them show through as dark stripes.
 
 ## Denoiser (2026-10-14)
-- OIDN through `oidn-web` 0.5.0 (dev dependency). The tracer stops at `?spp=` samples (default 16), then the denoiser runs. `?denoise=0` turns it off.
-- Weights are gitignored in `public/lab/oidn/`: `rt_hdr_alb_nrm.tza` and `rt_hdr.tza` (1.8 MB each) from [RenderKit/oidn-weights](https://github.com/RenderKit/oidn-weights). Download them with curl from `media.githubusercontent.com/media/RenderKit/oidn-weights/master/<file>` and check the SHA-256 against the LFS pointer.
+- OIDN through `oidn-web` 0.5.0. The tracer stops at `?spp=` samples (default 16), then the denoiser runs. `?denoise=0` turns it off.
+- Weights ship in `public/oidn/` (since 2026-10-15, for Explore's live trace): `rt_hdr_alb_nrm.tza` and `rt_hdr.tza` (1.8 MB each) from [RenderKit/oidn-weights](https://github.com/RenderKit/oidn-weights), Apache 2.0 (LICENSE.txt beside them, no NOTICE upstream), SHA-256 checked against the Git LFS pointers (README there).
 - Its guide pass rasterizes albedo and normals with the WebGPU renderer, so the lab shows that pass the twins (layer 31) and hides the originals, GLSL meshes and lines (`guided` in the lab).
 
 Time from the camera stopping to the clean image (chapter 0, 1440x900, same on a second rest):

@@ -23,24 +23,24 @@ import { dayNow, rig } from "./shared";
 import { buildTwins, lightHousings, studioFill } from "./traced";
 import { asTraced, distanceFog, guided, newDenoiser, notInDepth, readTrace, skyTexture, tracerRenderer } from "./tracer";
 
-/** Samples a pixel before the denoiser runs; without the denoiser's weights, this many more before showing it raw. */
-const SPP = { denoised: 16, raw: 64 };
+/** Samples a pixel before the denoiser runs. */
+let SPP = 16;
 /** How much of the screen's resolution is traced, drawn back at full size: half takes 2.6 s to a clean image against 5.3 s, a little softer. */
 let SCALE = 0.5;
 // dev only, for scripts/explore-bench.mjs: `?trace=<scale>,<samples>`
 if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
   const [scale, spp] = (new URLSearchParams(window.location.search).get("trace") ?? "").split(",").map(Number);
   if (scale > 0) SCALE = scale;
-  if (spp > 0) SPP.denoised = spp;
+  if (spp > 0) SPP = spp;
 }
 
 /** For scripts/explore-bench.mjs: how long from the map coming to rest to the clean image on screen. */
-type Stats = { phase: string; setupMs: number; traceMs: number; samples: number; denoised: boolean; traces: number; error?: string };
+type Stats = { phase: string; setupMs: number; traceMs: number; traces: number; error?: string };
 
 type Tracing = {
   renderer: WebGPURenderer;
   tracer: WebGPUPathTracer;
-  denoiser: ReturnType<typeof newDenoiser> | null;
+  denoiser: ReturnType<typeof newDenoiser>;
   fog: ReturnType<typeof distanceFog>;
   camera: PerspectiveCamera;
   hide: Object3D[];
@@ -66,13 +66,11 @@ async function setUp(gl: Parameters<typeof bakeGround>[0], scene: Scene, width: 
   // the raster's studio light at night, for the tracer
   const fills = studioFill(0).map(() => new DirectionalLight("#ffffff", 0));
   for (const f of fills) scene.add(f, f.target);
-  let denoiser: ReturnType<typeof newDenoiser> | null = null;
-  // the denoiser's weights are not shipped (public/lab/oidn, dev only, photoreal.md): the site traces more samples instead
-  if (process.env.NODE_ENV !== "production" && (await fetch("/lab/oidn/rt_hdr_alb_nrm.tza", { method: "HEAD" }).catch(() => null))?.ok) denoiser = newDenoiser();
+  const denoiser = newDenoiser();
   const tracer = new WebGPUPathTracer(renderer);
   tracer.renderScale = SCALE;
-  if (denoiser) tracer.setDenoiser(denoiser);
-  tracer.maxSamples = denoiser ? SPP.denoised : SPP.raw;
+  tracer.setDenoiser(denoiser);
+  tracer.maxSamples = SPP;
   let sky: Texture = skyTexture(dayNow().hour);
   asTraced(scene, sky, hidden, () => tracer.setScene(scene, camera));
   let hour = -1;
@@ -121,10 +119,8 @@ export default function ExploreTrace() {
     tracing: false,
     ready: null as { entry: PlateEntry; texture: Texture } | null,
     startedAt: 0,
-    lastPoll: 0,
-    samples: 0,
   });
-  const stats = useMemo<Stats>(() => ({ phase: "idle", setupMs: 0, traceMs: 0, samples: 0, denoised: false, traces: 0 }), []);
+  const stats = useMemo<Stats>(() => ({ phase: "idle", setupMs: 0, traceMs: 0, traces: 0 }), []);
 
   useEffect(() => {
     (window as Window & { __explore?: Stats }).__explore = stats;
@@ -163,14 +159,12 @@ export default function ExploreTrace() {
     }
     if (action === "start") {
       s.startedAt = performance.now();
-      s.samples = 0;
       stats.phase = "starting";
       if (!s.setup) {
         const t0 = performance.now();
         s.setup = setUp(gl, scene, size.width, size.height).then(
           (t) => {
             stats.setupMs = Math.round(performance.now() - t0);
-            stats.denoised = t.denoiser !== null;
             return (s.t = t);
           },
           (e: unknown) => {
@@ -195,13 +189,7 @@ export default function ExploreTrace() {
     const t = s.t;
     if (!s.tracing || !t) return;
     guided(scene, t.camera, t.sky(), t.hide, () => t.tracer.renderSample());
-    const now = performance.now();
-    const done = t.denoiser ? t.denoiser.complete : s.samples >= SPP.raw;
-    if (!t.denoiser && now - s.lastPoll > 250) {
-      s.lastPoll = now;
-      void t.tracer.getSampleCountsAsync().then((c) => (s.samples = c.min));
-    }
-    if (!done) return;
+    if (!t.denoiser.complete) return;
     s.tracing = false;
     stats.phase = "reading";
     const gen = s.gen;

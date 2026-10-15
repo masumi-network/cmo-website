@@ -45,8 +45,8 @@ export async function tracerRenderer(canvas: HTMLCanvasElement | OffscreenCanvas
   return renderer;
 }
 
-/** OIDN, once the tracer stops at maxSamples. Weights (gitignored) in public/lab/oidn: see photoreal.md. */
-export const newDenoiser = () => new OIDNDenoiser({ initUNetFromURL, auxWeightsUrl: "/lab/oidn/rt_hdr_alb_nrm.tza", colorWeightsUrl: "/lab/oidn/rt_hdr.tza" });
+/** OIDN, once the tracer stops at maxSamples. Weights in public/oidn (Apache 2.0, README there), 1.8 MB each, loaded on first use. */
+export const newDenoiser = () => new OIDNDenoiser({ initUNetFromURL, auxWeightsUrl: "/oidn/rt_hdr_alb_nrm.tza", colorWeightsUrl: "/oidn/rt_hdr.tza" });
 
 /** The finished trace, fog mixed in, as linear colour (RGBA floats, rows as the GPU reads them back). */
 export async function readTrace(renderer: WebGPURenderer, tracer: WebGPUPathTracer, fog: ReturnType<typeof distanceFog>) {
