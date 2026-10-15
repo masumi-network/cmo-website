@@ -99,6 +99,18 @@ export function encodePlate(linear: Float32Array, range: number) {
   return out;
 }
 
+/**
+ * RGBA floats read back from a WebGPU texture, without the padding: the GPU copies rows 256 bytes apart (16 pixels),
+ * so a width that is not a multiple of 16 comes back with gaps that skew every row (a 1633-wide window traced as streaks).
+ */
+export function unpadRows(data: Float32Array, width: number, height: number) {
+  const stride = Math.ceil((width * 16) / 256) * 64; // floats a row (256 bytes = 64 floats)
+  if (stride === width * 4) return data;
+  const rows = new Float32Array(width * height * 4);
+  for (let y = 0; y < height; y++) rows.set(data.subarray(y * stride, y * stride + width * 4), y * width * 4);
+  return rows;
+}
+
 /** The plate's pixels back to linear colour, as the GPU does it (an sRGB texture, times the range). */
 export function decodePlate(pixels: Uint8ClampedArray, range: number) {
   const out = new Float32Array(pixels.length);

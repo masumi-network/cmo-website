@@ -1,7 +1,7 @@
 // Photo-real in Explore (F12, explore-trace.tsx): time from the map coming to rest to the traced image on screen,
 // on the real GPU. Opens Explore, waits for the trace, drags the map (the trace must go at once), waits again.
 // Usage: node scripts/explore-bench.mjs <shots-dir>
-// Optional env: BASE (default http://localhost:3000), TRACE=<scale>,<samples> (dev builds: render scale, samples before denoising). Writes <dir>/explore-traced.png and explore-today.png.
+// Optional env: BASE (default http://localhost:3000), W and H (window, default 1440 x 900), TRACE=<scale>,<samples> (dev builds: render scale, samples before denoising). Writes <dir>/explore-traced.png and explore-today.png.
 import { mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
 
@@ -11,7 +11,8 @@ mkdirSync(out, { recursive: true });
 const base = process.env.BASE ?? "http://localhost:3000";
 
 const browser = await chromium.launch({ headless: false, args: ["--use-angle=metal", "--enable-unsafe-webgpu", "--window-position=-2400,0"] });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+// W, H: the window (a width that is not a multiple of 16 checks the readback's row padding)
+const page = await browser.newPage({ viewport: { width: Number(process.env.W ?? 1440), height: Number(process.env.H ?? 900) } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e).slice(0, 300)));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text().slice(0, 300)));

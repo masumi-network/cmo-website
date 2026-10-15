@@ -12,6 +12,7 @@ import * as bvhGpu from "three-mesh-bvh/webgpu";
 import { PI, uniform } from "three/tsl";
 import { Camera, DirectionalLight, FloatType, NoToneMapping, RenderTarget, Vector3, type Scene, type Texture, type WebGPURenderer } from "three/webgpu";
 import type { WebGPUPathTracer } from "three-gpu-pathtracer/webgpu";
+import { unpadRows } from "@/lib/plates";
 import { TILE, addDirectional, cellDirection, dilateProbes, encodeProbes, projectTile, tileOrigin, type ProbeManifest } from "@/lib/probes";
 import { lightingAt } from "@/lib/time";
 import { studioFill } from "./traced";
@@ -177,7 +178,7 @@ export function probeBaker(o: { renderer: WebGPURenderer; tracer: WebGPUPathTrac
     tracer.renderSample(); // done sampling: this only copies the image
     renderer.setRenderTarget(null);
     renderer.toneMapping = toneMapping;
-    const pixels = (await renderer.readRenderTargetPixelsAsync(target, 0, 0, width, height)) as Float32Array;
+    const pixels = unpadRows((await renderer.readRenderTargetPixelsAsync(target, 0, 0, width, height)) as Float32Array, width, height);
     target.dispose();
 
     // the last tile row is part empty: if the readback's first row is the empty end, it is upside down

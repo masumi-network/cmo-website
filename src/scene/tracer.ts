@@ -31,6 +31,7 @@ import {
   type Scene,
   type Texture,
 } from "three/webgpu";
+import { unpadRows } from "@/lib/plates";
 import { lightingAt } from "@/lib/time";
 import { TRACE_LAYER } from "./traced";
 
@@ -59,7 +60,7 @@ export async function readTrace(renderer: WebGPURenderer, tracer: WebGPUPathTrac
   fog.draw();
   renderer.setRenderTarget(null);
   renderer.toneMapping = toneMapping;
-  const linear = (await renderer.readRenderTargetPixelsAsync(target, 0, 0, size.x, size.y)) as Float32Array;
+  const linear = unpadRows((await renderer.readRenderTargetPixelsAsync(target, 0, 0, size.x, size.y)) as Float32Array, size.x, size.y);
   target.dispose();
   return { linear, width: size.x, height: size.y };
 }

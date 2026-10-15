@@ -176,6 +176,9 @@ export default function ExploreTrace() {
       const gen = s.gen;
       void s.setup.then((t) => {
         if (gen !== s.gen) return; // moved while setting up
+        // the window may have changed size since the tracer was set up: trace at the size the plate will show at
+        const { width, height } = t.renderer.domElement;
+        if (width !== size.width || height !== size.height) t.renderer.setSize(size.width, size.height, false);
         t.camera.copy(camera as PerspectiveCamera);
         t.camera.updateMatrixWorld();
         t.refresh(dayNow().hour);

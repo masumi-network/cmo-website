@@ -39,6 +39,7 @@ From the map coming to rest to the image on screen (1440 x 900, this Mac, 06:00)
 | Half resolution, 64 samples, no denoiser (before the weights shipped) | 8.3 s | 5.5 s |
 | The site with the shipped weights, two runs on 2026-10-15 (a slower GPU state than the rows above) | 7.1 s | 3.4 s |
 
+- Gotcha: WebGPU reads textures back with rows 256 bytes apart (16 RGBA float pixels), and three returns the padding as is. A window width that is not a multiple of 16 (1633) showed the trace as diagonal streaks; `unpadRows` strips it (plates, probes and Explore all read back through it). The tracer also resizes to the window before each trace.
 - Gotchas: the Explore camera eases in for about a second after a drag; a trace started while it still crept was carried off its pose by the time it showed and dropped at once. Once shown, the rig snaps the camera back onto the pose (a centimetre in one frame): `stepLive` judges a shown trace by distance from its pose, not by speed. The first trace's setup freezes the page for seconds, and the easing jumps in that long frame: a trace that drifted off its pose while running starts over.
 
 ## Light probes while moving (`src/scene/probes.tsx`, `src/lib/probes.ts`)

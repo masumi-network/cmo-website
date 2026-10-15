@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Quaternion, Vector3 } from "three";
-import { PLATE_RANGE, cropScale, decodePlate, encodePlate, holdsLive, newSettle, parseManifest, PHOTOREAL_KEY, photorealOn, readPhotorealChoice, savePhotorealChoice, webgpuCapable, plateFor, poseNear, settle, type PlateEntry } from "@/lib/plates";
+import { PLATE_RANGE, cropScale, decodePlate, encodePlate, holdsLive, newSettle, parseManifest, unpadRows, PHOTOREAL_KEY, photorealOn, readPhotorealChoice, savePhotorealChoice, webgpuCapable, plateFor, poseNear, settle, type PlateEntry } from "@/lib/plates";
 
 const entry = (o: Partial<PlateEntry> = {}): PlateEntry => ({
   chapter: 0,
@@ -180,5 +180,28 @@ describe("a live plate (Explore's trace)", () => {
     expect(holdsLive(live, pos(10.2), yaw(0))).toBe(false);
     expect(holdsLive(live, pos(10), yaw(2))).toBe(false);
     expect(holdsLive(null, pos(10), yaw(0))).toBe(false);
+  });
+});
+
+describe("reading a trace back from the GPU", () => {
+  // WebGPU copies rows to a buffer 256 bytes apart: an RGBA float pixel is 16 bytes, so a row pads to 16 pixels
+  const padded = (width: number, height: number) => {
+    const stride = Math.ceil((width * 16) / 256) * 64; // floats a row (256 bytes = 64 floats)
+    const data = new Float32Array((height - 1) * stride + width * 4).fill(-1);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) data.set([x, y, 0, 1], y * stride + x * 4);
+    return data;
+  };
+
+  it("drops the padding at the end of each row, for a width that does not fill whole 256-byte rows", () => {
+    const rows = unpadRows(padded(5, 3), 5, 3);
+    expect(rows.length).toBe(5 * 3 * 4);
+    expect(Array.from(rows.subarray(0, 8))).toEqual([0, 0, 0, 1, 1, 0, 0, 1]);
+    expect(Array.from(rows.subarray((2 * 5 + 4) * 4, (2 * 5 + 5) * 4))).toEqual([4, 2, 0, 1]);
+    expect(rows).not.toContain(-1);
+  });
+
+  it("leaves a width that fills whole rows as it is (1440 wide, as the plates were made)", () => {
+    const data = padded(16, 2);
+    expect(unpadRows(data, 16, 2)).toBe(data);
   });
 });
