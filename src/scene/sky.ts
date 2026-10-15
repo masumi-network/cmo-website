@@ -19,7 +19,7 @@ export type Sky = {
   shade: number;
   /** How far the horizon goes toward the distance fog's colour, 0 to 1. */
   haze: number;
-  /** How much higher the pale band near the horizon reaches (0 is today's). */
+  /** How much higher the pale band near the horizon reaches (0 is today's; below 0 brings the blue lower). */
   hazeHeight: number;
   /** Story fog distance times this (smaller is hazier). Explore's fog stays. */
   fogScale: number;
@@ -32,18 +32,19 @@ export const TODAY: Sky = { ...NOON, cover: 0, haze: 0, hazeHeight: 0, fogScale:
 // Hours run 6..30 (30 = 06:00 next day), like lightingAt. Cloud shape is noon's, so a scroll changes cover and haze.
 const KEYS: [number, Sky][] = [
   // sunrise: thin cloud, a deep warm haze over the bay
-  [6, { ...NOON, cover: 0.3, shade: 0.4, haze: 0.8, hazeHeight: 0.15, fogScale: 0.7 }],
+  [6, { ...NOON, cover: 0.3, shade: 0.4, haze: 0.5, hazeHeight: -0.15, fogScale: 0.7 }],
   // morning mist up the street
-  [7, { ...NOON, cover: 0.25, shade: 0.45, haze: 0.7, hazeHeight: 0.12, fogScale: 0.75 }],
-  [9, { ...NOON, cover: 0.3, haze: 0.5, hazeHeight: 0.08, fogScale: 0.85 }],
+  [7, { ...NOON, cover: 0.3, shade: 0.45, haze: 0.5, hazeHeight: 0.04, fogScale: 0.75 }],
+  // clear morning, a warm haze down the street
+  [9, { ...NOON, cover: 0.28, haze: 0.6, hazeHeight: 0.1, fogScale: 0.8 }],
   [12, NOON],
   // big afternoon clouds over the bay
-  [15, { ...NOON, cover: 0.42, haze: 0.55, fogScale: 0.8 }],
+  [15, { ...NOON, cover: 0.45, haze: 0.5, hazeHeight: 0.04, fogScale: 0.85 }],
   // sunset: lit cloud bands, a thick golden haze
   [18, { ...NOON, cover: 0.35, shade: 0.6, haze: 0.7, hazeHeight: 0.14, fogScale: 0.75 }],
   // night: a few clouds, a little haze so the far lights soften
-  [22, { ...NOON, cover: 0.2, haze: 0.4, hazeHeight: 0.06, fogScale: 0.85 }],
-  [30, { ...NOON, cover: 0.3, shade: 0.4, haze: 0.8, hazeHeight: 0.15, fogScale: 0.7 }],
+  [22, { ...NOON, cover: 0.4, haze: 0.35, hazeHeight: 0.1, fogScale: 0.85 }],
+  [30, { ...NOON, cover: 0.3, shade: 0.4, haze: 0.4, hazeHeight: -0.1, fogScale: 0.85 }],
 ];
 
 export function skyAt(hour: number): Sky {

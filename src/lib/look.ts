@@ -44,11 +44,11 @@ const SUNRISE: Look = {
   focusRange: 14,
   tilt: 0,
   saturation: 0.08,
-  gain: [1.05, 1, 0.9],
-  lift: [0.03, 0.02, 0.012],
-  contrast: 0.14,
+  gain: [1.05, 1, 0.92],
+  lift: [0.012, 0.016, 0.03],
+  contrast: 0.2,
   grain: 0.035,
-  env: 0.35,
+  env: 0.32,
 };
 
 /** 07:00, Hayes Valley: soft warm morning, mist up the street. */
@@ -57,11 +57,11 @@ const MORNING: Look = {
   focusRange: 14,
   tilt: 0,
   saturation: 0.06,
-  gain: [1.04, 1, 0.92],
-  lift: [0.025, 0.02, 0.015],
-  contrast: 0.15,
+  gain: [1.07, 1.03, 0.97],
+  lift: [0.012, 0.016, 0.028],
+  contrast: 0.16,
   grain: 0.035,
-  env: 0.38,
+  env: 0.45,
 };
 
 /** 09:00, the Mission: bright, warm, crisp shadows on the mural wall. */
@@ -70,7 +70,7 @@ const LATE_MORNING: Look = {
   focusRange: 14,
   tilt: 0,
   saturation: 0.08,
-  gain: [1.03, 1, 0.94],
+  gain: [1.04, 1, 0.92],
   lift: [0.02, 0.015, 0.01],
   contrast: 0.18,
   grain: 0.035,
@@ -96,8 +96,8 @@ const AFTERNOON: Look = {
   focusRange: 14,
   tilt: 0,
   saturation: 0.06,
-  gain: [1.04, 1, 0.93],
-  lift: [0.02, 0.017, 0.012],
+  gain: [1.05, 1, 0.92],
+  lift: [0.022, 0.017, 0.01],
   contrast: 0.16,
   grain: 0.035,
   env: 0.38,
@@ -110,10 +110,10 @@ const SUNSET: Look = {
   tilt: 0,
   saturation: 0.1,
   gain: [1.07, 0.99, 0.86],
-  lift: [0.03, 0.018, 0.012],
+  lift: [0.035, 0.022, 0.014],
   contrast: 0.2,
   grain: 0.04,
-  env: 0.32,
+  env: 0.38,
 };
 
 /** 22:00, the Embarcadero: blue night, the lamps and windows warm. */
@@ -121,8 +121,8 @@ const NIGHT: Look = {
   dof: 1.5,
   focusRange: 14,
   tilt: 0,
-  saturation: 0.12,
-  gain: [1.02, 1, 1],
+  saturation: 0.06,
+  gain: [1.03, 1, 0.98],
   lift: [0.008, 0.01, 0.022],
   contrast: 0.14,
   grain: 0.045,
@@ -130,7 +130,7 @@ const NIGHT: Look = {
 };
 
 /** 06:00 tomorrow, high over Russian Hill: the sunrise again, the city a soft miniature. */
-const FINALE: Look = { ...SUNRISE, dof: 1, focusRange: 24 };
+const FINALE: Look = { ...SUNRISE, dof: 1, focusRange: 24, saturation: 0.12, gain: [1.03, 0.98, 0.9], contrast: 0.24 };
 
 const KEYS: [number, Look][] = [
   [6, SUNRISE],

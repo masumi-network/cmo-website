@@ -1,7 +1,7 @@
 "use client";
 
-// Post effects. Today's look at every hour, except where src/lib/look.ts tunes it (12:00: depth of field
-// on Cuso, a warm grade and film grain). Everything stays mounted: per frame only uniforms
+// Post effects, per hour from src/lib/look.ts: depth of field on Cuso, a warm grade and film grain
+// (`?look=off`: today's look). Everything stays mounted: per frame only uniforms
 // and `enabled` change, so no shader compiles after the poster fades.
 
 import { useFrame } from "@react-three/fiber";
