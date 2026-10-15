@@ -38,7 +38,7 @@ export const TODAY: Look = {
 // One look per chapter hour (F13). Each moves toward its concept (public/concepts): depth of field on Cuso,
 // a warm grade, light grain, less studio fill so the shadows read. Hours run 6..30 like lightingAt (time.ts).
 
-/** 06:00, Russian Hill: golden sunrise, a warm hazy lift. */
+/** 06:00, Russian Hill: a low sun beside the Golden Gate, warm light, cool shadows. */
 const SUNRISE: Look = {
   dof: 1.4,
   focusRange: 14,
