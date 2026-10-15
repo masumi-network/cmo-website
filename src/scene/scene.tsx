@@ -8,6 +8,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Suspense, lazy, memo, useEffect, useRef, useState } from "react";
 import { WebGLRenderTarget, type Camera, type Material, type Mesh, type Object3D, type Scene as ThreeScene, type Texture, type WebGLRenderer } from "three";
 import { Atmosphere } from "./atmosphere";
+import { Backdrop } from "./backdrop";
 import { CameraRig } from "./camera-rig";
 import { City } from "./city";
 import { CoitTower } from "./coit-tower";
@@ -129,6 +130,7 @@ function Scene({ onReady, onGo, lite }: Props) {
         <Atmosphere lite={lite} />
         <Studio />
         <City lite={lite} />
+        <Backdrop lite={lite} />
         <Rooftop />
         <Shopfront />
         <MuralWall />
