@@ -49,6 +49,8 @@ import { CHAINS, screenSpace, type Chain } from "./fx-lab";
 import { splitScene } from "./plates";
 import { bakeGround } from "./bake-ground";
 import { GRID, probeBaker } from "./probe-lab";
+import { runWebGPU } from "./webgpu-lab";
+import { facadeNight } from "./facade";
 import { TRACE_LAYER, buildTwins, farCasters, lightHousings, studioFill } from "./traced";
 
 type Stats = {
@@ -396,7 +398,7 @@ export default function RaytraceLab() {
       const adapter = await gpu.requestAdapter({ powerPreference: "high-performance" });
       if (!adapter) throw new Error("no WebGPU adapter");
       const { maxStorageBufferBindingSize, maxBufferSize } = adapter.limits;
-      renderer = new WebGPURenderer({ canvas, antialias: false, trackTimestamp: fxMode, requiredLimits: { maxStorageBufferBindingSize, maxBufferSize } });
+      renderer = new WebGPURenderer({ canvas, antialias: false, trackTimestamp: fxMode || mode === "webgpu", requiredLimits: { maxStorageBufferBindingSize, maxBufferSize } });
       await renderer.init();
       if (stop) return;
       renderer.setPixelRatio(Number(new URLSearchParams(window.location.search).get("dpr") ?? 1));
@@ -441,6 +443,10 @@ export default function RaytraceLab() {
           probeTracer.dispose();
         });
         window.__probes = { bake: baker.bake, hour: () => dayNow().hour, grid: GRID };
+        return;
+      }
+      if (mode === "webgpu") {
+        runWebGPU({ renderer, gl, scene, camera: camera as PerspectiveCamera, sky: skyTexture, hour: () => dayNow().hour, night: () => facadeNight.value, panel, stopped: () => stop });
         return;
       }
       if (fxMode) {

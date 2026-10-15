@@ -93,6 +93,31 @@ What made 0, 2 and 3 right (all in the bake, `traced.ts`, `bake-ground.ts`, `ray
 - House windows: about half light up at night, warm, by window and house as the shader picks them (the GPU's 32-bit hash picks a similar share, not the same windows).
 - Downtown towers (`downtown`): the vertex tint times a generated window tile per surface kind (curtain wall, sash, steel, shopfront; `facade-maps.ts`), laid on the wall grid (`aUv`) with a whole-cell offset per tower and face. Each tile carries colour, roughness and metalness, and the night's lit windows (runs along busy floors) as an emissive map scaled by the hour's night. Flat tops are tar. Landmark stone (`tower`): the facade tile in world units, like bridge steel.
 
+## WebGPU renderer spike (2026-10-15)
+Decision asked (team doc): move the whole site to WebGPU, WebGL 2 kept for phones. Verdict so far: the scene itself draws a little faster on WebGPU, but the frame as a whole is slower on the GPU (+27%) and the CPU (2.3x) until the post chain and three's per-draw overhead are dealt with. Nothing ships; this is a lab.
+
+- Dev only: `?raytrace=webgpu` (`src/scene/webgpu-lab.ts`) draws the live city with WebGPU on the lab canvas at the WebGL canvas's pixel ratio and MSAA, shadows on. `node scripts/webgpu-bench.mjs [chapters]` times each chapter (plates blocked, photo-real off): WebGL with timer queries, then WebGPU with timestamp queries on the same frozen frame, then WebGL again.
+- Ported to TSL (`portFor`): the row houses (palette, siding, fish scales, stucco, gravel, roof shingles, glass rooms with blinds and curtains, lit windows at night) and the water (two ripple layers, fresnel, sky gradient, a `reflector()` mirror at today's size). Left out: the glass reflection probe (a WebGL cube camera) and the water's shallows and foam.
+- Everything else draws as plain standard materials: their GLSL patches do not run on WebGPU (bridge steel and downtown towers show flat). Four GLSL-only meshes are left out entirely (the sky dome and three more `ShaderMaterial`s, the fog bank among them).
+- drei's `Environment` (the studio light) is a WebGL texture WebGPU cannot read: without it nights went black. The lab rebuilds it with WebGPU's PMREM.
+- Post chain (`postChain`): MSAA, TiltShift2 as its shader (10 taps), saturation +8%, vignette, ACES. Bloom: three's `BloomNode` cost 5.2 ms a frame at any resolution scale; one gaussian blur at an eighth of the buffer, thresholded after, costs about 1.5 ms. A bright-pass texture before the blur drew the whole scene twice.
+
+GPU and CPU ms per frame, means over the 8 chapter views (1440 x 900 at pixel ratio 2, median of 240 frames each):
+
+| | GPU | CPU (render calls) |
+| --- | --- | --- |
+| WebGL today (scene, shadows, mirror, post) | 6.70 | 1.51 |
+| WebGPU, houses + water ported, post chain | 8.53 | 3.44 |
+| WebGPU without the post chain | 5.99 | |
+| WebGPU without the ports (plain materials) | 8.82 | |
+
+- The GPU clock moves with load: the same view read 3.8 ms in one run and 7.6 ms in another. Only numbers from the same run compare; each chapter is timed WebGL, WebGPU, WebGL again.
+- Per part (chapter 3, one run): MSAA about 0.8 ms, tilt shift under 0.1 ms, bloom 1.5 ms (5.2 ms with `BloomNode`).
+- CPU: three's WebGPU renderer spends 3.4 ms a frame submitting about 300 draws, against 1.5 ms for WebGL. That is the larger risk on slower laptops.
+- Lab only: both renderers share one scene, and WebGL then logs `glMultiDrawElementsANGLE: Insufficient buffer size` for the batched trees.
+
+Next, if we go on: port the rest of the patched materials (about 13 kinds) and the 4 GLSL meshes to TSL, find where WebGPU's post chain spends its extra 2.5 ms, and measure the CPU cost on a slower machine before deciding.
+
 ## Lightmaps: measured and set aside (2026-10-15)
 - The team doc asked for light baked per chapter hour. Lightmaps on a second UV set were measured first (a dev probe, since removed): xatlas-web took 552 s to unwrap the 332 static meshes (1.9 M vertices; one mesh alone 500 s) and split them into 1.75 M vertices, about 20 MB of UVs, vertex maps and index buffers to ship, all invalid after any geometry change. `xatlas-web` 0.1.0 also takes no options and the tracer's wrapper writes 16-bit indices.
 - Decision (Francis, 2026-10-15): light probes instead (above). No second UV set, nothing tied to the geometry, and Cuso and the traffic get the bounced light too. They are softer: no sharp contact shading.
