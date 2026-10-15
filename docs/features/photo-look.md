@@ -97,6 +97,40 @@ Code: `src/scene/foreground.tsx` (mounted in `src/scene/union-square.tsx`). Test
 - **Cost:** 1 draw call (one quad) at the 12:00 desktop shot, nothing elsewhere.
 - **Tried and dropped:** thin leaves on visible twigs read as a sprig, and the blur washed them out; a dense mound of small leaves read as a hedge.
 
+## Backdrop
+
+Code: `src/scene/skyline.ts` (ridges, towers, mast, lights, per-hour table; pure), `src/scene/backdrop.tsx` (the shader and the lights; mounted in `scene.tsx` after `City`). Tests: `tests/unit/backdrop.test.ts`.
+
+- **What:** the land past the modelled city, so the bay ends in hills, not flat haze (concepts 01, 03, 05, 07). Procedural, 0 KB of assets.
+- **Layers** (x east, z south), four meshes for frustum culling:
+  - Marin: Mount Tam's ridge (toe z about -390, crest about -450, peak 74 at x -272 with a long western shoulder), behind the Golden Gate's north tower from Russian Hill; the Bolinas ridge farther and paler behind its west end.
+  - North Bay: a low, very hazy ridge at z -590 to -660 (behind Alcatraz from the Embarcadero).
+  - East Bay: the Oakland and Berkeley shore flats (1 to 3 high) from z 225 to -500 at x 330, the hills behind (crest about x 455, Grizzly Peak 52), 17 tower boxes for Oakland and Emeryville on the flats.
+  - Peninsula: Daly City bluffs to San Bruno Mountain, z 150 to 340, low toward the south bay. A Sutro-like mast (three banded red and white legs, two crossbars, three antennas, 29 high) on its hill at (-168, 352): at 09:00 it stands in the sky between the card and the palms.
+  - The open Pacific to the west stays open (the 06:00 sun sets there).
+- **Shape:** each ridge is a strip along a smooth toe line in the water, a column every 4 units, rows from the toe (under the water) up to the crest and down a back slope. Crest from 1D noise plus named peaks (smooth max), roughened 14%, tapering into the water at both ends; the depth and the inner rows wander, so the slopes have spurs and gullies. 8.9k triangles.
+- **Rules (tested):** every toe stands past the story fog's far distance from every chapter camera (desktop and the phone rig), so its foot meets fully fogged water; never over the city, the headlands, an island or a bridge; within the water plane and the far plane; Tam shows over the headland crest from the 06:00, 07:00 and 12:00 cameras; at least 3 degrees under the sun wherever the sun can be in frame; the mast in the 09:00 desktop frame left of the trees; the East Bay and North Bay fill the 22:00 horizon.
+- **Shader** (one for every ridge; fog off, opaque, `FrontSide`, `renderOrder` 0 so the water never takes it for the dome): golden grass with scrub patches, pale town blocks on the lower slopes, flat stone or glass on the towers; a noise bump on the normals (gullies catch the light); half-wrapped sun and sky light from the dome's own uniforms. Then aerial perspective: haze grows with distance from the city (280 to 700), toward the sky's horizon colour, bluer for far ridges (a share of the sky's top colour), plus a glow toward the sun (`pow(dot(view, sun), 8)`). The foot fades to the fog colour (no seam with the water).
+- **Never clearer than the headlands in front:** the haze keys keep the Marin ridges paler than the modelled headland crest (with the height-aware haze, see Haze). Checked on screen at 06:00 and 12:00.
+- **Night lights:** one `Points` draw, 2418 points (lite the same, cap 2500; desktop cap 3000): a jittered street grid on the East Bay flats, sparse lights up the lower slopes, windows on the towers, two blinking red lights on the mast (the only ones that blink). 2.4 px times the pixel ratio, additive, depth tested, dimmer with distance. Depth of field turns them into soft bokeh on desktop.
+- **Shown in the story, gone in Explore:** `backdropFade` is 1 minus `overhead` (the camera's distance to what it looks at), 0 in Explore; it eases, so a mode switch never pops. Explore screenshots are the same with and without it.
+- **Per hour** `backdropAt(hour)`, keyed like `skyAt`, blends every 0.05 h without a pop; the finale is 06:00:
+
+| Hour | hazeNear | hazeFar | blue | glow | lights | On screen |
+| --- | --- | --- | --- | --- | --- | --- |
+| 06:00 | 0.53 | 0.8 | 0.3 | 0.9 | 0 | Tam behind the north tower and mauve ridges in layers to the right, paler than the headlands in front. |
+| 07:00 | 0.5 | 0.78 | 0.3 | 0.5 | 0 | Hidden by the houses in the chapter shot. |
+| 09:00 | 0.32 | 0.7 | 0.3 | 0.3 | 0 | The mast on its hill at the end of the view, like concept 03. |
+| 12:00 | 0.36 | 0.7 | 0.3 | 0.25 | 0 | Mostly behind the buildings; Tam pale behind the headlands in a wider view. |
+| 15:00 | 0.36 | 0.7 | 0.3 | 0.35 | 0 | Phone: the East Bay hills with gullies and Oakland's towers across the bay (desktop looks down). |
+| 18:00 | 0.46 | 0.76 | 0.3 | 0.9 | 0 | Backlit Peninsula and mast to the south-west (behind the chapter camera). |
+| 22:00 | 0.5 | 0.7 | 0.2 | 0.2 | 1 | Violet East Bay and North Bay hills, a little darker than the sky, with town lights. |
+| 30 | as 06:00 | | | | | The finale's shots look down: the horizon is above both frames. |
+
+- **Dev:** `?backdrop=off` hides it (compiled out in production), for before and after screenshots.
+- **Cost:** 4.6k to 6.2k triangles and 2 to 4 draw calls where it is in frame (+1 at night), nothing in the shadow map, the water mirror or the glass probe (DETAIL layer). Back to back with `?backdrop=off` (1440x900, 3 runs each, GPU median): 06:00 24.55 off, 24.5 to 24.9 on; 22:00 21.7 off, 21.4 to 21.8 on: inside run noise.
+- **Tried and dropped:** a thin mast (legs 0.36) vanished in the depth of field; the mast behind the 09:00 trees did not read; Gaussian peaks read as smooth domes (now roughened, Tam with a shoulder); haze 0.46 at 06:00 left the far ridges clearer than the headland crest in front.
+
 ## Camera
 
 - **12:00 desktop shot (2026-10-15):** `frame([5.6, UNION_SQUARE_ROOF, 10.4], { yaw: 36, distance: 17.5, height: 1.5, look: 1.1, side: 0.3 })` in `src/content/day.ts`. South-east of Cuso, just over the roof. Past him and the billboard you see the Golden Gate in the haze, the Marin hills, a strip of bay and a street of painted houses. Before, it looked up at two near towers from the next roof.

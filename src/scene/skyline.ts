@@ -323,11 +323,11 @@ export type BackdropLook = {
 };
 
 const DAY: BackdropLook = { hazeNear: 0.36, hazeFar: 0.7, blue: 0.3, glow: 0.25, lights: 0 };
-const DAWN: BackdropLook = { hazeNear: 0.6, hazeFar: 0.85, blue: 0.25, glow: 0.9, lights: 0 };
+const DAWN: BackdropLook = { hazeNear: 0.53, hazeFar: 0.8, blue: 0.3, glow: 0.9, lights: 0 };
 const KEYS: [number, BackdropLook][] = [
   // 06:00: warm haze, backlit toward the Gate
   [6, DAWN],
-  [7, { hazeNear: 0.42, hazeFar: 0.74, blue: 0.32, glow: 0.5, lights: 0 }],
+  [7, { hazeNear: 0.5, hazeFar: 0.78, blue: 0.3, glow: 0.5, lights: 0 }],
   [9, { ...DAY, hazeNear: 0.32, hazeFar: 0.7, glow: 0.3 }],
   // day: gold hills in blue haze
   [12, DAY],
@@ -379,7 +379,7 @@ function rng(seed: number) {
 }
 
 /** Lights per square unit: dense on the flats, sparse up the slopes. */
-const DENSITY = { flats: 0.05, slopes: 0.02 };
+const DENSITY = { flats: 0.05, slopes: 0.026 };
 const MAX_LIGHTS = { full: 3000, lite: 2500 };
 
 /**

@@ -115,7 +115,7 @@ const lightsVertex = /* glsl */ `
     gl_PointSize = uPx * mix(0.8 + 0.5 * aSeed, 1.5, mast);
     vec3 sodium = vec3(1.0, 0.6, 0.28);
     vec3 white = vec3(1.0, 0.88, 0.7);
-    vColor = mast > 0.5 ? vec3(1.0, 0.1, 0.06) * 2.5 : mix(sodium, white, step(0.65, aSeed)) * 1.4;
+    vColor = mast > 0.5 ? vec3(1.0, 0.1, 0.06) * 2.5 : mix(sodium, white, step(0.65, aSeed)) * 1.8;
     vAlpha = uLights * uFade * blink * mix(1.0, 0.4, layerAt(position.xz));
   }`;
 
@@ -260,7 +260,7 @@ function Ridges({ lite }: { lite: boolean }) {
     lu.uLights.value = k.lights;
     lu.uTime.value = clock.elapsedTime;
     lu.uFade.value = fade.current;
-    lu.uPx.value = 2 * gl.getPixelRatio();
+    lu.uPx.value = 2.4 * gl.getPixelRatio();
     if (points.current) points.current.visible = shown && k.lights > 0.01;
   });
 
