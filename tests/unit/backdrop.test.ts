@@ -189,7 +189,7 @@ describe("what the chapter cameras see", () => {
         }
       }
     });
-    expect(checked).toBeGreaterThan(0); // the 06:00 desktop shot keeps the low sun in its upper left corner
+    expect(checked).toBeGreaterThan(0); // the 06:00 desktop shot looks toward the low sun over the Golden Gate's pylons
   });
 
   it("09:00: the Sutro-like mast stands on the south ridge in the desktop frame, in the sky between the card and the trees", () => {

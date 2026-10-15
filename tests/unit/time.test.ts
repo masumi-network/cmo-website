@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PerspectiveCamera, Vector3 } from "three";
 import { chapters } from "@/content/day";
 import { PORTRAIT_FOV } from "@/scene/camera-rig";
+import { GG, GG_PYLON } from "@/scene/landmarks";
 import { activeIndex, lightingAt, mixHex, travel } from "@/lib/time";
 
 describe("travel", () => {
@@ -52,9 +53,10 @@ describe("lightingAt", () => {
     expect(lightingAt(12).elevation).toBeGreaterThan(lightingAt(6).elevation);
   });
 
-  it("wraps past midnight to the next morning (the opening shot's sun is dimmer and placed for its own frame)", () => {
-    const sky = (h: number) => ({ ...lightingAt(h), sunIntensity: 0, ambient: 0, azimuth: 0, elevation: 0 });
+  it("wraps past midnight to the next morning (the opening shot's sun is dimmer and turned onto the pylons)", () => {
+    const sky = (h: number) => ({ ...lightingAt(h), sunIntensity: 0, ambient: 0, azimuth: 0 });
     expect(sky(30)).toEqual(sky(6));
+    expect(Math.abs(lightingAt(30).azimuth - lightingAt(6).azimuth)).toBeLessThanOrEqual(3);
     expect(lightingAt(26).night).toBeGreaterThan(0);
   });
 
@@ -64,7 +66,7 @@ describe("lightingAt", () => {
   });
 
   // Where the sun (and its mirror image on the bay) lands on screen. atmosphere.tsx points the sun along
-  // (cos el sin az, sin el, cos el cos az). On screen the dome draws the disc a few degrees lower (coarse sphere).
+  // (cos el sin az, sin el, cos el cos az). The water's brightest glare sits a little above the mirror point.
   const DEG = Math.PI / 180;
   function onScreen(shot: { position: readonly number[]; target: readonly number[] }, size: { width: number; height: number }, fov: number) {
     const cam = new PerspectiveCamera(fov, size.width / size.height, 0.2, 5000);
@@ -82,23 +84,30 @@ describe("lightingAt", () => {
     return new Vector3(Math.cos(el * DEG) * Math.sin(az * DEG), Math.sin(el * DEG), Math.cos(el * DEG) * Math.cos(az * DEG));
   };
 
-  it("06:00 puts the low sun in the upper left corner of the desktop frame, its bay glint low on the left, both far from Cuso", () => {
+  it("06:00 hides the low sun's glint on the bay behind the Golden Gate's south anchorage and pylons, far from Cuso", () => {
     const arrive = chapters.find((c) => c.id === "arrive")!;
     const sun = sunAt(6);
     const glint = new Vector3(sun.x, -sun.y, sun.z);
     const middle = new Vector3(arrive.spot[0], arrive.spot[1] + 0.95, arrive.spot[2]);
+    // the anchorage block (water to road) and the two pylons on it (landmarks.tsx)
+    const corners: Vector3[] = [];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      for (const y of [0, GG.anchorTop]) corners.push(new Vector3(GG.x + sx * 2.3, y, GG.south + sz * 2));
+      for (const y of [GG.anchorTop, GG_PYLON.top]) corners.push(new Vector3(GG.x + sx * (GG_PYLON.x + 0.3), y, GG.south + sz * 0.9));
+    }
     for (const size of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
       const view = onScreen(arrive.camera, size, 35);
+      const box = corners.map(view.point);
+      const [x0, x1] = [Math.min(...box.map((b) => b.x)), Math.max(...box.map((b) => b.x))];
+      const [y0, y1] = [Math.min(...box.map((b) => b.y)), Math.max(...box.map((b) => b.y))];
       const s = view.far(sun);
       const g = view.far(glint);
       const him = view.point(middle);
-      const at = `${size.width}: sun ${Math.round(s.x)},${Math.round(s.y)}`;
-      expect(s.x > 0 && s.y > 0, at).toBe(true); // in frame: the warm backlight stays
-      expect(s.x, at).toBeLessThan(size.width * 0.2);
-      expect(s.y, at).toBeLessThan(size.height * 0.3);
-      expect(g.x, at).toBeLessThan(size.width * 0.2); // the glint stays at the left edge, out of the middle
-      expect(Math.hypot(s.x - him.x, s.y - him.y), at).toBeGreaterThan(size.width * 0.4);
-      expect(Math.hypot(g.x - him.x, g.y - him.y), at).toBeGreaterThan(size.width * 0.4);
+      const at = `${size.width}: glint ${Math.round(g.x)},${Math.round(g.y)} behind ${Math.round(x0)}..${Math.round(x1)}, ${Math.round(y0)}..${Math.round(y1)}`;
+      expect(g.x > x0 && g.x < x1 && g.y > y0 && g.y < y1, at).toBe(true);
+      expect(s.x > x0 && s.x < x1 && s.y > 0, at).toBe(true); // the sun stands in the sky straight above them
+      expect(g.x, at).toBeLessThan(size.width * 0.35); // out of the middle
+      expect(Math.hypot(g.x - him.x, g.y - him.y), at).toBeGreaterThan(size.width * 0.3);
     }
     // the phone looks straight at Cuso: the sun and its glint stay out of its narrow frame
     const phone = onScreen(arrive.phone, { width: 390, height: 844 }, PORTRAIT_FOV);

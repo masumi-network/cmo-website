@@ -56,9 +56,9 @@ export type Lighting = {
 
 // Art-directed keyframes, not astronomy. Hours run 6..30 (30 = 06:00 next day).
 const KEYS: [number, Lighting][] = [
-  // 06:00 opening shot: the low sun sits in the frame's upper left corner, by the title, so it backlights the
-  // scene warm without glaring in the middle, and its glint on the bay falls low on the left. A fifth dimmer than the finale's.
-  [6, { elevation: 14, azimuth: 250, sunColor: "#ffa456", sunIntensity: 2.88, skyTop: "#5583cc", skyHorizon: "#f7c08c", fog: "#eec9a6", ambient: 0.4, night: 0 }],
+  // 06:00 opening shot: the low sun stands right over the Golden Gate's south pylons, so they and their anchorage hide
+  // most of its glint on the bay and the warm backlight stays. A fifth dimmer than the finale's.
+  [6, { elevation: 8, azimuth: 237.5, sunColor: "#ffa456", sunIntensity: 2.88, skyTop: "#5583cc", skyHorizon: "#f7c08c", fog: "#eec9a6", ambient: 0.4, night: 0 }],
   [7, { elevation: 14, azimuth: 60, sunColor: "#ffcc98", sunIntensity: 3.5, skyTop: "#6d9ee0", skyHorizon: "#f0dcc6", fog: "#e6dfd6", ambient: 0.47, night: 0 }],
   [9, { elevation: 55, azimuth: 90, sunColor: "#ffe6c4", sunIntensity: 3.5, skyTop: "#6f9ee0", skyHorizon: "#dce5ee", fog: "#e8e5de", ambient: 0.45, night: 0 }],
   // 12:00 is the photo look test (F13): warm sun from the side, less fill, so shapes read.
@@ -68,6 +68,7 @@ const KEYS: [number, Lighting][] = [
   [20, { elevation: 0, azimuth: -40, sunColor: "#8f8cc8", sunIntensity: 0.08, skyTop: "#232c5c", skyHorizon: "#a77f8f", fog: "#4b4566", ambient: 0.3, night: 0.7 }],
   [22, { elevation: -20, azimuth: 60, sunColor: "#9fb3ff", sunIntensity: 0.6, skyTop: "#0b1028", skyHorizon: "#4a3d74", fog: "#1e2142", ambient: 0.22, night: 1 }],
   [26, { elevation: 0, azimuth: 230, sunColor: "#9fb3ff", sunIntensity: 0.05, skyTop: "#070b1d", skyHorizon: "#1d2650", fog: "#10152b", ambient: 0.2, night: 1 }],
+  // The finale keeps 240: at 237.5 the sun glares off the glass tower at the right of its frame.
   [30, { elevation: 8, azimuth: 240, sunColor: "#ffa456", sunIntensity: 3.6, skyTop: "#5583cc", skyHorizon: "#f7c08c", fog: "#eec9a6", ambient: 0.42, night: 0 }],
 ];
 
