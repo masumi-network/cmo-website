@@ -13,6 +13,7 @@ import { useEffect, useRef } from "react";
 import { Data3DTexture, LinearFilter, Material, Vector2, Vector3, Vector4, type MeshStandardMaterial, type Object3D } from "three";
 import { PROBES_DIR, PROBE_GLSL_CONSTANTS, hourBlend, parseProbeManifest, probeBytes, type ProbeManifest } from "@/lib/probes";
 import { damp, dayNow } from "./shared";
+import { traceInfo } from "./trace-info";
 
 const empty = new Data3DTexture(new Uint8Array(4), 1, 1, 1);
 empty.needsUpdate = true;
@@ -57,7 +58,8 @@ vec3 cityProbeHour(float block, float scale, vec3 g, vec3 n) {
 vec3 cityProbeIrradiance(vec3 p, vec3 n, out float w) {
   vec3 cell = cityProbesSize / cityProbesRes;
   vec3 f = (p + n * cell * 0.5 - cityProbesMin) / cityProbesSize;
-  vec3 edge = smoothstep(vec3(0.0), vec3(0.04), f) * smoothstep(vec3(1.0), vec3(0.96), f);
+  // a wide fade at the grid's sides (a narrow one drew a line where it ends); not at its floor and roof, which never show
+  vec3 edge = smoothstep(vec3(0.0, -1.0, 0.0), vec3(0.15, 0.0, 0.15), f) * smoothstep(vec3(1.0, 2.0, 1.0), vec3(0.85, 1.0, 0.85), f);
   w = edge.x * edge.y * edge.z;
   vec3 g = clamp(f * cityProbesRes, vec3(0.5), cityProbesRes - 0.5);
   vec3 a = cityProbeHour(cityProbesHour.x, cityProbesScale.x, g, n);
@@ -83,6 +85,8 @@ const patched = new WeakSet<Material>();
 export function withProbes(m: Material) {
   const lit = m as MeshStandardMaterial & { isMeshLambertMaterial?: boolean; isMeshPhongMaterial?: boolean };
   if (patched.has(m) || !(lit.isMeshStandardMaterial || lit.isMeshLambertMaterial || lit.isMeshPhongMaterial)) return;
+  // the water's colour is its reflection: the probes' sky light washed it out and showed the grid as a pale square
+  if (traceInfo.get(m)?.kind === "water") return;
   patched.add(m);
   const original = m.onBeforeCompile;
   const key = m.customProgramCacheKey;

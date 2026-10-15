@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { DataTexture, DirectionalLight, LinearFilter, PerspectiveCamera, RGBAFormat, SRGBColorSpace, UnsignedByteType, type Mesh, type Object3D, type Scene, type Texture } from "three";
 import { WebGPUPathTracer } from "three-gpu-pathtracer/webgpu";
 import type { WebGPURenderer } from "three/webgpu";
-import { newLive, stepLive } from "@/lib/live-trace";
+import { findTrace, keepTrace, newLive, stepLive, type Kept } from "@/lib/live-trace";
 import { PLATE_RANGE, encodePlate, type PlateEntry } from "@/lib/plates";
 import { lightingAt } from "@/lib/time";
 import { bakeGround } from "./bake-ground";
@@ -23,10 +23,13 @@ import { dayNow, rig } from "./shared";
 import { buildTwins, lightHousings, studioFill } from "./traced";
 import { asTraced, distanceFog, guided, newDenoiser, notInDepth, readTrace, skyTexture, tracerRenderer } from "./tracer";
 
-/** Samples a pixel before the denoiser runs. */
-let SPP = 16;
-/** How much of the screen's resolution is traced, drawn back at full size: half takes 2.6 s to a clean image against 5.3 s, a little softer. */
-let SCALE = 0.5;
+/** Samples a pixel before the denoiser runs: 8 is clean at this resolution. */
+let SPP = 8;
+/**
+ * How much of the screen's resolution is traced. Half was soft in the middle of the map, where the tilt shift leaves it
+ * sharp; three quarters is sharp there and takes 3.9 s at 1888 x 898, against 5.7 s at full resolution.
+ */
+let SCALE = 0.75;
 // dev only, for scripts/explore-bench.mjs: `?trace=<scale>,<samples>`
 if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
   const [scale, spp] = (new URLSearchParams(window.location.search).get("trace") ?? "").split(",").map(Number);
@@ -35,7 +38,12 @@ if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
 }
 
 /** For scripts/explore-bench.mjs: how long from the map coming to rest to the clean image on screen. */
-type Stats = { phase: string; setupMs: number; traceMs: number; traces: number; error?: string };
+type Stats = { phase: string; setupMs: number; traceMs: number; traces: number; reused: number; error?: string };
+
+/** A finished trace and the view it is of, kept to show again (lib/live-trace.ts keepTrace). */
+type Trace = Kept & { entry: PlateEntry; texture: Texture };
+/** Traces kept: each is the window's size in RGBA, about 7 MB at 1888 x 898. */
+const KEEP = 6;
 
 type Tracing = {
   renderer: WebGPURenderer;
@@ -120,10 +128,11 @@ export default function ExploreTrace() {
     /** bumps on every drop: a trace finishing after one is thrown away */
     gen: 0,
     tracing: false,
-    ready: null as { entry: PlateEntry; texture: Texture } | null,
+    ready: null as Trace | null,
+    kept: [] as Trace[],
     startedAt: 0,
   });
-  const stats = useMemo<Stats>(() => ({ phase: "idle", setupMs: 0, traceMs: 0, traces: 0 }), []);
+  const stats = useMemo<Stats>(() => ({ phase: "idle", setupMs: 0, traceMs: 0, traces: 0, reused: 0 }), []);
 
   // the pointer down on the page: a pause mid-drag is not a rest
   const pressed = useRef(false);
@@ -145,8 +154,8 @@ export default function ExploreTrace() {
     const s = state.current;
     return () => {
       s.gen++;
-      rig.live?.texture.dispose();
       rig.live = null;
+      for (const k of s.kept.splice(0)) k.texture.dispose();
       void s.setup?.then((t) => {
         t.tracer.dispose();
         t.renderer.dispose();
@@ -154,22 +163,32 @@ export default function ExploreTrace() {
     };
   }, [stats]);
 
+  /** Keeps a trace (the newest first) and frees the textures of the ones let go. */
+  const keep = (trace: Trace) => {
+    for (const gone of keepTrace(state.current.kept, trace, KEEP)) if (gone.texture !== rig.live?.texture) gone.texture.dispose();
+  };
+
   useFrame((_, dt) => {
     const s = state.current;
     const pose = { position: camera.position, quaternion: camera.quaternion };
-    const action = stepLive(live, { pose, dt, explore: dayNow().mode === "explore", done: s.ready !== null, pressed: pressed.current });
+    // a view traced before (Recenter, Explore opened again, panned back): shown as soon as the camera is on it
+    const known = !live.tracing && !live.shown && !pressed.current ? findTrace(s.kept, pose, dayNow().hour, size.width, size.height) : null;
+    const action = stepLive(live, { pose, dt, explore: dayNow().mode === "explore", done: s.ready !== null, pressed: pressed.current, known: known?.pose });
+    if (known && action === "show") {
+      s.ready = known;
+      stats.reused++;
+    }
 
     if (action === "drop") {
       s.gen++;
       s.tracing = false;
-      s.ready?.texture.dispose();
-      s.ready = null;
-      rig.live?.texture.dispose();
+      s.ready = null; // kept traces own their textures
       rig.live = null;
       stats.phase = "dropped";
     }
     if (action === "show" && s.ready) {
-      rig.live = s.ready;
+      rig.live = { entry: s.ready.entry, texture: s.ready.texture };
+      keep(s.ready);
       s.ready = null;
       stats.traceMs = Math.round(performance.now() - s.startedAt);
       stats.traces++;
@@ -215,10 +234,14 @@ export default function ExploreTrace() {
     stats.phase = "reading";
     const gen = s.gen;
     void readTrace(t.renderer, t.tracer, t.fog).then(({ linear, width, height }) => {
-      if (gen !== s.gen) return;
       const c = t.camera;
-      const entry: PlateEntry = { chapter: -1, hour: dayNow().hour, file: "live", width, height, fov: c.fov, position: c.position.toArray(), quaternion: c.quaternion.toArray() };
-      s.ready = { entry, texture: plateTexture(linear, width, height) };
+      const hour = dayNow().hour;
+      const entry: PlateEntry = { chapter: -1, hour, file: "live", width, height, fov: c.fov, position: c.position.toArray(), quaternion: c.quaternion.toArray() };
+      const pose = { position: { x: c.position.x, y: c.position.y, z: c.position.z }, quaternion: { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w } };
+      const trace: Trace = { pose, hour, width, height, entry, texture: plateTexture(linear, width, height) };
+      // kept even when the map moved on meanwhile: the work is done, and the view may come back
+      keep(trace);
+      if (gen === s.gen) s.ready = trace;
     });
   });
 

@@ -26,8 +26,14 @@ export type Live = ReturnType<typeof newLive>;
 
 const copy = (p: Pose): Pose => ({ position: { ...p.position }, quaternion: { ...p.quaternion } });
 
-/** One frame: `start` a trace from `pose`, `show` the finished one, `drop` what is traced or shown, or `wait`. */
-export function stepLive(s: Live, { pose, dt, explore, done, pressed = false }: { pose: Pose; dt: number; explore: boolean; done: boolean; pressed?: boolean }): "wait" | "start" | "show" | "drop" {
+/**
+ * One frame: `start` a trace from `pose`, `show` the finished one, `drop` what is traced or shown, or `wait`.
+ * `known`: a kept trace of the view the camera is on (findTrace), shown at once: it needs no stillness to wait for.
+ */
+export function stepLive(
+  s: Live,
+  { pose, dt, explore, done, pressed = false, known = null }: { pose: Pose; dt: number; explore: boolean; done: boolean; pressed?: boolean; known?: Pose | null },
+): "wait" | "start" | "show" | "drop" {
   const had = s.tracing !== null || s.shown !== null;
   if (!explore) {
     Object.assign(s, newLive());
@@ -35,6 +41,11 @@ export function stepLive(s: Live, { pose, dt, explore, done, pressed = false }: 
   }
   const last = s.last;
   s.last = copy(pose);
+  if (known && !pressed && !s.tracing && !s.shown) {
+    s.shown = copy(known); // the rig snaps the camera onto it (it is within HOLD)
+    s.still = 0;
+    return "show";
+  }
   let moving = last === null;
   if (s.shown) moving = off(pose, s.shown); // the rig holds the camera on it: only a real move counts
   else if (last && dt > 0) {
@@ -67,4 +78,29 @@ export function stepLive(s: Live, { pose, dt, explore, done, pressed = false }: 
     return "start";
   }
   return "wait";
+}
+
+/** A finished trace, kept to show again when the camera comes back to its view. */
+export type Kept = { pose: Pose; hour: number; width: number; height: number };
+
+/** The kept trace for this view, if any: the same pose (within HOLD), hour and window size. */
+export function findTrace<T extends Kept>(kept: T[], pose: Pose, hour: number, width: number, height: number) {
+  return kept.find((k) => !off(pose, k.pose) && Math.abs(k.hour - hour) < 0.02 && k.width === width && k.height === height) ?? null;
+}
+
+/**
+ * Keeps `trace` as the newest (one already kept just moves to the front; a new one for a kept view replaces it),
+ * at most `max`. Returns the traces let go, for their textures to be freed.
+ */
+export function keepTrace<T extends Kept>(kept: T[], trace: T, max: number): T[] {
+  const gone: T[] = [];
+  const at = kept.indexOf(trace);
+  if (at >= 0) kept.splice(at, 1);
+  else {
+    const same = findTrace(kept, trace.pose, trace.hour, trace.width, trace.height);
+    if (same) gone.push(...kept.splice(kept.indexOf(same), 1));
+  }
+  kept.unshift(trace);
+  gone.push(...kept.splice(max));
+  return gone;
 }

@@ -21,8 +21,10 @@ Last updated: 2026-10-15 · Status: v0, on by itself on capable desktops · Laun
 - Live objects are marked `userData={LIVE}` (shared.ts): Cuso, cars, boats and ferry, cable cars, the Union Square billboard, the shop sign and interior.
 
 ## Explore: the map traced live (`src/scene/explore-trace.tsx`, `src/lib/live-trace.ts`)
-- Desktop with photo-real on. Once the map has been still 0.3 s (its easing under 5 mm a second, `stepLive`), the static city is traced from the camera's own pose, at half the screen's resolution, and handed to the plates as a live plate (`rig.live`): Cuso, cars and boats stay live on top and cast their shadows on it, as at a chapter.
+- Desktop with photo-real on. Once the map has been still 0.3 s (its easing under 5 mm a second, `stepLive`), the static city is traced from the camera's own pose, at three quarters of the screen's resolution with 8 samples, and handed to the plates as a live plate (`rig.live`): Cuso, cars and boats stay live on top and cast their shadows on it, as at a chapter.
 - Any drag or zoom drops it: the camera rig holds the camera on the traced pose (`holdsLive`, 5 cm and 1 degree) and lets go the moment the map moves; a trace still running is thrown away. The canvas's `data-plate` goes back to `off` within 50 ms of grabbing the map.
+- Traced views are kept (`keepTrace`, the newest 6, about 7 MB each at 1888 x 898): back on a view traced before (Recenter, Explore opened again, panned back) the kept trace shows as soon as the camera is within 5 cm of it, with no trace and no wait for the easing to settle (`findTrace`, `known` in `stepLive`). A trace finishing after the map moved on is kept too. Measured at 1888 x 898: Recenter 2.5 s and Explore reopened 3.3 s from the click, the camera's own flight; a new view 3.9 s from rest.
+- A new view still needs a new trace: a trace is a picture from one exact viewpoint, and a pan or zoom changes what is in front of what.
 - The tracer's code loads the first time Explore opens (its own Suspense, so the city never blanks), and is set up the first time the map comes to rest: twins, ground bake and BVH, about 2.6 s, the page blocked for part of it. Later traces reuse it.
 - 16 samples a pixel, then the OIDN denoiser. Its weights ship in `public/oidn` (3.6 MB, Apache 2.0, checksums in its README) and load with the tracer, the first time Explore opens.
 - Not traced: live objects (drawn on top), the fog bank (GLSL). Shadows of far casters are traced as they are (no shadow box), so dawn shadows run long across the water.
@@ -34,10 +36,11 @@ From the map coming to rest to the image on screen (1440 x 900, this Mac, 06:00)
 | --- | --- | --- |
 | Full resolution, 16 samples + denoiser | 8.4 s | 5.3 s |
 | Full resolution, 8 samples + denoiser | 6.6 s | 3.6 s |
-| Half resolution, 16 samples + denoiser (the site) | 5.5 s | 2.6 s |
+| Half resolution, 16 samples + denoiser (soft in the middle) | 5.5 s | 2.6 s |
 | Half resolution, 8 samples + denoiser | 5.0 s | 2.0 s |
 | Half resolution, 64 samples, no denoiser (before the weights shipped) | 8.3 s | 5.5 s |
 | The site with the shipped weights, two runs on 2026-10-15 (a slower GPU state than the rows above) | 7.1 s | 3.4 s |
+| The site: three quarters, 8 samples + denoiser, at 1888 x 898 | 7.0 s | 3.9 s |
 
 - Flashes while dragging (fixed 2026-10-15), found by recording every frame (CDP screencast) around a drag:
   - The tracer adds missing normals and tangents to every geometry it reads, the city's own (`generateMissingAttributes`). A tangent changes a normal-mapped material's WebGL shader: after the first trace, meshes coming into view mid-drag compiled shaders mid-frame and the canvas showed blank for single frames. The Explore tracer turns it off (the city has what it needs).
@@ -49,7 +52,7 @@ From the map coming to rest to the image on screen (1440 x 900, this Mac, 06:00)
 ## Light probes while moving (`src/scene/probes.tsx`, `src/lib/probes.ts`)
 - A grid of probes over the city: 64 x 14 x 54 at 3 m (x -96..96, y -3..39, z -96..66; the chapter cameras sit within 35 m of the middle). Each holds the light arriving from every direction as L1 spherical harmonics (12 numbers), per chapter hour (06, 07, 09, 12, 15, 18, 22; 06:00 tomorrow reuses 06:00).
 - Traced without the sun's direct light or the lamps' (rays leaving a probe never meet a punctual light): bounced light and sky only. The raster keeps drawing the sun, lamps and shadows itself. At night the trace's two fill lights (`studioFill`) are added to each probe directly, as the raster's studio light shows them.
-- Every lit material gets a small patch at load, desktop only (`patchProbes` in `Ready`, before shaders compile; phones and lite never get it). Where `cityProbesMix` is above 0 the probes' irradiance replaces the environment's diffuse part and the hemisphere light; reflections stay as they are. The hour blends between the two baked hours around it (`hourBlend`), 8 texture reads a pixel. Past the grid's edge (the last 4%) it fades back to today's light.
+- Every lit material gets a small patch at load, desktop only (`patchProbes` in `Ready`, before shaders compile; phones and lite never get it). Where `cityProbesMix` is above 0 the probes' irradiance replaces the environment's diffuse part and the hemisphere light; reflections stay as they are. The hour blends between the two baked hours around it (`hourBlend`), 8 texture reads a pixel. Towards the grid's sides (the last 15%) it fades back to today's light; a narrow 4% fade drew a line. The water is left out: its colour is its reflection, and the probes' sky light showed the grid as a pale square on the bay.
 - `<Probes on={photoreal}>` downloads `public/probes/` the first time photo-real is on, then fades the probes in or out in about half a second: the settings switch costs no recompile. Off, the materials draw exactly as today. The canvas carries `data-probes` = `on` or `off` for tests.
 - Storage: 8 bits a number, scaled per hour by the 99.9th percentile probe (a few inside glowing things clip), gzipped. Unzipped in the page (`probeBytes`), or taken as is if a host already unzipped it.
 

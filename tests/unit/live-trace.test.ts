@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STILL_FOR, newLive, stepLive, type Pose } from "@/lib/live-trace";
+import { STILL_FOR, findTrace, keepTrace, newLive, stepLive, type Pose } from "@/lib/live-trace";
 
 const at = (x: number, yaw = 0): Pose => ({ position: { x, y: 40, z: 0 }, quaternion: { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) } });
 const frame = 1 / 60;
@@ -92,11 +92,58 @@ describe("the live trace in Explore", () => {
     expect(stepLive(s, { pose: at(0), dt: frame, explore: true, done: false, pressed: true })).toBe("drop");
   });
 
+  it("shows a view traced before as soon as the camera is on it, still easing in (no trace to wait for)", () => {
+    const s = newLive();
+    // the camera arrives at 2 cm a frame: far too fast to start a trace, near enough to show the one kept
+    expect(stepLive(s, { pose: at(0.3), dt: frame, explore: true, done: false })).toBe("wait");
+    expect(stepLive(s, { pose: at(0.02), dt: frame, explore: true, done: false, known: at(0) })).toBe("show");
+    expect(s.shown).toEqual(at(0));
+    // the rig snaps the camera onto it: it holds
+    expect(stepLive(s, { pose: at(0), dt: frame, explore: true, done: false })).toBe("wait");
+  });
+
+  it("does not show a kept view while the pointer is down", () => {
+    const s = newLive();
+    expect(stepLive(s, { pose: at(0), dt: frame, explore: true, done: false, known: at(0), pressed: true })).toBe("wait");
+  });
+
   it("drops everything when leaving Explore", () => {
     const s = newLive();
     hold(s, at(0), 0.5);
     stepLive(s, { pose: at(0), dt: frame, explore: true, done: true });
     expect(stepLive(s, { pose: at(0), dt: frame, explore: false, done: false })).toBe("drop");
     expect(hold(s, at(0), 1, { explore: false })).toEqual([]);
+  });
+});
+
+describe("traced views kept for coming back", () => {
+  const view = (x: number, hour = 6, width = 1600) => ({ pose: at(x), hour, width, height: 900, id: `${x}/${hour}/${width}` });
+
+  it("finds a view traced before when the camera is back on it (Recenter, Explore opened again)", () => {
+    const kept = [view(0), view(10)];
+    expect(findTrace(kept, at(10.02), 6, 1600, 900)?.id).toBe("10/6/1600");
+    expect(findTrace(kept, at(5), 6, 1600, 900)).toBeNull();
+  });
+
+  it("only at the same hour and window size", () => {
+    const kept = [view(0)];
+    expect(findTrace(kept, at(0), 9, 1600, 900)).toBeNull();
+    expect(findTrace(kept, at(0), 6, 1400, 900)).toBeNull();
+  });
+
+  it("keeps the newest few, hands back the ones it lets go, and moves a view used again to the front", () => {
+    const kept: ReturnType<typeof view>[] = [];
+    const first = view(0);
+    for (const v of [first, view(10), view(20)]) expect(keepTrace(kept, v, 3)).toEqual([]);
+    expect(keepTrace(kept, first, 3)).toEqual([]); // shown again: now the newest
+    expect(keepTrace(kept, view(30), 3).map((v) => v.id)).toEqual(["10/6/1600"]);
+    expect(kept.map((v) => v.id)).toEqual(["30/6/1600", "0/6/1600", "20/6/1600"]);
+  });
+
+  it("replaces a view traced again, handing back the old one", () => {
+    const kept = [view(0)];
+    const old = kept[0];
+    expect(keepTrace(kept, view(0.01), 3)).toEqual([old]);
+    expect(kept).toHaveLength(1);
   });
 });

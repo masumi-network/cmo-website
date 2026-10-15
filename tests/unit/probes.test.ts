@@ -1,6 +1,7 @@
 import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { MeshBasicMaterial, MeshStandardMaterial, Vector3 } from "three";
+import { Color, MeshBasicMaterial, MeshStandardMaterial, Texture, Vector3 } from "three";
+import { traceInfo } from "@/scene/trace-info";
 import {
   TILE,
   addDirectional,
@@ -160,6 +161,13 @@ describe("probe light in the shaders", () => {
     const basic = new MeshBasicMaterial();
     withProbes(basic);
     expect(compile(basic).fragmentShader).not.toContain("cityProbe");
+  });
+
+  it("leaves the water alone: its colour is its reflection, and the probes' sky light showed the grid as a pale square on the bay", () => {
+    const water = new MeshStandardMaterial();
+    traceInfo.set(water, { kind: "water", ripples: new Texture(), deep: new Color("#204060") });
+    withProbes(water);
+    expect(compile(water).fragmentShader).not.toContain("cityProbe");
   });
 });
 
