@@ -14,7 +14,7 @@ function glslGround(x: number, z: number) {
   const plaza = GROUND_GLSL.match(new RegExp(String.raw`p\.x > ${num} && p\.x < ${num} && p\.y > ${num} && p\.y <= ${num}\) return ${num};`))!;
   const [x0, x1, z0, z1, y] = plaza.slice(1).map(Number);
   if (x > x0 && x < x1 && z > z0 && z <= z1) return y;
-  const dome = new RegExp(String.raw`d = \(p - vec2\(${num}, ${num}\)\) / vec2\(${num}, ${num}\); t = max\(1\.0 - dot\(d, d\), 0\.0\); h \+= ${num} \* t \* t;`, "g");
+  const dome = new RegExp(String.raw`wD = \(p - vec2\(${num}, ${num}\)\) / vec2\(${num}, ${num}\); wT = max\(1\.0 - dot\(wD, wD\), 0\.0\); wH \+= ${num} \* wT \* wT;`, "g");
   let h = 0;
   for (const m of GROUND_GLSL.matchAll(dome)) {
     const [hx, hz, rx, rz, a] = m.slice(1).map(Number);
@@ -32,7 +32,7 @@ const compile = (m: MeshStandardMaterial) => {
 
 describe("ground level in the shader", () => {
   it("has every hill and the plaza", () => {
-    expect(GROUND_GLSL.match(/h \+=/g)).toHaveLength(HILLS.length);
+    expect(GROUND_GLSL.match(/wH \+=/g)).toHaveLength(HILLS.length);
     for (const v of [PLAZA.x0, PLAZA.x1, PLAZA.z0, PLAZA.z1, PLAZA.y]) expect(GROUND_GLSL).toContain(String(v));
   });
 

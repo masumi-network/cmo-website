@@ -8,6 +8,7 @@ import { facadeNight } from "./facade";
 import { SLOT, SLOTS } from "./house-models";
 import { LAWN_GLSL, lawnTexture } from "./lawn";
 import { GLASS_ENV_GLSL, glassUniforms } from "./reflections";
+import { GROUND_GLSL, TONE, WEATHER_GLSL, weather, type Weather } from "./weathering";
 
 /** Footing below ground on every building (see city.tsx). */
 export const FOOTING = 1.4;
@@ -31,16 +32,16 @@ const COMMON_FRAG = /* glsl */ `
   // Dark, slightly blue pixels are window glass.
   float fGlass(vec3 c) { return smoothstep(0.34, 0.16, fLuma(c)) * smoothstep(-0.04, 0.03, c.b - c.r); }`;
 
-function patch(material: MeshStandardMaterial, key: string, opts: { uniforms: Record<string, { value: unknown }>; vertHead?: string; vert?: string; fragHead: string; color: string; emissive?: string; roughness?: string; normal?: string; lights?: string }) {
+function patch(material: MeshStandardMaterial, key: string, opts: { uniforms: Record<string, { value: unknown }>; vertHead?: string; vert?: string; fragHead: string; color: string; emissive?: string; roughness?: string; normal?: string; lights?: string; weather?: Weather }) {
   material.customProgramCacheKey = () => key;
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, { uNight: facadeNight, ...opts.uniforms });
+    Object.assign(shader.uniforms, { uNight: facadeNight, ...opts.uniforms }, opts.weather && { uWeather: { value: opts.weather.amount } });
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", `#include <common>\nvarying vec3 vFPos;\nvarying vec3 vFNormal;\n${opts.vertHead ?? ""}`)
       .replace("#include <begin_vertex>", `#include <begin_vertex>\n${COMMON_VERT}\n${opts.vert ?? ""}`);
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", `#include <common>\n${COMMON_FRAG}\n${opts.fragHead}`)
-      .replace("#include <color_fragment>", `#include <color_fragment>\n${opts.color}`)
+      .replace("#include <common>", `#include <common>\n${COMMON_FRAG}\n${opts.fragHead}${opts.weather ? `\n${GROUND_GLSL}\n${WEATHER_GLSL}` : ""}`)
+      .replace("#include <color_fragment>", `#include <color_fragment>\n${opts.color}\n${opts.weather?.glsl ?? ""}`)
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>\n${opts.roughness ?? ""}`)
       .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>\n${opts.normal ?? ""}`)
       .replace("#include <lights_fragment_maps>", `#include <lights_fragment_maps>\n${opts.lights ?? ""}`)
@@ -140,6 +141,7 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
         fCloth = max(fBlind, fCurt);
       }
       diffuseColor.rgb = fC;`,
+    weather: weather("vSeed", "fGlassy", TONE.house),
     roughness: "roughnessFactor = mix(roughnessFactor, 0.1, fGlassy);",
     // glass reflects the city (below), not the studio environment
     lights: "radiance *= 1.0 - fGlassy * uGlassMix;",
@@ -312,6 +314,7 @@ export function downtownMaterial(stone: Texture) {
         fRough = 0.4;
         fMetal = 0.6;
       }`,
+    weather: weather("vInfo.y", "fGl", TONE.downtown),
     emissive: /* glsl */ `
       roughnessFactor = fRough;
       metalnessFactor = fMetal;
