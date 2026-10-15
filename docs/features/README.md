@@ -24,6 +24,7 @@ feature? Update its doc and its row in the same change.
 | F10 | Without 3D: posters, reduced motion, accessibility | done | ok | [fallback-and-access](fallback-and-access.md) | `src/components/experience.tsx`, `public/concepts` | `tests/e2e/day.spec.ts` |
 | F11 | Site check: Cuso reviews your site and reports back | planned | ok | [site-check](site-check.md) | | |
 | F12 | Photo-real mode: removed 2026-10-15 (traced plates, live Explore trace, light probes, the settings switch). The test keeps it out | removed | ok | [photoreal](photoreal.md) | | `tests/unit/photoreal-removed.test.ts` |
+| F13 | Photo look: per-hour post, sky and foreground, tuned at 12:00 first | planned | ok | [photo-look](photo-look.md) | | |
 
 ## How we verify
 
