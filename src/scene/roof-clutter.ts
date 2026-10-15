@@ -14,8 +14,7 @@ import { BODY_DEPTH, H, W } from "./house-models";
 import { CITY, HOUSE_GAP, type House, type Tower } from "./layout";
 import { towerPieces, towerStyle } from "./towers";
 
-const KINDS = ["hvac", "vent", "bulkhead", "skylight", "antenna"] as const;
-export type Kind = (typeof KINDS)[number];
+export type Kind = "hvac" | "vent" | "bulkhead" | "skylight" | "antenna";
 /** Phones: only the items big enough to read from their cameras. */
 export const LITE_KINDS: readonly Kind[] = ["hvac", "bulkhead", "skylight"];
 
