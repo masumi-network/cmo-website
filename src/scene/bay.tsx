@@ -52,6 +52,7 @@ import { Alcatraz, TREASURE_ISLAND, TreasureIsland, alcatrazDistance, islandGeom
 import { BAY_TOWERS, GG } from "./landmarks";
 import { LAND, insideLand } from "./layout";
 import { BAY_ANCHORS, ISLAND, ROADS, piers } from "./roads";
+import { COAST_BOX, COAST_OFF, ROCKS, SURF_GLSL, coastHeight } from "./coast";
 import { useGlow } from "./parts";
 import { rig } from "./shared";
 
@@ -238,8 +239,11 @@ function segmentDistance(px: number, pz: number, ax: number, az: number, bx: num
   return Math.hypot(px - ax - vx * t, pz - az - vz * t);
 }
 
-/** Everything solid except the Marin Headlands (those are a height field, baked below). */
-function solidDistance(x: number, z: number) {
+/** The ocean rocks (coast.ts) as circles, so foam rings them: only looked up near the west coast. */
+const ROCK_ZONE = { x0: -105, x1: COAST_BOX.x1, z0: COAST_BOX.z0 - 5, z1: COAST_BOX.z1 };
+
+/** Everything solid except the Marin Headlands and the ocean coast's beach and rock apron (height fields, baked below). */
+function solidDistance(x: number, z: number, coast: boolean) {
   let edge = Infinity;
   for (let i = 0, j = LAND.length - 1; i < LAND.length; j = i++) edge = Math.min(edge, segmentDistance(x, z, LAND[j][0], LAND[j][1], LAND[i][0], LAND[i][1]));
   let d = (insideLand(x, z) ? -edge : edge) - SEA_WALL;
@@ -250,6 +254,7 @@ function solidDistance(x: number, z: number) {
   }
   d = Math.min(d, Math.hypot(x - ISLAND.x, z - ISLAND.z) - ISLAND.r);
   for (const part of TREASURE_ISLAND) d = Math.min(d, roundedBoxDistance(x, z, part) - 0.1);
+  if (coast && x > ROCK_ZONE.x0 && x < ROCK_ZONE.x1 && z > ROCK_ZONE.z0 && z < ROCK_ZONE.z1) for (const r of ROCKS) d = Math.min(d, Math.hypot(x - r.x, z - r.z) - r.s);
   return Math.min(d, alcatrazDistance(x, z));
 }
 
@@ -258,18 +263,27 @@ export const SHORE = { x0: -232, z0: -350, cell: 0.875, w: 512, h: 538 };
 export type Shore = typeof SHORE & { data: Float32Array };
 
 /**
- * Bake the shore distance once. The Marin shore is found where the headland
- * height field crosses the water line (sub-texel), then spread out with a
- * vector distance transform; everything else is exact.
+ * Bake the shore distance once. The Marin shore and the ocean coast (beach,
+ * rock apron) are found where their height fields cross the water line
+ * (sub-texel), then spread out with a vector distance transform; everything
+ * else is exact. `coast` false: the old sea wall all round (`?coast=off`).
  */
-export function bakeShore(): Shore {
+export function bakeShore(coast = !COAST_OFF): Shore {
   const { x0, z0, cell, w, h } = SHORE;
   const n = w * h;
   const cx = (k: number) => x0 + ((k % w) + 0.5) * cell;
   const cz = (k: number) => z0 + (Math.floor(k / w) + 0.5) * cell;
 
   const above = new Float32Array(n).fill(-1);
-  for (let k = 0; k < n; k++) if (cz(k) < -112) above[k] = headlandHeight(cx(k), cz(k)) - WATER_Y;
+  for (let k = 0; k < n; k++) {
+    const x = cx(k);
+    const z = cz(k);
+    if (z < -112) above[k] = headlandHeight(x, z) - WATER_Y;
+    else if (coast && x > COAST_BOX.x0 && x < COAST_BOX.x1 && z > COAST_BOX.z0 && z < COAST_BOX.z1) {
+      const y = coastHeight(x, z);
+      above[k] = insideLand(x, z) ? 1 : y > -Infinity ? y - WATER_Y : -1;
+    }
+  }
 
   const best = new Float32Array(n).fill(Infinity);
   const sx = new Float32Array(n);
@@ -324,7 +338,7 @@ export function bakeShore(): Shore {
   const data = new Float32Array(n);
   for (let k = 0; k < n; k++) {
     const marin = above[k] > 0 ? -best[k] : best[k];
-    data[k] = Math.min(solidDistance(cx(k), cz(k)), marin);
+    data[k] = Math.min(solidDistance(cx(k), cz(k), coast), marin);
   }
   return { ...SHORE, data };
 }
@@ -741,7 +755,9 @@ function shoreTexture() {
   for (let i = 0; i < data.length; i++) data[i] = Math.round(Math.min(1, Math.max(0, (shore.data[i] + 2) / 16)) * 255);
   const tex = new DataTexture(data, shore.w, shore.h, RedFormat);
   tex.magFilter = LinearFilter;
-  tex.minFilter = LinearFilter;
+  // mipmaps only for the surf's blurred look-up (textureLod); the shore itself is read at level 0
+  tex.minFilter = LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
   tex.needsUpdate = true;
   return tex;
 }
@@ -809,7 +825,8 @@ function waterMaterial(mirror: boolean) {
         #ifdef MIRROR
           uniform sampler2D uMirror;
           varying vec4 vMirror;
-        #endif`,
+        #endif
+        ${SURF_GLSL}`,
       )
       .replace(
         "#include <color_fragment>",
@@ -823,13 +840,19 @@ function waterMaterial(mirror: boolean) {
         vec2 slope = (r1 * 0.55 + r2 * 0.45) * 0.26 * calm;
         vec3 waterN = normalize(vec3(slope.x, 1.0, slope.y));
         // Shallows and foam from the baked distance to the shore.
-        float shoreD = texture2D(uShore, (wp - uShoreBox.xy) * uShoreBox.zw).r * 16.0 - 2.0;
+        vec2 shoreUv = (wp - uShoreBox.xy) * uShoreBox.zw;
+        float shoreD = textureLod(uShore, shoreUv, 0.0).r * 16.0 - 2.0;
         float shallow = 1.0 - smoothstep(0.0, 5.5, shoreD);
         vec3 body = mix(uDeep, uShallow, shallow * shallow);
         float edge = 1.0 - smoothstep(0.05, 0.6, shoreD + r2.x * 0.15);
         float swash = smoothstep(0.8, 1.0, sin(shoreD * 2.4 + uTime * 0.7 + r1.y * 2.0))
           * smoothstep(0.4, 1.0, shoreD) * (1.0 - smoothstep(0.8, 3.4, shoreD));
-        float foam = clamp(edge + swash * 0.2, 0.0, 1.0) * (0.8 + 0.2 * r1.x) * (1.0 - 0.45 * uNight);
+        // Surf on ocean-facing shores (coast.ts), in place of the bay's swash.
+        float exposed = ${COAST_OFF ? "0.0" : "coastExposure(wp)"};
+        vec2 sn = (texture2D(uRipples, wp * 0.013 + vec2(0.21, 0.63)).xy * 2.0 - 1.0) * 2.5;
+        float froth = texture2D(uRipples, wp * 0.29).x + texture2D(uRipples, wp * 0.67 + vec2(0.5)).y - 0.5;
+        float surf = exposed * coastSurf(shoreD, textureLod(uShore, shoreUv, 2.5).r * 16.0 - 2.0, uTime, sn.x, sn.y, froth);
+        float foam = clamp(edge + swash * 0.2 * (1.0 - exposed) + surf, 0.0, 1.0) * (0.8 + 0.2 * r1.x) * (1.0 - 0.45 * uNight);
         diffuseColor.rgb = mix(body, uFoam, foam);`,
       )
       .replace(

@@ -20,6 +20,7 @@ import {
   type Texture,
 } from "three";
 import { Bay, Hills, Water } from "./bay";
+import { Coast } from "./seashore";
 import { HEADLANDS, heightAt, headlandHeight } from "@/lib/terrain";
 import { LAND, streetDrop } from "./grid";
 import { kerbGeometry, relief, terrainGeometry, tiles } from "./ground";
@@ -68,6 +69,7 @@ export function City({ lite }: { lite: boolean }) {
       <Water lite={lite} />
       <Hills map={tex.hills} />
       <Headlands map={tex.hills} lite={lite} />
+      <Coast lite={lite} />
       <Houses houses={city.houses} tex={tex} lite={lite} />
       <Towers towers={city.towers} tex={tex} />
       <Trees trees={city.trees} lite={lite} />

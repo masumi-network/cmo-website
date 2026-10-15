@@ -182,8 +182,8 @@ export function parkStones(): { rocks: Stone[]; shrubs: Stone[] } {
   return { rocks, shrubs };
 }
 
-/** Rock: a lumpy, faceted icosahedron, flatter than tall. Shrub: a soft round lump, darker underneath. */
-function stoneGeometries() {
+/** Rock: a lumpy, faceted icosahedron, flatter than tall. Shrub: a soft round lump, darker underneath. The coast (seashore.tsx) uses the rock too. */
+export function stoneGeometries() {
   const rock = new IcosahedronGeometry(1, 1);
   const p = rock.attributes.position;
   const v = new Vector3();
