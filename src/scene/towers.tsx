@@ -6,15 +6,18 @@
 // crowns, roofs; casts the shadows) and the window relief (receives only).
 //
 // Three kinds, base / shaft / crown:
-// - deco: 1920s limestone or terracotta, a tall lobby, inset shaft, cornices,
-//   a pyramid, stepped or flat crown (flat ones carry a penthouse and a water tank).
+// - deco: 1920s limestone or terracotta, a tall lobby, a shaft set back over
+//   the base, belt courses over the base and under the top storey, a deep
+//   modillion cornice at the crown and smaller ones at setbacks, a pyramid,
+//   stepped or flat crown (flat ones carry a penthouse and a water tank).
 //   Punched one-over-one windows set REVEAL back between stone piers, over
 //   recessed spandrels, each on a stone sill.
 // - glass: curtain wall with metal fins on the mullion lines and, on half of
 //   them, spandrel bands at each floor; a recessed glazed lobby, metal bands at
 //   setbacks, a sloped top or a crisp parapet with a plant room.
 // - loft: SoMa brick or concrete mid-rise with big steel windows set back
-//   between piers, shops below, a parapet with a coping and often a wooden water tank.
+//   between piers on a sill course, shops below, a cornice on a corbel table,
+//   a parapet with a coping and often a wooden water tank.
 // Shop fronts on deco and loft towers stand back between real piers under a fascia.
 
 import { useMemo } from "react";
@@ -46,6 +49,8 @@ const BAND_OUT = 0.015;
 const SILL = 0.05;
 /** The body's wall behind punched windows sits this far behind the glass (hidden; it casts the shadow). */
 const CORE_GAP = 0.015;
+/** The belt over the ground floor, flush with the shop base. */
+const GROUND_BELT = 0.14;
 
 /**
  * Window relief on a facade. punched: piers `pier` wide on the column lines,
@@ -55,7 +60,16 @@ const CORE_GAP = 0.015;
  * shop: piers between the shop bays, a fascia over them and a stall riser under them.
  */
 export type Relief =
-  | { kind: "punched"; pier: number; sill: number; head: number; recess: number; pane: number }
+  | {
+      kind: "punched";
+      pier: number;
+      sill: number;
+      head: number;
+      recess: number;
+      pane: number;
+      /** A continuous sill course this far proud of the piers on every storey, instead of a sill under each window. */
+      course?: number;
+    }
   | { kind: "curtain"; band: number }
   | { kind: "shop"; pier: number };
 
@@ -63,8 +77,11 @@ type V3 = [number, number, number];
 /** Wall grid: column width and storey height (both fitted to the wall), counted from y0. */
 type Grid = { col: number; storey: number; y0: number };
 export type Piece = {
-  /** facade: window relief on the walls of the box min..max (its faces are the wall plane). */
-  shape: "box" | "pyramid" | "wedge" | "cylinder" | "cone" | "facade";
+  /**
+   * facade: window relief on the walls of the box min..max (its faces are the wall plane).
+   * band: a ring around a wall (cornice step, belt, parapet): its outer faces, `ledge` and `inner` faces only.
+   */
+  shape: "box" | "pyramid" | "wedge" | "cylinder" | "cone" | "facade" | "band";
   min: V3;
   max: V3;
   part: number;
@@ -77,6 +94,12 @@ export type Piece = {
   /** Floodlit tower: height of the lights that wash its crown at night. */
   flood?: number;
   relief?: Relief;
+  /** Band: how far in from its outer face its top and bottom faces reach (0: none, something sits there). */
+  ledge?: [number, number];
+  /** Band: a wall this thick standing on a roof (a parapet): it gets inner faces too. */
+  inner?: number;
+  /** Too fine for the shadow map (belts, modillions, corbels): built into the relief, which casts no shadow. */
+  fine?: boolean;
 };
 
 const hash = (x: number, z: number, k: number) => {
@@ -100,7 +123,7 @@ export function towerStyle(t: Tower) {
       ? // Half the curtain walls have deep spandrels (the shader's choice, by the same seed): those get bands.
         { kind: "curtain", band: hash(t.x, t.z, 9) >= 0.5 ? 0.2 : 0 }
       : style === "loft"
-        ? { kind: "punched", pier: 0.3, sill: 0.18, head: 0.86, recess: 0.015, pane }
+        ? { kind: "punched", pier: 0.3, sill: 0.18, head: 0.86, recess: 0.015, pane, course: 0.03 }
         : { kind: "punched", pier: 0.4, sill: 0.25, head: 0.85, recess: 0.025, pane };
   return {
     style,
@@ -117,8 +140,8 @@ export function towerStyle(t: Tower) {
     storey: style === "glass" ? 1.05 : style === "loft" ? 1.4 : 1.25,
     /** Shop or lobby bay width. */
     bay: style === "glass" ? 1.4 : style === "loft" ? 1.0 : 1.15,
-    /** How far the shaft sits inside the cornice line. */
-    inset: style === "glass" ? 0.04 : 0.08,
+    /** How far the shaft sits inside the cornice line (and inside the shop base on the ground). */
+    inset: style === "glass" ? 0.04 : style === "loft" ? 0.16 : 0.2,
     tank: style !== "glass" && crown === "flat" && r(2) < 0.7,
     corner: Math.floor(r(4) * 4),
     high: (r(5) < 0.5 ? 1 : -1) as 1 | -1,
@@ -135,9 +158,78 @@ export function floodlit(towers: Tower[]) {
   return new Set([...deco].sort((a, b) => carved(b) - carved(a) || b.h - a.h).slice(0, 2));
 }
 
+/** A cornice: steps from the bottom up (`out`: how far each stands proud of the wall; `wall`: in the wall's colour, else trim), a parapet on the roof, brackets under the top step. */
+export type Cornice = {
+  steps: { h: number; out: number; wall?: boolean }[];
+  parapet: { h: number; out: number; wall?: boolean; coping?: boolean };
+  brackets?: { w: number; h: number; every: number };
+};
+
+/**
+ * The cornice profile of a stone or loft tier (none on glass). The top step
+ * (the corona) projects most, at the roof line, and casts the strong shadow.
+ * deco crown: a frieze, a bed moulding, modillions and a deep corona, then a
+ * plain parapet; deco setback: a bed and a smaller corona. loft (never set
+ * back): a brick course on a corbel table, a concrete cornice, a brick parapet
+ * with a coping.
+ */
+export function corniceProfile(style: Style, top: boolean): Cornice | null {
+  if (style === "glass") return null;
+  if (style === "loft")
+    return {
+      steps: [{ h: 0.12, out: 0.04, wall: true }, { h: 0.14, out: 0.16 }],
+      parapet: { h: 0.28, out: 0.03, wall: true, coping: true },
+      brackets: { w: 0.08, h: 0.06, every: 0.32 },
+    };
+  return top
+    ? {
+        steps: [{ h: 0.3, out: 0.04 }, { h: 0.08, out: 0.1 }, { h: 0.16, out: 0.2 }],
+        parapet: { h: 0.24, out: 0.03 },
+        brackets: { w: 0.06, h: 0.07, every: 0.3 },
+      }
+    : { steps: [{ h: 0.08, out: 0.07 }, { h: 0.12, out: 0.17 }], parapet: { h: 0.16, out: 0.03 } };
+}
+
+/** Belt courses stand this far proud of the piers, from this far under a storey line to this far over it. */
+const BELT = { out: 0.06, below: 0.06, above: 0.08 };
+
+/** Heights on tier i: where its wall of windows starts and stops, its roof and top, and its crown and cornice. */
+function tierLevels(t: Tower, i: number) {
+  const s = towerStyle(t);
+  const tier = t.tiers[i];
+  const last = i === t.tiers.length - 1;
+  const y0 = i === 0 ? t.y + s.ground + GROUND_BELT : t.y + tier.y;
+  const top = t.y + tier.y + tier.h;
+  const crown = last ? s.crown : "flat";
+  const crownH =
+    crown === "pyramid" ? Math.min(2, Math.max(1, Math.min(tier.w, tier.d) * 0.42)) : crown === "stepped" ? 2 : crown === "slope" ? Math.min(2.2, Math.max(1.2, tier.w * 0.35)) : 0;
+  const roof = top - crownH;
+  const cornice = corniceProfile(s.style, last);
+  // The windows stop under the cornice, so it never crosses glass.
+  const wallTop = roof - (cornice?.steps.reduce((sum, st) => sum + st.h, 0) ?? 0);
+  return { s, last, y0, top, crown, roof, cornice, wallTop };
+}
+
+/**
+ * Storey lines on tier i of a stone tower that carry a belt course: one over
+ * the base (after the second storey of the first tier) and one under the top
+ * storey of the crown tier. Same storeys as the facade's (`Builder.facade`).
+ */
+export function beltLevels(t: Tower, i: number): number[] {
+  const { s, last, y0, wallTop } = tierLevels(t, i);
+  if (s.style !== "deco") return [];
+  const n = Math.max(1, Math.round((wallTop - y0) / s.storey));
+  const sh = (wallTop - y0) / n;
+  const base = i === 0 && n >= 6 ? [2] : [];
+  // The top belt keeps two storeys clear of the base one.
+  const attic = last && n >= 4 && n - 1 >= (base.length ? 4 : 0) ? [n - 1] : [];
+  return [...base, ...attic].map((k) => y0 + k * sh);
+}
+
 type Rect = { x0: number; x1: number; z0: number; z1: number };
 const rect = (x: number, z: number, w: number, d: number): Rect => ({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
 const shrink = (r: Rect, by: number): Rect => ({ x0: r.x0 + by, x1: r.x1 - by, z0: r.z0 + by, z1: r.z1 - by });
+const grow = (r: Rect, by: number) => shrink(r, -by);
 const scaled = (r: Rect, s: number): Rect => rect((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, (r.x1 - r.x0) * s, (r.z1 - r.z0) * s);
 
 /** Every piece of one tower, in world units. */
@@ -156,11 +248,52 @@ export function towerPieces(t: Tower, flood: boolean): Piece[] {
     box({ ...r, x1: r.x0 + th, z0: r.z0 + th, z1: r.z1 - th }, y0, y1, part, color);
     box({ ...r, x0: r.x1 - th, z0: r.z0 + th, z1: r.z1 - th }, y0, y1, part, color);
   };
-  /** Parapet with a lighter coping, sitting on the edge of a roof at y. */
+  /** Parapet with a coping, sitting on the edge of a roof at y (the stepped crown's top step). */
   const parapet = (r: Rect, y: number, below: number, above: number, th: number) => {
-    const glass = s.style === "glass";
-    ring(r, y - below, y + above - (glass ? 0 : 0.05), th, glass ? PART.metal : PART.plain, glass ? s.trim : s.style === "loft" ? s.color : s.trim);
-    if (!glass) ring(r, y + above - 0.05, y + above, th, PART.plain, s.trim);
+    ring(r, y - below, y + above - 0.05, th, PART.plain, s.trim);
+    ring(r, y + above - 0.05, y + above, th, PART.plain, s.trim);
+  };
+  /** A ring of `PART.plain` around r from y0 to y1 (see Piece.band). */
+  const band = (r: Rect, y0: number, y1: number, ledge: [number, number], color: string, extra: Partial<Piece> = {}) =>
+    out.push({ shape: "band", min: [r.x0, y0, r.z0], max: [r.x1, y1, r.z1], part: PART.plain, color, ledge, ...extra });
+  /**
+   * The cornice `c` on the wall face w, its top step ending at the roof y: the
+   * steps, brackets under the top one, and the parapet (or, with `cap`, no
+   * parapet: a roof that far out of the wall sits on it).
+   */
+  const cornice = (w: Rect, y: number, c: Cornice, cap?: number) => {
+    const n = c.steps.length;
+    let yb = y - c.steps.reduce((sum, st) => sum + st.h, 0);
+    c.steps.forEach((st, k) => {
+      const below = k ? c.steps[k - 1].out : 0;
+      const over = k < n - 1 ? c.steps[k + 1].out : (cap ?? c.parapet.out);
+      band(grow(w, st.out), yb, yb + st.h, [Math.max(0, st.out - over), Math.max(0, st.out - below)], st.wall ? s.color : s.trim);
+      yb += st.h;
+    });
+    const b = c.brackets;
+    if (b) {
+      // Modillions or corbels under the top step, in front of the step below it, evenly along each wall.
+      const [under, corona] = [c.steps[n - 2], c.steps[n - 1]];
+      const y1 = y - corona.h;
+      const deep = corona.out - 0.02 - under.out;
+      const mid = under.out + deep / 2;
+      const color = under.wall ? s.color : s.trim;
+      const [cx, cz, lx, lz] = [(w.x0 + w.x1) / 2, (w.z0 + w.z1) / 2, w.x1 - w.x0, w.z1 - w.z0];
+      const along = (len: number, at: (u: number) => void) => {
+        const count = Math.max(1, Math.round(len / b.every));
+        for (let k = 0; k < count; k++) at((k + 0.5) * (len / count) - len / 2);
+      };
+      const bracket = (r: Rect) => box(r, y1 - b.h, y1, PART.plain, color, { fine: true });
+      along(lx, (u) => [w.z0 - mid, w.z1 + mid].forEach((z) => bracket(rect(cx + u, z, b.w, deep))));
+      along(lz, (u) => [w.x0 - mid, w.x1 + mid].forEach((x) => bracket(rect(x, cz + u, deep, b.w))));
+    }
+    if (cap !== undefined) return;
+    // The parapet's inner face is the roof's usable edge (`inner` below).
+    const p = c.parapet;
+    const th = p.out + 0.14;
+    const cope = p.coping ? 0.05 : 0;
+    band(grow(w, p.out), y, y + p.h - cope, [cope ? 0 : th, 0], p.wall ? s.color : s.trim, { inner: th });
+    if (cope) band(grow(w, p.out + 0.03), y + p.h - cope, y + p.h, [th + 0.03, 0.03], s.trim, { inner: th + 0.03 });
   };
   /** A wooden water tank on legs with a conical lid (about 0.86 tall). */
   const tank = (x: number, z: number, y: number) => {
@@ -194,7 +327,6 @@ export function towerPieces(t: Tower, flood: boolean): Piece[] {
 
   const foot = rect(t.x, t.z, t.w, t.d);
   const G = s.ground;
-  const belt = 0.14;
   box(foot, t.y - FOOTING, t.y, PART.plain, s.base);
   if (s.style === "glass") {
     // Recessed lobby, glazed floor to ceiling; the tower stands on corner piers.
@@ -207,33 +339,33 @@ export function towerPieces(t: Tower, flood: boolean): Piece[] {
     box(shrink(foot, SHOP_REVEAL), t.y, t.y + G, PART.storefront, s.base, { grid });
     facade(foot, t.y, t.y + G, s.base, grid, { kind: "shop", pier: 0.2 });
   }
-  box(foot, t.y + G, t.y + G + belt, s.style === "glass" ? PART.metal : PART.plain, s.trim);
+  box(foot, t.y + G, t.y + G + GROUND_BELT, s.style === "glass" ? PART.metal : PART.plain, s.trim);
 
-  /** A wall of windows on rect w from y0 to y1: the body behind it and the relief in front. */
-  const wallOf = (w: Rect, y0: number, y1: number, grid: Grid) => {
+  /** A wall of windows on rect w from y0 to y1 (its core, the roof, up to `roof`): the body behind it and the relief in front. */
+  const wallOf = (w: Rect, y0: number, y1: number, grid: Grid, roof = y1) => {
     if (s.relief.kind === "curtain") box(w, y0, y1, PART.glass, s.color, { grid });
-    else box(shrink(w, REVEAL + CORE_GAP), y0, y1, PART.roof, s.color);
+    else box(shrink(w, REVEAL + CORE_GAP), y0, roof, PART.roof, s.color);
     facade(w, y0, y1, s.color, grid, s.relief);
   };
   t.tiers.forEach((tier, i) => {
-    const last = i === t.tiers.length - 1;
+    const { last, y0, top, crown, roof, cornice: c, wallTop } = tierLevels(t, i);
     const r = rect(t.x, t.z, tier.w, tier.d);
     const wall = shrink(r, s.inset);
-    const y0 = i === 0 ? t.y + G + belt : t.y + tier.y;
-    const top = t.y + tier.y + tier.h;
-    const crown = last ? s.crown : "flat";
-    const crownH =
-      crown === "pyramid" ? Math.min(2, Math.max(1, Math.min(tier.w, tier.d) * 0.42)) : crown === "stepped" ? 2 : crown === "slope" ? Math.min(2.2, Math.max(1.2, tier.w * 0.35)) : 0;
-    const roof = top - crownH;
-    wallOf(wall, y0, roof, { col: s.col, storey: s.storey, y0 });
-    const inner = shrink(r, s.inset + 0.14);
+    wallOf(wall, y0, wallTop, { col: s.col, storey: s.storey, y0 }, roof);
+    const inner = shrink(wall, 0.14);
+    if (s.relief.kind === "punched") {
+      // Belts run back to the spandrels between the piers.
+      const ledge = BELT.out + s.relief.recess;
+      for (const y of beltLevels(t, i)) band(grow(wall, BELT.out), y - BELT.below, y + BELT.above, [ledge, ledge], s.trim, { fine: true });
+    }
 
     if (crown === "pyramid") {
-      box(r, roof - 0.24, roof, PART.plain, s.trim);
-      out.push({ shape: "pyramid", min: [r.x0 + 0.04, roof, r.z0 + 0.04], max: [r.x1 - 0.04, top, r.z1 - 0.04], part: PART.plain, color: "#5f6461" });
+      const eave = 0.04;
+      if (c) cornice(wall, roof, c, s.inset - eave);
+      out.push({ shape: "pyramid", min: [r.x0 + eave, roof, r.z0 + eave], max: [r.x1 - eave, top, r.z1 - eave], part: PART.plain, color: "#5f6461" });
       box(rect(t.x, t.z, 0.06, 0.06), top - 0.2, top + 0.5, PART.metal, "#4a4c4f");
     } else if (crown === "stepped") {
-      parapet(r, roof, 0.22, 0.12, s.inset + 0.1);
+      if (c) cornice(wall, roof, c);
       const step = scaled(r, 0.72);
       wallOf(shrink(step, 0.05), roof, roof + 1.25, { col: s.col, storey: 1.25, y0: roof });
       parapet(step, roof + 1.25, 0.16, 0.1, 0.12);
@@ -241,14 +373,14 @@ export function towerPieces(t: Tower, flood: boolean): Piece[] {
       box(cap, roof + 1.25, top, PART.plain, s.trim);
       box(rect(t.x, t.z, 0.05, 0.05), top, top + 0.8, PART.metal, "#4a4c4f", { group: ++group });
     } else if (crown === "slope") {
-      box(r, roof - 0.08, roof, PART.metal, s.trim);
+      band(r, roof - 0.08, roof, [s.inset, s.inset], s.trim, { part: PART.metal });
       out.push({ shape: "wedge", min: [wall.x0, roof, wall.z0], max: [wall.x1, top, wall.z1], part: PART.glass, color: s.color, grid: { col: s.col, storey: s.storey, y0 }, high: s.high });
     } else if (s.style === "glass") {
       // Crisp metal parapet: the curtain wall runs up past the roof.
       ring(r, roof - 0.06, roof + (last ? 0.3 : 0.12), s.inset + 0.05, PART.metal, s.trim);
       if (last) rooftop(shrink(r, 0.25), roof);
-    } else {
-      parapet(r, roof, last ? 0.3 : 0.22, last ? 0.26 : 0.14, s.inset + 0.12);
+    } else if (c) {
+      cornice(wall, roof, c);
       if (last) rooftop(inner, roof);
     }
   });
@@ -391,8 +523,13 @@ class Builder {
             // The pane: u, v run 0..1 over it, plus its column and storey (the shader lights whole floors in runs).
             const e = 0.999;
             block(u0, u1, sills[j], heads[j], D, D, "f", pane, [[k, j], [k + e, j], [k + e, j + e], [k, j + e]]);
-            block(u0, u1, sills[j] - SILL, sills[j], 0, back, "ftb");
+            if (!relief.course) block(u0, u1, sills[j] - SILL, sills[j], 0, back, "ftb");
           }
+        }
+        if (relief.course) {
+          // The sill course runs through the piers back to the glass; walls along x wrap the corners, the others stop at their back.
+          const c = relief.course;
+          for (const y of sills) block(w.side ? back : -c, w.side ? w.len - back : w.len + c, y - SILL, y, -c, back, w.side ? "ftb" : "ftblr");
         }
       } else if (relief.kind === "curtain") {
         // Same columns and storeys as the painted curtain wall (`wallUv`), so fins and bands land on its lines.
@@ -442,6 +579,32 @@ class Builder {
       for (const [a, b] of sides) this.quad([at(a, y0), at(b, y0), at(b, y1), at(a, y1)], this.wallUv(a, b, [y0, y0, y1, y1], piece.grid, gridTop, piece.part === PART.storefront), piece, centre);
       this.quad([[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], flat, piece, centre);
       this.quad([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], flat, piece, centre);
+    } else if (piece.shape === "band") {
+      const [top, bottom] = piece.ledge ?? [0, 0];
+      for (const [a, b] of sides) this.quad([at(a, y0), at(b, y0), at(b, y1), at(a, y1)], flat, piece, centre);
+      /** The ring between the outer edge and `by` in from it at height y, facing up (dy 1) or down (-1). */
+      const ledge = (y: number, by: number, dy: number) => {
+        const [ix0, ix1, iz0, iz1] = [x0 + by, x1 - by, z0 + by, z1 - by];
+        const c: V3 = [centre[0], y - dy, centre[2]];
+        for (const [ax, bx, az, bz] of [[x0, x1, z0, iz0], [x0, x1, iz1, z1], [x0, ix0, iz0, iz1], [ix1, x1, iz0, iz1]])
+          this.quad([[ax, y, az], [bx, y, az], [bx, y, bz], [ax, y, bz]], flat, piece, c);
+      };
+      if (top) ledge(y1, top, 1);
+      if (bottom) ledge(y0, bottom, -1);
+      const k = piece.inner;
+      if (k) {
+        // A parapet's inner faces, facing the roof.
+        const inner: [V3, V3][] = [
+          [[x0 + k, 0, z1 - k], [x1 - k, 0, z1 - k]],
+          [[x1 - k, 0, z1 - k], [x1 - k, 0, z0 + k]],
+          [[x1 - k, 0, z0 + k], [x0 + k, 0, z0 + k]],
+          [[x0 + k, 0, z0 + k], [x0 + k, 0, z1 - k]],
+        ];
+        for (const [a, b] of inner) {
+          const m = [(a[0] + b[0]) / 2, (a[2] + b[2]) / 2];
+          this.quad([at(a, y0), at(b, y0), at(b, y1), at(a, y1)], flat, piece, [2 * m[0] - centre[0], centre[1], 2 * m[1] - centre[2]]);
+        }
+      }
     } else if (piece.shape === "pyramid") {
       const apex: V3 = [centre[0], y1, centre[2]];
       for (const [a, b] of sides) this.tri([at(a, y0), at(b, y0), apex], [[0, 0], [0, 0], [0, 0]], piece, [centre[0], y0, centre[2]]);
@@ -486,8 +649,8 @@ class Builder {
 }
 
 /**
- * All towers as two geometries: `body` (walls, crowns, roofs, rooftop parts)
- * and `relief` (piers, spandrels, sills, window panes, fins). Attributes:
+ * All towers as two geometries: `body` (walls, crowns, cornices, roofs, rooftop parts)
+ * and `relief` (piers, spandrels, sills, window panes, fins, belts, modillions). Attributes:
  * position, normal, colour, `aUv` (wall grid) and `aInfo` (part, seed, flood height).
  */
 export function towerGeometry(towers: Tower[]) {
@@ -499,7 +662,7 @@ export function towerGeometry(towers: Tower[]) {
   for (const t of towers) {
     const b = new Builder(hash(t.x, t.z, 9));
     const r = new Builder(hash(t.x, t.z, 9));
-    for (const p of towerPieces(t, lit.has(t))) (p.shape === "facade" ? r : b).add(p);
+    for (const p of towerPieces(t, lit.has(t))) (p.shape === "facade" || p.fine ? r : b).add(p);
     for (const k of keys) {
       for (const v of b[k]) body[k].push(v);
       for (const v of r[k]) relief[k].push(v);
