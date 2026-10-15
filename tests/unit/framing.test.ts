@@ -3,7 +3,8 @@ import { PerspectiveCamera, Vector3 } from "three";
 import { chapters, type Chapter } from "@/content/day";
 import { PORTRAIT_FOV, fitBand, largestGap } from "@/scene/camera-rig";
 import { insideBuilding, sightClear } from "@/scene/layout";
-import { GG } from "@/scene/landmarks";
+import { BAY_TOWERS, GG } from "@/scene/landmarks";
+import { RIDGES, ridgeColumns } from "@/scene/skyline";
 import { overlays, rig } from "@/scene/shared";
 import { AD_PANEL, FACE_Z, UNION } from "@/scene/union-square";
 
@@ -120,24 +121,44 @@ describe("phone framing", () => {
   });
 });
 
+/** Where a point lands on a 1440 x 900 desktop at a chapter's desktop shot. */
+function onDesktop(id: Chapter["id"], p: Vector3) {
+  const ch = chapters.find((c) => c.id === id)!;
+  const size = { width: 1440, height: 900 };
+  const cam = new PerspectiveCamera(35, size.width / size.height);
+  cam.position.set(...ch.camera.position);
+  cam.lookAt(new Vector3(...ch.camera.target));
+  cam.updateMatrixWorld();
+  const n = p.clone().project(cam);
+  return { x: ((n.x + 1) * size.width) / 2, y: ((1 - n.y) * size.height) / 2, front: n.z < 1, from: cam.position };
+}
+/** In front of the lens, on screen and right of the card column (cards end at 458 px). */
+const rightOfCards = ({ x, y, front }: { x: number; y: number; front: boolean }) => front && x > 458 && x < 1440 && y > 0 && y < 900;
+
 describe("the 12:00 desktop shot", () => {
   // Shot like a photo (F13): past Cuso and the billboard to the Golden Gate in the haze, not up at two towers.
   it("looks past Cuso to the Golden Gate, in frame and right of the chapter card", () => {
-    const ads = chapters.find((c) => c.id === "ads")!;
-    const size = { width: 1440, height: 900 };
-    const cam = new PerspectiveCamera(35, size.width / size.height);
-    cam.position.set(...ads.camera.position);
-    cam.lookAt(new Vector3(...ads.camera.target));
-    cam.updateMatrixWorld();
     const top = new Vector3(GG.x, GG.top + 1, GG.towers[0]); // just over the south tower
-    const n = top.clone().project(cam);
-    const x = ((n.x + 1) * size.width) / 2;
-    const y = ((1 - n.y) * size.height) / 2;
-    expect(n.z).toBeLessThan(1); // in front of the lens
-    expect(x).toBeGreaterThan(458); // clear of the card column
-    expect(x).toBeLessThan(size.width);
-    expect(y).toBeGreaterThan(0);
-    expect(y).toBeLessThan(size.height);
-    expect(sightClear(cam.position, top)).toBe(true);
+    const at = onDesktop("ads", top);
+    expect(rightOfCards(at), JSON.stringify(at)).toBe(true);
+    expect(sightClear(at.from, top)).toBe(true);
   });
 });
+
+describe("the 15:00 desktop shot", () => {
+  // Proposal A (2026-10-15): from the pyramid's tip east to the Bay Bridge and the East Bay hills, like concept 05.
+  it("looks past Cuso to the Bay Bridge, its first tower in frame and right of the chapter card", () => {
+    const top = new Vector3(BAY_TOWERS[0], 25, 14); // just under the west tower's top strut
+    const at = onDesktop("seo", top);
+    expect(rightOfCards(at), JSON.stringify(at)).toBe(true);
+    expect(sightClear(at.from, top)).toBe(true);
+  });
+
+  it("has the East Bay hills on the horizon behind the bridge", () => {
+    const east = ridgeColumns(RIDGES.find((r) => r.name === "east-bay")!);
+    const behind = east.reduce((a, b) => (Math.abs(b.points[b.crest][2] - 14) < Math.abs(a.points[a.crest][2] - 14) ? b : a));
+    const at = onDesktop("seo", new Vector3(...behind.points[behind.crest]));
+    expect(rightOfCards(at), JSON.stringify(at)).toBe(true);
+  });
+});
+

@@ -144,7 +144,7 @@ export const chapters: readonly Chapter[] = [
     bubble: "Number one. Nice view up here.",
     poster: "/concepts/05-seo.jpg",
     spot: [6.5, PYRAMID_TIP, -11],
-    camera: frame([6.5, PYRAMID_TIP, -11], { yaw: 285, distance: 9, height: 4.2, look: -0.6, side: 0.25 }),
+    camera: frame([6.5, PYRAMID_TIP, -11], { yaw: 265, distance: 14, height: 4, look: 0.5, side: 0.25 }),
     phone: frame([6.5, PYRAMID_TIP, -11], { yaw: 285, distance: 11.5, height: 4.2, look: 0.2, side: 0 }),
     dark: false,
   },
