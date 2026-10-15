@@ -60,6 +60,23 @@ Contract with the water (`bay.tsx`): it finds the dome by `renderOrder < 0` and 
 
 Tried and dropped: soft wide edges (softness 0.3, scale 2.4) read as wispy streaks, not cumulus; shading toward the sun put the grey on the tops at noon (the sun is behind the camera); a whitened cloud colour broke "never brighter than the sun" at sunrise.
 
+## Haze
+
+Code: `src/lib/haze.ts` (constants, the sum in TypeScript), `src/scene/haze.ts` (patches three's fog chunks; imported at the top of `atmosphere.tsx`). Tests: `tests/unit/haze.test.ts`.
+
+- **What:** the air is thickest over the water. Far high ground (the Marin headlands) keeps its silhouette, paler with each ridge, instead of fading to the fog colour by the fog's far distance. The water, the shore and the near city fog exactly as before, so the horizon and the far water seam do not move.
+- **Sum** (linear fog only; exp2 fog stays three's):
+  - `low = smoothstep(fogNear, fogFar, depth)`: three's fog.
+  - `high = min(low, 1 - exp(-max(depth - fogNear, 0) / (reach * fogFar)))`: starts as fast as `low`, then eases off.
+  - `fog = mix(low, high, smoothstep(y0, y1, worldY))`.
+- **Constants** `HAZE`: `y0` 1 (water and shore below it), `y1` 30 (the headland crests and the Golden Gate tops), `reach` 1.1.
+- **World height** in the vertex chunk: `vFogY = dot(viewMatrix[1].xyz, mvPosition.xyz - viewMatrix[3].xyz)` (the view matrix is a rotation plus a move). Any custom shader that includes `fog_vertex` must define `mvPosition` first; only Karl (`fog.tsx`) does, and the test checks it.
+- **Patched once at import,** before Ready compiles a shader. Always built from three's own chunks (kept on `globalThis`), so a hot reload does not stack patches. Programs already compiled keep the old sum until a full reload. The patch keeps three's names (`vFogDepth`, `fogNear`, `fogFar`, `fogColor`).
+- **On screen:** 06:00 and the finale show the headland ridges in layers behind the Golden Gate (were nearly fogged out). The far Golden Gate tower stays paler than the near one. The 07:00 to 22:00 shots look the same (near city, or no far high ground in frame). Explore hardly changes.
+- **Dev:** `?haze=off` keeps three's fog (compiled out in production), for before and after screenshots.
+- **Cost:** 0 draw calls, one varying and a few math ops per fragment. Back to back with `?haze=off` (1440x900, 6 runs each, median): 06:00 +0.07 ms, 22:00 +0.25 ms, both inside run noise (runs spread about 1.5 ms).
+- **Tried and dropped:** stretching the far distance for high ground (`smoothstep(fogNear, fogFar * (1 + gain * lift), depth)`, the first plan) also cleared mid-distance high things: the far Golden Gate tower went from 55% to 15% fog and looked as dark as the near one.
+
 ## Foreground
 
 Code: `src/scene/foreground.tsx` (mounted in `src/scene/union-square.tsx`). Tests: `tests/unit/foreground.test.ts`.
