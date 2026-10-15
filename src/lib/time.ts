@@ -58,7 +58,7 @@ export type Lighting = {
 const KEYS: [number, Lighting][] = [
   [6, { elevation: 8, azimuth: 240, sunColor: "#ffa456", sunIntensity: 3.6, skyTop: "#5583cc", skyHorizon: "#f7c08c", fog: "#eec9a6", ambient: 0.42, night: 0 }],
   [7, { elevation: 14, azimuth: 60, sunColor: "#ffcc98", sunIntensity: 3.5, skyTop: "#6d9ee0", skyHorizon: "#f0dcc6", fog: "#e6dfd6", ambient: 0.47, night: 0 }],
-  [9, { elevation: 32, azimuth: 35, sunColor: "#ffe6c4", sunIntensity: 3.5, skyTop: "#6f9ee0", skyHorizon: "#dce5ee", fog: "#e8e5de", ambient: 0.45, night: 0 }],
+  [9, { elevation: 55, azimuth: 90, sunColor: "#ffe6c4", sunIntensity: 3.5, skyTop: "#6f9ee0", skyHorizon: "#dce5ee", fog: "#e8e5de", ambient: 0.45, night: 0 }],
   // 12:00 is the photo look test (F13): warm sun from the side, less fill, so shapes read.
   [12, { elevation: 54, azimuth: 50, sunColor: "#fff1dc", sunIntensity: 3.9, skyTop: "#5b8fe0", skyHorizon: "#cfe0f4", fog: "#dbe6f0", ambient: 0.45, night: 0 }],
   [15, { elevation: 28, azimuth: 0, sunColor: "#ffe4be", sunIntensity: 3.5, skyTop: "#6396e0", skyHorizon: "#cddcec", fog: "#dfe2e2", ambient: 0.45, night: 0 }],

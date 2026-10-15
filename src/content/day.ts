@@ -111,7 +111,8 @@ export const chapters: readonly Chapter[] = [
     bubble: "This one for Tuesday morning?",
     poster: "/concepts/03-social.jpg",
     spot: at(-2.8, 0, 29.6),
-    camera: frame(at(-2.8, 0, 29.6), { yaw: 68, distance: 6.8, height: 1.3, look: 1.8, side: 0.28 }),
+    // low, along the sidewalk: the mural wall runs away on the right, the street on the left (concept 03, F13)
+    camera: frame(at(-2.8, 0, 29.6), { yaw: 135, distance: 7.5, height: 0.9, look: 1.5, side: 0.28 }),
     phone: frame(at(-2.8, 0, 29.6), { yaw: 68, distance: 9, height: 1.4, look: 1, side: 0 }),
     dark: false,
   },

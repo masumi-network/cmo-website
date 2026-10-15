@@ -14,14 +14,14 @@ One key per chapter hour in four tables: `lightingAt` (time.ts), `lookFor` (look
 | --- | --- | --- | --- | --- | --- |
 | 06:00 | arrive | 8, 240, #ffa456 at 3.6, 0.42 | `SUNRISE`: warm gain, cool lift, contrast 0.2, fill 0.32 | 0.3, 0.5, 0.7; hazeHeight -0.15 | The sun sits low beside the Golden Gate (was behind the camera: flat). Rim light on Cuso, long shadows on the roof, blue at the top of the frame. |
 | 07:00 | learn | 14, 60, #ffcc98 at 3.5, 0.47 | `MORNING`: gain 1.07 / 1.03 / 0.97, fill 0.45 | 0.3, 0.5, 0.75 | Light rakes across the shopfront. Back and side light left the south-facing shop and street in shade. |
-| 09:00 | social | 32, 35, #ffe6c4 at 3.5, 0.45 | `LATE_MORNING`: like noon, a little warmer | 0.28, 0.6, 0.8 | Cuso and the posts lit, lamp shadows across the wall, the near street in a building's shade (sun was behind the camera). |
+| 09:00 | social | 55, 90, #ffe6c4 at 3.5, 0.45 | `LATE_MORNING`: like noon, a little warmer | 0.28, 0.6, 0.8 | New shot (see Camera): the mural wall lit warm, Cuso white, the near sidewalk in a building's shade. A lower sun (30) or one from the left (95) put the street, wall and Cuso in a building's shadow; from 130 the wall went dark; from 50 Cuso went grey. |
 | 12:00 | ads | 54, 50, #fff1dc at 3.9, 0.45 | `NOON` (see Post) | 0.38, 0.6, 0.8 | The look test. |
 | 15:00 | seo | 28, 0, #ffe4be at 3.5, 0.45 | `AFTERNOON`: depth of field 1.3, warm | 0.45, 0.5, 0.85 | Towers get a lit and a shaded face; Cuso lit warm white. |
 | 18:00 | newsletter | 12, -30, #ff9548 at 3.2, 0.42 | `SUNSET`: gain 1.07 / 0.99 / 0.86, warm lift, fill 0.38 | 0.35, 0.7, 0.75 | Gold light on the cable car, Cuso and the facades (all were in shade). |
 | 22:00 | night | moon 60, 0.6, 0.22 | `NIGHT`: gain 1.03 / 1 / 0.98, a blue lift, grain 0.045 | 0.4, 0.35, 0.85 | A calmer blue-violet sky; windows and bridge lights still read; cloud hides about half the stars. |
 | 30 (06:00) | join | as 06:00 (tested equal) | `FINALE`: sunrise, depth of field 1 over 24, contrast 0.24 | 0.3, 0.4, 0.85 | Side light and long shadows over Russian Hill (was flat sepia). |
 
-- **Sun path:** azimuth keys 240, 60, 35, 50, 0, -30, -40 (20:00), 60 (22:00 moon), 230 (26), 240. `lightingAt` blends azimuth as a plain number, so each step stays under 180 numerically (18:00 is -30, not 330). 06:00 to 07:00 turns 180 degrees during the flight; checked mid-scroll, it reads.
+- **Sun path:** azimuth keys 240, 60, 90, 50, 0, -30, -40 (20:00), 60 (22:00 moon), 230 (26), 240. `lightingAt` blends azimuth as a plain number, so each step stays under 180 numerically (18:00 is -30, not 330). 06:00 to 07:00 turns 180 degrees during the flight; checked mid-scroll, it reads.
 - **Sunset and sunrise without a pop:** the scene puts the moon at 38 degrees as soon as elevation drops below 0. The 20 and 26 keys now sit at elevation 0 with almost no light (0.08, 0.05), so the switch happens in the dark. Before, it crossed 0 at about 19.1 h and 29 h with the sun near full strength and the shadows jumped.
 - **Shadows:** every day chapter keeps ambient at most 0.14 of the sun (tested).
 - **Phones:** grade and grain only; every phone shot checked.
@@ -88,7 +88,7 @@ Code: `src/scene/foreground.tsx` (mounted in `src/scene/union-square.tsx`). Test
 - **Proposals for the other chapters (2026-10-15, not applied, waiting for Francis):**
   - 06:00 arrive, A2: `{ yaw: 30, distance: 11, height: 3.6, look: 2.4, side: 0.32 }`. Down over the houses to the whole bridge with the sun beside it, like concept 01. Towers unchanged. Cuso smaller; a roof stair hut sits under the cards.
   - 07:00 learn, L2: `{ yaw: 40, distance: 7, height: 1.0, look: 1.6, side: 0.3 }`. Along the sidewalk, shop on the right, the street running away on the left, like concept 02. Reshuffles the city (still 15 towers, different houses and trees).
-  - 09:00 social: keep. The mural building stands between Cuso and Twin Peaks, so the concept's long street can't be matched. Avoid yaw 100 (14 towers).
+  - 09:00 social: **applied 2026-10-15 (Francis)**, `{ yaw: 135, distance: 7.5, height: 0.9, look: 1.5, side: 0.28 }`. Low, along the sidewalk: the mural wall runs away on the right, the street and palms on the left, like concept 03. Towers unchanged (15). The street ends at the land's edge in haze; the concept's Sutro Tower hill is not there. Phone shot unchanged. Avoid yaw 100 (14 towers).
   - 15:00 seo: keep, or A `{ yaw: 265, distance: 14, height: 4, look: 0.5, side: 0.25 }` for the Bay Bridge and a horizon like concept 05 (fewer roofs, a flat pale sky band; wants a sky pass first). Towers unchanged.
   - 18:00 newsletter, option 1: `{ yaw: 285, distance: 8, height: 1.4, look: 1.7, side: 0.3 }`. Down the street past the car to the Ferry Building and the gold water. Needs `FACE.newsletter` (routes.ts) turned toward the lens (about -1.0 to -1.3), and reshuffles downtown (16 or 17 towers).
   - 22:00 night, option 1: `{ yaw: 340, distance: 11, height: 1.1, look: 2.2, side: -0.38 }`. Out over the water: the bridge reads as a lit line, not a wall of dots; the Ferry Building tower, the lamp and the water in frame. Towers unchanged. Cuso smaller (30% of the frame height, was 46%).
@@ -123,6 +123,7 @@ Same method: each chapter at rest, 1440x900 DPR 1, headed Chromium (Metal), 2 ru
 | 06:00 arrive | 6.5 to 6.6 ms | 8.6 to 8.8 ms | 6.5 to 6.9 ms | 260 / 272 |
 | 07:00 learn | 9.0 ms | 11.5 to 12.8 ms | 8.9 to 9.0 ms | 273 / 285 |
 | 09:00 social | 7.9 to 8.0 ms | 10.6 ms | 8.0 to 8.1 ms | 175 / 187 |
+| 09:00 social, new shot | 7.9 to 9.4 ms | 8.9 to 9.6 ms | | 153 to 161 / 173 |
 | 12:00 ads | 8.3 to 9.2 ms | 9.8 to 10.3 ms | 8.3 to 8.4 ms | 286 / 299 |
 | 15:00 seo | 4.1 to 4.2 ms | 7.0 to 7.4 ms | 4.0 to 4.1 ms | 166 / 178 |
 | 18:00 newsletter | 8.0 to 8.3 ms | 10.4 to 11.5 ms | 8.1 to 8.3 ms | 293 / 305 |
