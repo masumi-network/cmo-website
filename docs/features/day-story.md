@@ -1,12 +1,12 @@
 # F01 · Day story
 
-Last updated: 2026-10-14 · Status: done
+Last updated: 2026-10-15 · Status: done
 
 ## What it does
 - The page is one day in San Francisco: 06:00 to 22:00, then "tomorrow".
 - Each scroll section is one chapter: one place, one job Cuso does.
 - The camera rests while you read a chapter, then flies to the next one.
-- The top rail shows the time. Click a time to jump there (desktop): the page snaps to the chapter, the camera flies there in 1.6 to 4 s, longer the farther it really goes, so it never rushes (under 60 units a second; it peaked over 200 when every jump took 1.3 s). It flies one eased arc: across, up and the aim move together. It arcs only over roofs its path crosses, rising first only when a tall building stands right beside the start (`flight.ts`). A second click flies on without a jerk, the light cross-fades the short way round the clock, and Cuso pops in 3.5 units short of his spot (never mid-jump, never where the Union Square cable car runs) and walks or hops the last steps (`goToChapter` in `navigate.ts`, `arrival()` in `routes.ts`, `navigation.test.ts`). Explore pins and Ask Cuso use the same jump. Reduced motion cuts straight to the shot. Scrolling still walks the full route.
+- The top rail shows the time. Click a time to jump there (desktop): the page snaps to the chapter, the camera flies there in 1.6 to 4 s, longer the farther it really goes, so it never rushes (under 60 units a second; it peaked over 200 when every jump took 1.3 s). It flies one eased arc: across, up and the aim move together. It arcs only over roofs its path crosses, rising first only when a tall building stands right beside the start (`flight.ts`). The aim turns the short way round as the camera crosses, so it never swings back and never looks more than about 45 degrees down. Before (fixed 2026-10-15), the aim point was blended on its own: on rise-first flights it ran ahead of the camera, so 06:00 to 09:00 turned, turned back and turned again (a bounce), and near-opposite shots looked straight down (85 degrees, 09:00 to 15:00). Tested for every pair of shots, desktop and phone. A second click flies on without a jerk, the light cross-fades the short way round the clock, and Cuso pops in 3.5 units short of his spot (never mid-jump, never where the Union Square cable car runs) and walks or hops the last steps (`goToChapter` in `navigate.ts`, `arrival()` in `routes.ts`, `navigation.test.ts`). Explore pins and Ask Cuso use the same jump. Reduced motion cuts straight to the shot. Scrolling still walks the full route.
 - On touch screens one swipe moves one chapter: the page snaps to chapter starts and can only rest where the camera rests, never halfway between two places.
 
 | Time | Place | Job |

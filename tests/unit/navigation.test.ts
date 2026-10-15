@@ -240,4 +240,49 @@ describe("the camera flight", () => {
       }
     }
   });
+
+  it("turns one way: from any chapter's shot to any other the aim never swings back, nor looks straight down", () => {
+    // 06:00 to 09:00 turned -134, -49, back to -107, then -37 degrees: a bounce (2026-10-15)
+    const shot = (i: number, phone: boolean) => {
+      const c = phone ? chapters[i].phone : chapters[i].camera;
+      return { pos: new Vector3(...c.position), tgt: new Vector3(...c.target) };
+    };
+    const deg = (r: number) => (r * 180) / Math.PI;
+    const wrap = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
+    const out = pose(0, 0, 0);
+    let worstBack = 0;
+    let worstPitch = 0;
+    let at = "";
+    for (const phone of [false, true]) {
+      for (let i = 0; i < chapters.length; i++) {
+        for (let j = 0; j < chapters.length; j++) {
+          if (i === j) continue;
+          const from = shot(i, phone);
+          const to = shot(j, phone);
+          const heading = (p: { pos: Vector3; tgt: Vector3 }) => deg(Math.atan2(p.tgt.x - p.pos.x, p.tgt.z - p.pos.z));
+          const net = wrap(heading(to) - heading(from));
+          const f = startFlight(from, 0);
+          flyAt(f, 0, to, out);
+          let turned = 0;
+          let most = 0;
+          let last = heading(from);
+          for (let t = 1 / 120; t <= f.time; t += 1 / 120) {
+            flyAt(f, t, to, out);
+            const d = out.tgt.clone().sub(out.pos);
+            worstPitch = Math.max(worstPitch, -deg(Math.asin(d.y / d.length())));
+            const h = heading(out);
+            turned += wrap(h - last) * Math.sign(net || 1);
+            last = h;
+            most = Math.max(most, turned);
+            if (most - turned > worstBack) {
+              worstBack = most - turned;
+              at = `${chapters[i].id} → ${chapters[j].id}${phone ? " (phone)" : ""} at ${t.toFixed(2)} s`;
+            }
+          }
+        }
+      }
+    }
+    expect(worstBack, at).toBeLessThan(10);
+    expect(worstPitch).toBeLessThan(65);
+  });
 });

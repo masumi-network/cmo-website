@@ -11,7 +11,7 @@ import { chapters, overview } from "@/content/day";
 import { jumpEase } from "@/lib/navigate";
 import { usePan } from "@/lib/pan";
 import { useCity } from "@/lib/store";
-import { type Plan, flightPlan, flightPoint, flightTime } from "./flight";
+import { type Plan, crossing, flightPlan, flightPoint, flightTime } from "./flight";
 import { insideBuilding, sightClear, sightHit } from "./layout";
 import { damp, dayNow, overlays, rig, setLerp } from "./shared";
 
@@ -244,10 +244,21 @@ export function flyAt(f: Flight, now: number, to: Pose, out: Pose): number {
   const t = Math.min(1, Math.max(0, (now - f.t0) / f.time));
   const u = jumpEase(f.t0, now, f.time);
   flightPoint(out.pos, start.pos, to.pos, t, f.plan);
-  // the aim rises with it: it glides over the roofs looking ahead, not down at the street
-  out.tgt.lerpVectors(start.tgt, to.tgt, u).y += f.plan.lift * Math.sin(Math.PI * u) * 0.85;
+  // The aim turns the short way round, as the camera crosses: it never swings back, and it never
+  // looks straight down (lerping the aim point did both). It rises with the arc, a little less.
+  const s = crossing(t, f.plan);
+  aimA.subVectors(start.tgt, start.pos);
+  aimB.subVectors(to.tgt, to.pos);
+  const ha = Math.atan2(aimA.x, aimA.z);
+  let turn = Math.atan2(aimB.x, aimB.z) - ha;
+  turn -= Math.round(turn / (2 * Math.PI)) * 2 * Math.PI;
+  const h = ha + turn * s;
+  const reach = Math.hypot(aimA.x, aimA.z) * (1 - s) + Math.hypot(aimB.x, aimB.z) * s;
+  out.tgt.set(Math.sin(h) * reach, aimA.y + (aimB.y - aimA.y) * u - f.plan.lift * Math.sin(Math.PI * u) * 0.15, Math.cos(h) * reach).add(out.pos);
   return u;
 }
+const aimA = new Vector3();
+const aimB = new Vector3();
 
 /** Dev only: `?cam=px,py,pz,tx,ty,tz` pins the camera, for close-up screenshots of one object. */
 const PIN = (() => {

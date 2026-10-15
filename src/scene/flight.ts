@@ -23,12 +23,15 @@ const q = new Vector3();
  * arc and (flyAt) the aim on one ease, so they move together. With a `hold`
  * it rises first and crosses after, each eased on its own.
  */
-export function flightPoint(out: Vector3, a: Vector3, b: Vector3, t: number, { lift, hold }: Plan) {
+export function flightPoint(out: Vector3, a: Vector3, b: Vector3, t: number, plan: Plan) {
   const e = smootherstep(t);
-  out.lerpVectors(a, b, hold ? smootherstep((t - hold) / (1 - 2 * hold)) : e);
-  out.y = a.y + (b.y - a.y) * e + lift * Math.sin(Math.PI * e);
+  out.lerpVectors(a, b, crossing(t, plan));
+  out.y = a.y + (b.y - a.y) * e + plan.lift * Math.sin(Math.PI * e);
   return out;
 }
+
+/** How far across (0..1) a flight is at `t`: after its `hold`, if it rises first. The aim turns on it too. */
+export const crossing = (t: number, { hold }: Plan) => smootherstep(hold ? (t - hold) / (1 - 2 * hold) : t);
 
 /**
  * The calmest flight from `a` to `b` that passes over every roof it crosses:
