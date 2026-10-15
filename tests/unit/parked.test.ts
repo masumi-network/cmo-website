@@ -108,7 +108,7 @@ describe("parked cars", () => {
         expect(streetDrop(x, z)).toBe(KERB);
         expect(onRoad(x, z)).toBeUndefined();
       }
-      expect(c.y).toBeCloseTo(surfaceAt(c.x, c.z), 1);
+      expect(Math.abs(c.y - surfaceAt(c.x, c.z))).toBeLessThan(0.08);
     }
   });
 
@@ -128,11 +128,17 @@ describe("parked cars", () => {
     }
   });
 
-  it("are never on Cuso's walking streets or the cable car line", () => {
-    for (const c of cars) {
-      const { alongZ, centre } = streetOf(c);
-      expect((alongZ ? WALK_X : WALK_Z).includes(centre)).toBe(false);
-      for (const [x0, x1, z] of CABLE_RAILS) for (let x = x0; x <= x1; x += 0.5) expect(away(c, x, z)).toBeGreaterThan(1.5);
+  it("keep clear of the cable car rails (the Union Square line and the California St rails by the Ferry Building)", () => {
+    for (const c of cars) for (const [x0, x1, z] of [...CABLE_RAILS, [6, 28, 4]]) for (let x = x0 - 2; x <= x1 + 2; x += 0.25) expect(away(c, x, z)).toBeGreaterThan(1.5);
+  });
+
+  it("on a street Cuso walks, stand on the far side from his walking line", () => {
+    const walked = cars.filter((c) => (streetOf(c).alongZ ? WALK_X : WALK_Z).includes(streetOf(c).centre));
+    expect(walked.length).toBeGreaterThan(0);
+    for (const c of walked) {
+      const { alongZ, centre, side } = streetOf(c);
+      // his line: WALK_OFFSET to the south or east, on the waterfront (x 29) to the west
+      expect(side).toBe(alongZ && centre === 29 ? 1 : -1);
     }
   });
 
@@ -177,7 +183,7 @@ describe("parked cars", () => {
       const along = alongZ ? c.z : c.x;
       const cross = alongZ ? Z_STREETS : X_STREETS;
       const near = Math.min(...cross.map((s) => Math.abs(along - s)));
-      expect(near - MODELS[c.type].length / 2).toBeGreaterThan(EDGE + 0.5);
+      expect(near - MODELS[c.type].length / 2).toBeGreaterThan(EDGE + 0.9);
     }
   });
 

@@ -1,14 +1,15 @@
 // Where the parked cars go (drawn by parked.tsx). Pure and seeded with its own
 // random numbers, never the layout's. A car stands on the asphalt a few
 // centimetres off the kerb, the way the traffic goes on its side (right-hand),
-// with gaps between cars. Only on streets no car drives and Cuso never walks,
-// a car length or so from every junction (so off the crosswalks and curb
+// with gaps between cars. Only on streets no car drives, never on Cuso's way
+// (on a street he walks, the far side) nor by the cable car rails, a car
+// length or so from every junction (so off the crosswalks and curb
 // ramps), never in front of a garage or a hydrant, clear of the landmarks and
 // never between a chapter's camera and its subject.
 
 import { chapters } from "@/content/day";
 import { heightAt, surfaceAt } from "@/lib/terrain";
-import { EDGE, KERB, LAND_BOUNDS, STREET, WALK_X, WALK_Z, X_STREETS, Z_STREETS, groundAt, insideLand, streetDrop } from "./grid";
+import { CABLE_RAILS, EDGE, KERB, LAND_BOUNDS, STREET, WALK_X, WALK_Z, X_STREETS, Z_STREETS, groundAt, insideLand, streetDrop } from "./grid";
 import { VARIANTS } from "./house-models";
 import { variantOf } from "./houses";
 import { CITY, CLEAR } from "./layout";
@@ -25,13 +26,15 @@ const PAINT_ODDS = [0.3, 0.24, 0.18, 0.18, 0.1];
 const TYPE_ODDS: [CarType, number][] = [["model3", 0.46], ["modely", 0.46], ["cybertruck", 0.08]];
 
 /** How often a free spot along a kerb gets a car, and the gap before the next spot. */
-const FILL = 0.8;
+const FILL = 0.9;
 const GAP = [0.6, 2.2] as const;
 /** The body (without the mirrors) is this much of a model's width; it stands this far off the kerb. */
 const BODY = 0.89;
 const KERB_GAP = [0.05, 0.12] as const;
 /** A car's ends stay this far from the cross street's centre line: past its sidewalk and crosswalk. */
-const SETBACK = EDGE + 0.7;
+const SETBACK = EDGE + 1;
+/** Cable car rails [x0, x1, z]: the Union Square line and the California St rails by the Ferry Building (ferry.tsx). */
+export const RAILS: [number, number, number][] = [...CABLE_RAILS, [6, 28, 4]];
 /** Phones get about half the cars. */
 const LITE_SHARE = 0.5;
 
@@ -83,6 +86,7 @@ export function parkCars(): ParkedCar[] {
     .flatMap((p) => Array.from({ length: p.pts.length / 2 }, (_, i): [number, number] => [p.pts[i * 2], p.pts[i * 2 + 1]]))
     .filter(([x, z]) => x > minX && x < maxX && z > minZ && z < maxZ);
   const route = PATHS.flatMap(({ points }) => dense(points.map(([x, , z]) => [x, z]), 0.25));
+  const rails = RAILS.flatMap(([x0, x1, z]) => dense([[x0 - 2, z], [x1 + 2, z]], 0.25));
   const hydrants = CITY.hydrants.map((f): [number, number] => [f.x, f.z]);
   // In front of a garage: the street just off its kerb, the house's width.
   const garages = CITY.houses
@@ -114,6 +118,7 @@ export function parkCars(): ParkedCar[] {
       apart &&
       !near(lanes, 1.4) &&
       !near(route, 1.2) &&
+      !near(rails, 1.6) &&
       !near(hydrants, 1.2) &&
       !near(garages, 0.4) &&
       chapters.every(({ spot }) => Math.hypot(c.x - spot[0], c.z - spot[2]) > 6) &&
@@ -142,13 +147,16 @@ export function parkCars(): ParkedCar[] {
     }
   };
 
-  const streets = (lines: number[], walk: number[], cross: number[], alongZ: boolean) => {
-    for (const centre of lines.filter((v) => !walk.includes(v))) {
-      for (let i = 0; i < cross.length - 1; i++) for (const side of [-1, 1] as const) kerb(alongZ, centre, cross[i] + SETBACK, cross[i + 1] - SETBACK, side);
+  const streets = (lines: number[], cross: number[], alongZ: boolean) => {
+    for (const centre of lines) {
+      // On a street Cuso walks only the far side: his walking line is on the south or east side, on the waterfront (x 29) the west (routes.ts).
+      const walk = (alongZ ? WALK_X : WALK_Z).includes(centre);
+      const sides = ([-1, 1] as const).filter((side) => !walk || side === (alongZ && centre === 29 ? 1 : -1));
+      for (let i = 0; i < cross.length - 1; i++) for (const side of sides) kerb(alongZ, centre, cross[i] + SETBACK, cross[i + 1] - SETBACK, side);
     }
   };
-  streets(X_STREETS, WALK_X, Z_STREETS, true);
-  streets(Z_STREETS, WALK_Z, X_STREETS, false);
+  streets(X_STREETS, Z_STREETS, true);
+  streets(Z_STREETS, X_STREETS, false);
   return out;
 }
 

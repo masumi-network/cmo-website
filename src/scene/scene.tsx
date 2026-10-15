@@ -17,6 +17,7 @@ import { Cuso } from "./cuso";
 import { FerryBuilding } from "./ferry";
 import { BayBridge, GoldenGate, Roads } from "./landmarks";
 import { MuralWall } from "./mission";
+import { Parked } from "./parked-cars";
 import { Pyramid } from "./pyramid";
 import { Rooftop } from "./rooftop";
 import { Shopfront } from "./shop";
@@ -131,6 +132,7 @@ function Scene({ onReady, onGo, lite }: Props) {
         <Atmosphere lite={lite} />
         <Studio />
         <City lite={lite} />
+        <Parked lite={lite} />
         <RoofClutter lite={lite} />
         <Backdrop lite={lite} />
         <Rooftop />
