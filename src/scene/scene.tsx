@@ -5,8 +5,6 @@
 
 import { Environment, Lightformer, PerformanceMonitor } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Bloom, EffectComposer, HueSaturation, TiltShift2, ToneMapping, Vignette } from "@react-three/postprocessing";
-import { ToneMappingMode } from "postprocessing";
 import { Suspense, lazy, memo, useEffect, useRef, useState } from "react";
 import { WebGLRenderTarget, type Camera, type Material, type Mesh, type Object3D, type Scene as ThreeScene, type Texture, type WebGLRenderer } from "three";
 import { Atmosphere } from "./atmosphere";
@@ -24,6 +22,7 @@ import { UnionSquare } from "./union-square";
 import { Shadowless } from "./parts";
 import { Pier } from "./pier";
 import { Pins } from "./pins";
+import { Post } from "./post";
 import { Reflections } from "./reflections";
 import { DETAIL, rig } from "./shared";
 
@@ -104,6 +103,7 @@ const Studio = memo(function Studio() {
 function Scene({ onReady, onGo, lite }: Props) {
   // Sharp on retina screens, until the GPU can't keep up: then one pixel per pixel.
   const [dpr, setDpr] = useState<[number, number]>(lite ? [1, 1.5] : [1, 2]);
+  const [declined, setDeclined] = useState(false);
   useEffect(() => {
     const move = (e: PointerEvent) => rig.pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     window.addEventListener("pointermove", move, { passive: true });
@@ -125,7 +125,12 @@ function Scene({ onReady, onGo, lite }: Props) {
         gl.debug.checkShaderErrors = process.env.NODE_ENV !== "production";
       }}
     >
-      <PerformanceMonitor onDecline={() => setDpr([1, 1])} />
+      <PerformanceMonitor
+        onDecline={() => {
+          setDpr([1, 1]);
+          setDeclined(true); // and no ambient occlusion
+        }}
+      />
       <Suspense fallback={null}>
         <Atmosphere lite={lite} />
         <Studio />
@@ -150,23 +155,9 @@ function Scene({ onReady, onGo, lite }: Props) {
         {PerfOverlay && <PerfOverlay />}
       </Suspense>
       <CameraRig />
-      {lite ? (
-        <EffectComposer multisampling={2}>
-          <Bloom mipmapBlur luminanceThreshold={0.9} intensity={0.5} />
-          <Vignette offset={0.3} darkness={0.4} />
-          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-        </EffectComposer>
-      ) : (
-        // Retina already draws 4 pixels per point: 2x MSAA looks the same as 4x there (checked on the
-        // Golden Gate cables) and saves about 1.2 ms a frame at 1440x900.
-        <EffectComposer multisampling={Math.min(window.devicePixelRatio, dpr[1]) >= 2 ? 2 : 4}>
-          <Bloom mipmapBlur luminanceThreshold={0.9} intensity={0.6} />
-          <TiltShift2 blur={0.04} />
-          <HueSaturation saturation={0.08} />
-          <Vignette offset={0.3} darkness={0.45} />
-          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-        </EffectComposer>
-      )}
+      {/* Retina already draws 4 pixels per point: 2x MSAA looks the same as 4x there (checked on the Golden Gate
+          cables) and saves about 1.2 ms a frame at 1440x900. */}
+      <Post lite={lite} declined={declined} multisampling={lite || Math.min(window.devicePixelRatio, dpr[1]) >= 2 ? 2 : 4} />
     </Canvas>
   );
 }
