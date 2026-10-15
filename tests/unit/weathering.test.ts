@@ -1,0 +1,126 @@
+import { describe, expect, it } from "vitest";
+import { MeshStandardMaterial, type WebGLProgramParametersWithUniforms } from "three";
+import { HILLS, PLAZA, heightAt } from "@/lib/terrain";
+import { LAND_BOUNDS } from "@/scene/grid";
+import { downtownMaterial, houseMaterial } from "@/scene/materials";
+import { GRIME_TOP, GROUND_GLSL, MAX_GRIME, TONE, WEATHER_GLSL, grime, tone, weather } from "@/scene/weathering";
+
+const seeds = Array.from({ length: 200 }, (_, i) => (i * 0.618034) % 1);
+const noises = [0, 0.25, 0.5, 0.75, 1];
+
+/** Evaluates GROUND_GLSL in TypeScript: the plaza test, then one dome per `h +=` line. */
+function glslGround(x: number, z: number) {
+  const num = String.raw`(-?[\d.e-]+)`;
+  const plaza = GROUND_GLSL.match(new RegExp(String.raw`p\.x > ${num} && p\.x < ${num} && p\.y > ${num} && p\.y <= ${num}\) return ${num};`))!;
+  const [x0, x1, z0, z1, y] = plaza.slice(1).map(Number);
+  if (x > x0 && x < x1 && z > z0 && z <= z1) return y;
+  const dome = new RegExp(String.raw`d = \(p - vec2\(${num}, ${num}\)\) / vec2\(${num}, ${num}\); t = max\(1\.0 - dot\(d, d\), 0\.0\); h \+= ${num} \* t \* t;`, "g");
+  let h = 0;
+  for (const m of GROUND_GLSL.matchAll(dome)) {
+    const [hx, hz, rx, rz, a] = m.slice(1).map(Number);
+    const t = Math.max(1 - (((x - hx) / rx) ** 2 + ((z - hz) / rz) ** 2), 0);
+    h += a * t * t;
+  }
+  return h;
+}
+
+const compile = (m: MeshStandardMaterial) => {
+  const shader = { uniforms: {}, vertexShader: "#include <common>\n#include <begin_vertex>", fragmentShader: "#include <common>\n#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <normal_fragment_maps>\n#include <lights_fragment_maps>\n#include <emissivemap_fragment>" } as unknown as WebGLProgramParametersWithUniforms;
+  m.onBeforeCompile(shader, undefined as never);
+  return shader;
+};
+
+describe("ground level in the shader", () => {
+  it("has every hill and the plaza", () => {
+    expect(GROUND_GLSL.match(/h \+=/g)).toHaveLength(HILLS.length);
+    for (const v of [PLAZA.x0, PLAZA.x1, PLAZA.z0, PLAZA.z1, PLAZA.y]) expect(GROUND_GLSL).toContain(String(v));
+  });
+
+  it("matches heightAt over the land, plaza edges included", () => {
+    const { minX, maxX, minZ, maxZ } = LAND_BOUNDS;
+    const pts: [number, number][] = [];
+    for (let x = minX; x <= maxX; x += 0.5) for (let z = minZ; z <= maxZ; z += 0.5) pts.push([x, z]);
+    for (const x of [PLAZA.x0, PLAZA.x1, (PLAZA.x0 + PLAZA.x1) / 2]) for (const z of [PLAZA.z0, PLAZA.z1, (PLAZA.z0 + PLAZA.z1) / 2]) for (const e of [-1e-3, 0, 1e-3]) pts.push([x + e, z + e], [x - e, z + e]);
+    for (const [x, z] of pts) expect(glslGround(x, z), `${x},${z}`).toBeCloseTo(heightAt(x, z), 9);
+  });
+});
+
+describe("grime", () => {
+  it("darkens most at the ground and is gone above GRIME_TOP", () => {
+    for (const s of seeds) {
+      for (const n of noises) {
+        let last = Infinity;
+        for (let h = -0.5; h <= GRIME_TOP + 0.5; h += 0.05) {
+          const g = grime(h, s, n);
+          expect(g).toBeLessThanOrEqual(last + 1e-12);
+          last = g;
+        }
+        expect(grime(0, s, n)).toBeGreaterThan(0.15);
+        expect(grime(GRIME_TOP, s, n)).toBe(0);
+        expect(grime(GRIME_TOP + 3, s, n)).toBe(0);
+      }
+    }
+  });
+
+  it("never darkens more than MAX_GRIME", () => {
+    expect(MAX_GRIME).toBeLessThanOrEqual(0.3);
+    for (const s of seeds) for (const n of noises) for (const h of [-2, -0.1, 0, 0.1]) expect(grime(h, s, n)).toBeLessThanOrEqual(MAX_GRIME);
+  });
+
+  it("varies from building to building", () => {
+    const at0 = seeds.map((s) => grime(0, s, 0.5));
+    expect(Math.max(...at0) - Math.min(...at0)).toBeGreaterThan(0.05);
+  });
+});
+
+describe("tone per building", () => {
+  it("stays within the material's range, around 1 on average", () => {
+    for (const a of [TONE.house, TONE.downtown]) {
+      const tones = seeds.map((s) => tone(s, a));
+      for (const t of tones) for (const c of t) expect(Math.abs(c - 1)).toBeLessThanOrEqual(a + 1e-9);
+      const mean = tones.reduce((m, t) => m + (t[0] + t[1] + t[2]) / 3, 0) / tones.length;
+      expect(mean).toBeCloseTo(1, 2);
+      expect(new Set(tones.map((t) => t[0].toFixed(4))).size).toBeGreaterThan(50);
+    }
+  });
+
+  it("is subtle: houses keep their curated palettes", () => {
+    expect(TONE.downtown).toBeLessThanOrEqual(0.04);
+    expect(TONE.house).toBeLessThanOrEqual(0.02);
+  });
+});
+
+describe("weather in the materials", () => {
+  const tex = { isTexture: true } as never;
+  const cases = [
+    { m: houseMaterial(tex, tex, new Float32Array(3 * 30)), key: "house", glass: "fGlassy", tone: TONE.house },
+    { m: downtownMaterial(tex), key: "downtown", glass: "fGl", tone: TONE.downtown },
+  ];
+
+  it("compiles into houses and downtown and keeps their program keys", () => {
+    for (const { m, key, glass, tone: a } of cases) {
+      const s = compile(m);
+      expect(m.customProgramCacheKey()).toBe(key);
+      expect(s.fragmentShader).toContain("float wGround(vec2 p)");
+      expect(s.fragmentShader).toContain("wGrime(");
+      expect(s.uniforms.uWeather).toEqual({ value: a });
+      // after the material's own colour, so it weathers whatever the material drew
+      const snippet = s.fragmentShader.slice(s.fragmentShader.indexOf("#include <color_fragment>"));
+      expect(snippet.indexOf("wGround(vFPos.xz)")).toBeGreaterThan(0);
+      expect(snippet).toContain(glass);
+    }
+  });
+
+  it("keeps glass clean", () => {
+    const { glsl } = weather("vSeed", "fGlassy", TONE.house);
+    expect(glsl).toMatch(/diffuseColor\.rgb = mix\(wC, diffuseColor\.rgb, wGl\);\s*\}$/);
+  });
+
+  it("names every symbol with a w prefix (no clash with the materials' own f names)", () => {
+    const src = [GROUND_GLSL, WEATHER_GLSL, weather("vSeed", "fGlassy", TONE.house).glsl].join("\n");
+    // declarations (functions, constants, locals); parameters are local to their function
+    const names = [...src.matchAll(/(?:^|[;{])\s*(?:const\s+)?(?:float|vec2|vec3|vec4|int|bool)\s+([A-Za-z_]\w*)/gm)].map((m) => m[1]);
+    expect(names.length).toBeGreaterThan(10);
+    for (const n of names) expect(n, n).toMatch(/^(w[A-Z]|W_)/);
+  });
+});

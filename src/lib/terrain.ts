@@ -15,7 +15,7 @@ type Hill = [x: number, z: number, height: number, rx: number, rz: number];
 /** Steepest a street or sidewalk may get (rise over run). SF's steepest are about 0.32. */
 export const MAX_STREET_GRADE = 0.36;
 
-const HILLS: Hill[] = [
+export const HILLS: Hill[] = [
   [-15, -13, 3.8, 17, 18], // Russian Hill (the 06:00 rooftop)
   [-3, 6, 1.8, 9, 9], // Nob Hill, a low round top west of downtown
   [4.5, -28.5, 3.6, 17, 18], // Telegraph Hill by the bay ...
