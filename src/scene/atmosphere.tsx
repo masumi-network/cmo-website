@@ -4,10 +4,11 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import { BackSide, Color, Fog, Frustum, Matrix4, ShaderMaterial, Sphere, Vector3, type Camera, type DirectionalLight, type HemisphereLight, type Mesh } from "three";
+import { Fog, Frustum, Matrix4, Sphere, Vector3, type Camera, type DirectionalLight, type HemisphereLight, type Mesh } from "three";
 import { lightingAt } from "@/lib/time";
 import { LINE, carGround, unionCar } from "./cable-line";
 import { facadeNight } from "./facade";
+import { TODAY, skyAt, skyMaterial, updateSky } from "./sky";
 import { dayNow, rig, updateNightGlow } from "./shared";
 
 const sunDir = new Vector3();
@@ -40,17 +41,24 @@ function shadowsMoved(camera: Camera) {
   );
 }
 
+/** Dev only: `?look=off` keeps today's clear sky at every hour, for before and after screenshots. */
+const LOOK_OFF =
+  process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("look") === "off";
+
 const FOG = { story: { near: 70, far: 340 }, explore: { near: 260, far: 900 } };
 
 /**
  * Distance fog for a camera `distance` from what it looks at. Explore pushes it far out, so the whole map shows. In
  * the story it is close (shots stand 6 to 36 m off), except while the camera is still high above the city after an
  * Explore pin: the fog eases in as it comes down (switched with the mode, it hid the city in a white haze).
+ * `scale` is the sky's haze (sky.ts fogScale): it brings only the story fog nearer.
  */
-export function fogRange(distance: number, explore: boolean) {
+export function fogRange(distance: number, explore: boolean, scale = 1) {
   if (explore) return { ...FOG.explore };
   const e = overhead(distance);
-  return { near: FOG.story.near + (FOG.explore.near - FOG.story.near) * e, far: FOG.story.far + (FOG.explore.far - FOG.story.far) * e };
+  const near = FOG.story.near * scale;
+  const far = FOG.story.far * scale;
+  return { near: near + (FOG.explore.near - near) * e, far: far + (FOG.explore.far - far) * e };
 }
 
 /** 0 within 50 of what the camera looks at (every story shot), 1 from 120 (Explore's map), eased between. */
@@ -64,49 +72,14 @@ export function Atmosphere({ lite }: { lite: boolean }) {
   const hemi = useRef<HemisphereLight>(null);
   const fog = useMemo(() => new Fog("#f2d2b2", 40, 260), []);
 
-  const sky = useMemo(
-    () =>
-      new ShaderMaterial({
-        side: BackSide,
-        depthWrite: false,
-        fog: false,
-        uniforms: {
-          top: { value: new Color() },
-          horizon: { value: new Color() },
-          sunColor: { value: new Color() },
-          sunDir: { value: new Vector3(0, 1, 0) },
-          night: { value: 0 },
-        },
-        vertexShader: /* glsl */ `
-          varying vec3 vDir;
-          void main() {
-            vDir = normalize(position);
-            vec4 p = modelViewMatrix * vec4(position, 1.0);
-            gl_Position = projectionMatrix * p;
-          }`,
-        fragmentShader: /* glsl */ `
-          uniform vec3 top, horizon, sunColor, sunDir;
-          uniform float night;
-          varying vec3 vDir;
-          float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
-          void main() {
-            float h = clamp(vDir.y, -0.2, 1.0);
-            vec3 col = mix(horizon, top, smoothstep(-0.02, 0.55, h));
-            float d = max(dot(vDir, normalize(sunDir)), 0.0);
-            col += sunColor * (pow(d, 600.0) * 2.5 + pow(d, 12.0) * 0.25) * (1.0 - night * 0.6);
-            float stars = step(0.9975, hash(floor(vDir * 420.0))) * smoothstep(0.05, 0.4, h) * night;
-            col += vec3(stars);
-            gl_FragColor = vec4(col, 1.0);
-          }`,
-      }),
-    [],
-  );
+  const sky = useMemo(() => skyMaterial(lite), [lite]);
 
   const domeRef = useRef<Mesh>(null);
 
-  useFrame(({ camera, gl }) => {
+  useFrame(({ camera, gl, clock }) => {
     const day = dayNow();
     const L = lightingAt(day.hour);
+    const S = LOOK_OFF ? TODAY : skyAt(day.hour);
     const explore = day.mode === "explore";
 
     // The moon stands in for the sun at night, high and cool.
@@ -146,13 +119,9 @@ export function Atmosphere({ lite }: { lite: boolean }) {
     }
 
     fog.color.set(L.fog);
-    Object.assign(fog, fogRange(camera.position.distanceTo(rig.target), explore));
+    Object.assign(fog, fogRange(camera.position.distanceTo(rig.target), explore, S.fogScale));
 
-    sky.uniforms.top.value.set(L.skyTop);
-    sky.uniforms.horizon.value.set(L.skyHorizon);
-    sky.uniforms.sunColor.value.set(L.night > 0.5 ? "#c9d4ff" : L.sunColor);
-    sky.uniforms.sunDir.value.copy(sunDir);
-    sky.uniforms.night.value = L.night;
+    updateSky(sky, L, S, sunDir, clock.elapsedTime);
     domeRef.current?.position.copy(camera.position);
 
     rig.night = L.night;

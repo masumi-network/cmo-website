@@ -28,3 +28,22 @@ describe("how far above the story the camera is", () => {
     expect(overhead(85)).toBeLessThan(1);
   });
 });
+
+describe("haze (the sky's fog scale)", () => {
+  it("brings the story fog in, in proportion", () => {
+    expect(fogRange(12, false, 0.8)).toEqual({ near: 56, far: 272 });
+    expect(fogRange(12, false, 1)).toEqual(fogRange(12, false));
+  });
+
+  it("leaves Explore's fog alone", () => {
+    for (const d of [40, 95, 215]) expect(fogRange(d, true, 0.8)).toEqual({ near: 260, far: 900 });
+    expect(fogRange(170, false, 0.8)).toEqual({ near: 260, far: 900 });
+  });
+
+  it("still eases from Explore's as the camera comes down after a pin", () => {
+    const mid = fogRange(85, false, 0.8);
+    expect(mid.near).toBeGreaterThan(56);
+    expect(mid.near).toBeLessThan(260);
+    expect(fogRange(70, false, 0.8).near).toBeLessThan(mid.near);
+  });
+});
