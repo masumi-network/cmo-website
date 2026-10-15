@@ -161,19 +161,9 @@ describe("BrandForm", () => {
   });
 });
 
-describe("Hud settings", () => {
-  it("shows the photo-real switch as it is and flips it", async () => {
-    const onPhotoreal = vi.fn();
-    render(<Hud onGo={vi.fn()} photoreal={true} onPhotoreal={onPhotoreal} />);
-    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    const toggle = screen.getByRole("switch", { name: "Photo-real light" });
-    expect(toggle).toBeChecked();
-    await userEvent.click(toggle);
-    expect(onPhotoreal).toHaveBeenCalledWith(false);
-  });
-
-  it("has no settings where photo-real can't run (phones, lite, no 3D)", () => {
-    render(<Hud onGo={vi.fn()} photoreal={null} onPhotoreal={vi.fn()} />);
+describe("Hud", () => {
+  it("has no settings button (its only switch was photo-real, now removed)", () => {
+    render(<Hud onGo={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
   });
 });
