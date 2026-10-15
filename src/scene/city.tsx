@@ -36,6 +36,7 @@ import { contactRects, groundMask, lampLight, type Footprint } from "./textures"
 import { StreetFurniture } from "./street";
 import { Towers } from "./towers";
 import { Trees } from "./trees";
+import { cityTrees } from "./more-trees";
 import { Cars } from "./traffic";
 import { Fog } from "./fog";
 import { Shadowless } from "./parts";
@@ -72,7 +73,7 @@ export function City({ lite }: { lite: boolean }) {
       <Coast lite={lite} />
       <Houses houses={city.houses} tex={tex} lite={lite} />
       <Towers towers={city.towers} tex={tex} />
-      <Trees trees={city.trees} lite={lite} />
+      <Trees trees={cityTrees(lite)} lite={lite} />
       <Grass lite={lite} grass={tex.grass} dry={tex.hills} />
       <Shadowless when={lite}>
         <StreetFurniture lamps={city.lamps} hydrants={city.hydrants} signs={city.signs} />

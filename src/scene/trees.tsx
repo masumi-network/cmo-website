@@ -1,7 +1,8 @@
 "use client";
 
-// Street and park trees, placed by layout.ts, modelled in tree-models.ts,
-// textured by tree-textures.ts. Two batched draws for every tree in the city:
+// Street and park trees, placed by layout.ts and more-trees.ts (which names
+// its trees' kind), modelled in tree-models.ts, textured by tree-textures.ts.
+// Two batched draws for every tree in the city:
 // bark (trunks, limbs, branches and the street trees' grates) and leaves
 // (cards and palm fronds). Each tree draws its near or far model by distance
 // (phones always far). Wind sways branches and flutters the outer leaves in
@@ -125,7 +126,7 @@ const hash = (t: Tree, k: number) => {
 const leafTint = (t: Tree) => tint.setHSL(0.16 + hash(t, 1) * 0.16, 0.35, 0.5).lerp(new Color(1, 1, 1), 0.82).multiplyScalar(0.86 + hash(t, 2) * 0.2);
 const barkTint = (t: Tree) => tint.setScalar(0.85 + hash(t, 3) * 0.2);
 
-export function Trees({ trees, lite }: { trees: Tree[]; lite: boolean }) {
+export function Trees({ trees, lite }: { trees: (Tree & { kind?: Kind })[]; lite: boolean }) {
   const uniforms = useMemo<Uniforms>(() => ({ uTime: { value: 0 } }), []);
   const mats = useMemo(() => materials(uniforms), [uniforms]);
   const scene = useMemo(() => {
@@ -140,7 +141,7 @@ export function Trees({ trees, lite }: { trees: Tree[]; lite: boolean }) {
     leaves.mesh.customDepthMaterial = mats.depth;
     const o = new Object3D();
     const items = trees.map((t) => {
-      const k = kindOf(t);
+      const k = t.kind ?? kindOf(t);
       const v = variantOf(t);
       const ids = { near: key(k, v, lods[0]), far: key(k, v, "far") };
       treePose(t, k, o);
