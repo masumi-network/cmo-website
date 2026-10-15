@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { chapters } from "@/content/day";
 import { activeIndex, lightingAt, mixHex, travel } from "@/lib/time";
 
 describe("travel", () => {
@@ -52,5 +53,24 @@ describe("lightingAt", () => {
   it("wraps past midnight to the next morning", () => {
     expect(lightingAt(30)).toEqual(lightingAt(6));
     expect(lightingAt(26).night).toBeGreaterThan(0);
+  });
+
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+  it("has a low warm sun in the morning and the evening (photo look, F13)", () => {
+    for (const id of ["arrive", "learn", "newsletter", "join"] as const) {
+      const L = lightingAt(chapters.find((c) => c.id === id)!.hour);
+      expect(L.elevation, id).toBeGreaterThan(0);
+      expect(L.elevation, id).toBeLessThan(20);
+      const [r, , b] = rgb(L.sunColor);
+      expect(r - b, id).toBeGreaterThan(60);
+    }
+  });
+
+  it("casts deep shadows by day: little fill next to the sun", () => {
+    for (const c of chapters.filter((c) => !c.dark)) {
+      const L = lightingAt(c.hour);
+      expect(L.ambient / L.sunIntensity, c.id).toBeLessThanOrEqual(0.14);
+    }
   });
 });

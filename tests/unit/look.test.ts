@@ -22,8 +22,53 @@ describe("look per hour", () => {
     expect(readFileSync("src/scene/post.tsx", "utf8")).not.toMatch(/N8AO/);
   });
 
-  it("is today's look at every hour not tuned yet", () => {
-    for (const h of [6, 7, 8, 9, 15, 18, 20, 22, 26, 30, 3]) expect(lookFor(h), `${h}:00`).toEqual(TODAY);
+  it("is tuned at every chapter: depth of field, a light grain, no tilt-shift, deeper shadows than today", () => {
+    for (const c of chapters) {
+      const L = lookFor(c.hour);
+      expect(L, c.id).not.toEqual(TODAY);
+      expect(L.dof, c.id).toBeGreaterThan(0);
+      expect(L.tilt, c.id).toBe(0);
+      expect(L.grain, c.id).toBeGreaterThan(0);
+      expect(L.grain, c.id).toBeLessThan(0.1);
+      expect(L.env, c.id).toBeLessThanOrEqual(TODAY.env);
+    }
+  });
+
+  it("is warm by day (more red than blue) and never crushes the shadows", () => {
+    for (const c of chapters) {
+      const L = lookFor(c.hour);
+      if (!c.dark) expect(L.gain[0], c.id).toBeGreaterThan(L.gain[2]);
+      for (const v of L.lift) expect(v, c.id).toBeGreaterThanOrEqual(0);
+      expect(L.contrast, c.id).toBeLessThanOrEqual(0.3);
+    }
+  });
+
+  it("keeps the night's lit windows bright and its dark sky out of black", () => {
+    const night = lookFor(chapters.find((c) => c.id === "night")!.hour);
+    const window = gradePixel([0.85, 0.6, 0.3], night, 0.5);
+    expect(window[0]).toBeGreaterThan(0.75);
+    for (const c of gradePixel([0.004, 0.006, 0.02], night, 0.5)) expect(c).toBeGreaterThan(0.002);
+  });
+
+  it("never pops while scrolling: every value moves a little at a time through the whole day", () => {
+    const nums = (L: Look) => [L.dof, L.focusRange / 20, L.tilt, L.saturation, ...L.gain, ...L.lift, L.contrast, L.grain, L.env];
+    for (let h = 6; h < 30; h += 0.05) {
+      const a = nums(lookFor(h));
+      const b = nums(lookFor(h + 0.05));
+      a.forEach((v, i) => expect(Math.abs(b[i] - v), `value ${i} at ${h.toFixed(2)}`).toBeLessThan(0.03));
+    }
+  });
+
+  it("blends between two chapters (each value between its neighbours)", () => {
+    const hours = chapters.map((c) => c.hour);
+    for (let i = 0; i < hours.length - 1; i++) {
+      const [a, b] = [lookFor(hours[i]), lookFor(hours[i + 1])];
+      const mid = lookFor((hours[i] + hours[i + 1]) / 2);
+      for (const k of ["dof", "contrast", "grain", "env", "saturation"] as const) {
+        expect(mid[k], `${k} ${hours[i]}..${hours[i + 1]}`).toBeGreaterThanOrEqual(Math.min(a[k], b[k]) - 1e-9);
+        expect(mid[k], `${k} ${hours[i]}..${hours[i + 1]}`).toBeLessThanOrEqual(Math.max(a[k], b[k]) + 1e-9);
+      }
+    }
   });
 
   it("today's look draws no AO, no depth of field and no grade (only the toy tilt-shift)", () => {
@@ -46,22 +91,8 @@ describe("look per hour", () => {
     expect(L.env).toBeLessThan(TODAY.env); // less flat studio fill
   });
 
-  it("blends between 09:00 and 12:00 and back by 15:00 (no pop while scrolling)", () => {
-    const keys: (keyof Look)[] = ["dof", "tilt", "contrast", "grain", "env", "saturation"];
-    for (const h of [10, 10.5, 11, 13, 14]) {
-      const L = lookFor(h);
-      for (const k of keys) {
-        const [lo, hi] = [Math.min(TODAY[k] as number, NOON[k] as number), Math.max(TODAY[k] as number, NOON[k] as number)];
-        expect(L[k] as number, `${k} at ${h}`).toBeGreaterThanOrEqual(lo);
-        expect(L[k] as number, `${k} at ${h}`).toBeLessThanOrEqual(hi);
-      }
-    }
-    expect(lookFor(10.5).dof).toBeCloseTo(NOON.dof / 2, 5);
-    expect(lookFor(11).dof).toBeGreaterThan(lookFor(10).dof);
-  });
-
   it("on phones keeps the grade and the grain, never depth of field", () => {
-    for (const h of [6, 10.5, 12, 22]) {
+    for (const h of [...chapters.map((c) => c.hour), 10.5, 3]) {
       const L = liteLook(lookFor(h));
       expect(L.dof).toBe(0);
       expect(L.gain).toEqual(lookFor(h).gain);
@@ -101,16 +132,21 @@ describe("focus", () => {
   });
 });
 
+describe("depth of field at every chapter", () => {
+  it.each(chapters.map((c) => [c.id, c] as const))("keeps Cuso sharp from head to feet at %s", (_, c) => {
+    const { position, forward, target } = shot(c);
+    const L = lookFor(c.hour);
+    const focus = focusGoal(position, forward, new Vector3(...c.spot), target);
+    for (const y of [0, 0.95, 1.9]) {
+      const p = new Vector3(c.spot[0], c.spot[1] + y, c.spot[2]);
+      expect(coc(position.distanceTo(p), focus, L.focusRange)).toBeLessThan(0.05);
+    }
+  });
+});
+
 describe("depth of field at 12:00", () => {
   const { position, forward, target } = shot(ads);
   const focus = focusGoal(position, forward, new Vector3(...ads.spot), target);
-
-  it("keeps Cuso sharp from head to feet", () => {
-    for (const y of [0, 0.95, 1.9]) {
-      const p = new Vector3(ads.spot[0], ads.spot[1] + y, ads.spot[2]);
-      expect(coc(position.distanceTo(p), focus, NOON.focusRange)).toBeLessThan(0.05);
-    }
-  });
 
   it("keeps the billboard ad nearly sharp, corners included", () => {
     const [W, H] = AD_PANEL;

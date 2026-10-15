@@ -31,22 +31,26 @@ export const FOREGROUNDS: Partial<Record<ChapterId, Prop[]>> = {
 /** The leaf sprite in px, [width, height]: wider than tall, a branch reaching in along the bottom. */
 export const SPRITE = [512, 256] as const;
 
-type Look = { amount: number; tint: string };
-const TODAY: Look = { amount: 0, tint: "#ffffff" };
-/** Midday: the leaves in their own shade, the sky's light on them. */
-const NOON: Look = { amount: 1, tint: "#f2efe4" };
-// Like lightingAt: hours 6..30, only 12:00 tuned, so 09:00 -> 12:00 blends the leaves in.
-const KEYS: [number, Look][] = [[6, TODAY], [9, TODAY], [12, NOON], [15, TODAY], [30, TODAY]];
+// The leaves' tint by hour, like lightingAt (hours 6..30): they sit in their own shade, lit by the sky.
+const KEYS: [number, string][] = [
+  [6, "#f0d2b0"],
+  [7, "#f0dcc4"],
+  [9, "#f2eadc"],
+  [12, "#f2efe4"],
+  [15, "#f2e8d8"],
+  [18, "#e8b892"],
+  [22, "#3a4366"],
+  [30, "#f0d2b0"],
+];
 
-/** How much foreground the hour wants (0 = today's look, none) and the leaves' tint. */
-export function foregroundAt(hour: number): Look {
+/** The leaves' tint at `hour`. */
+export function foregroundAt(hour: number) {
   const h = hour < 6 ? hour + 24 : Math.min(hour, 30);
   let i = 0;
   while (i < KEYS.length - 2 && KEYS[i + 1][0] <= h) i++;
   const [h0, a] = KEYS[i];
   const [h1, b] = KEYS[i + 1];
-  const t = Math.min(1, Math.max(0, (h - h0) / (h1 - h0)));
-  return { amount: a.amount + (b.amount - a.amount) * t, tint: mixHex(a.tint, b.tint, t) };
+  return { tint: mixHex(a, b, Math.min(1, Math.max(0, (h - h0) / (h1 - h0)))) };
 }
 
 const smoothstep = (a: number, b: number, x: number) => {
@@ -229,14 +233,13 @@ function Leaves({ shot, prop }: { shot: { position: Vec3; target: Vec3 }; prop: 
     if (!m) return;
     m.layers.set(DETAIL);
     const day = dayNow();
-    const look = OFF ? TODAY : foregroundAt(day.hour);
-    const goal = look.amount * propFade(camera, shot, day.mode === "explore");
+    const goal = OFF ? 0 : propFade(camera, shot, day.mode === "explore");
     shown.current += (goal - shown.current) * damp(4, dt);
     if (goal === 0 && shown.current < 0.005) shown.current = 0;
     m.visible = shown.current > 0;
     if (!m.visible) return;
     material.opacity = shown.current * prop.opacity;
-    material.color.set(look.tint);
+    material.color.set(foregroundAt(day.hour).tint);
     // a little parallax against the pointer, and the leaves stir in the breeze
     const t = clock.elapsedTime;
     drift[0] = -rig.pointer.x + Math.sin(t * 0.7) * 0.3;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { chapters } from "@/content/day";
 import { lightingAt } from "@/lib/time";
 import { NOISE, TODAY, cloudColors, cloudNoise, horizonColor, skyAt, skyMaterial } from "@/scene/sky";
 
@@ -9,8 +10,14 @@ const luma = (hex: string) => {
 };
 
 describe("sky through the day", () => {
-  it("is today's clear sky at every hour not tuned yet", () => {
-    for (const h of [0, 3, 6, 7, 9, 15, 18, 20, 22, 26, 30]) expect(skyAt(h), `${h}:00`).toEqual(TODAY);
+  it("has haze and a nearer story fog at every chapter; today's clear sky stays for `?look=off`", () => {
+    for (const c of chapters) {
+      const s = skyAt(c.hour);
+      expect(s.haze, c.id).toBeGreaterThan(0);
+      expect(s.cover, c.id).toBeLessThanOrEqual(0.6);
+      expect(s.fogScale, c.id).toBeLessThan(1);
+      expect(s.fogScale, c.id).toBeGreaterThanOrEqual(0.5);
+    }
     expect(TODAY.cover).toBe(0);
     expect(TODAY.haze).toBe(0);
     expect(TODAY.fogScale).toBe(1);
@@ -25,19 +32,25 @@ describe("sky through the day", () => {
     expect(s.fogScale).toBeGreaterThan(0.5);
   });
 
-  it("blends between hours, so a scroll from 09:00 to 12:00 never pops", () => {
-    const a = skyAt(10.5);
-    expect(a.cover).toBeGreaterThan(0);
-    expect(a.cover).toBeLessThan(skyAt(12).cover);
-    expect(a.fogScale).toBeLessThan(1);
-    expect(a.fogScale).toBeGreaterThan(skyAt(12).fogScale);
-    expect(skyAt(11.9).cover).toBeGreaterThan(skyAt(11).cover);
-    expect(skyAt(13.5).haze).toBeGreaterThan(0);
-    expect(skyAt(13.5).haze).toBeLessThan(skyAt(12).haze);
+  it("never pops while scrolling: every value moves a little at a time through the whole day", () => {
+    for (let h = 6; h < 30; h += 0.05) {
+      const a = skyAt(h);
+      const b = skyAt(h + 0.05);
+      for (const k of Object.keys(a) as (keyof typeof a)[]) expect(Math.abs(b[k] - a[k]), `${k} at ${h.toFixed(2)}`).toBeLessThan(k === "scale" ? 0.1 : 0.03);
+    }
   });
 
-  it("keeps today's horizon at untuned hours", () => {
-    for (const h of [6, 9, 15, 18, 22]) expect(horizonColor(lightingAt(h), skyAt(h)), `${h}:00`).toBe(lightingAt(h).skyHorizon);
+  it("at every chapter sits the horizon between the sky's horizon and the distance fog", () => {
+    for (const ch of chapters) {
+      const L = lightingAt(ch.hour);
+      const c = rgb(horizonColor(L, skyAt(ch.hour)));
+      const a = rgb(L.skyHorizon);
+      const b = rgb(L.fog);
+      c.forEach((v, i) => {
+        expect(v, ch.id).toBeGreaterThanOrEqual(Math.min(a[i], b[i]));
+        expect(v, ch.id).toBeLessThanOrEqual(Math.max(a[i], b[i]));
+      });
+    }
   });
 
   it("at 12:00 sits the horizon between the sky's horizon and the distance fog, so the city melts into it", () => {

@@ -35,6 +35,48 @@ export const TODAY: Look = {
   env: 0.5,
 };
 
+// One look per chapter hour (F13). Each moves toward its concept (public/concepts): depth of field on Cuso,
+// a warm grade, light grain, less studio fill so the shadows read. Hours run 6..30 like lightingAt (time.ts).
+
+/** 06:00, Russian Hill: golden sunrise, a warm hazy lift. */
+const SUNRISE: Look = {
+  dof: 1.4,
+  focusRange: 14,
+  tilt: 0,
+  saturation: 0.08,
+  gain: [1.05, 1, 0.9],
+  lift: [0.03, 0.02, 0.012],
+  contrast: 0.14,
+  grain: 0.035,
+  env: 0.35,
+};
+
+/** 07:00, Hayes Valley: soft warm morning, mist up the street. */
+const MORNING: Look = {
+  dof: 1.5,
+  focusRange: 14,
+  tilt: 0,
+  saturation: 0.06,
+  gain: [1.04, 1, 0.92],
+  lift: [0.025, 0.02, 0.015],
+  contrast: 0.15,
+  grain: 0.035,
+  env: 0.38,
+};
+
+/** 09:00, the Mission: bright, warm, crisp shadows on the mural wall. */
+const LATE_MORNING: Look = {
+  dof: 1.5,
+  focusRange: 14,
+  tilt: 0,
+  saturation: 0.08,
+  gain: [1.03, 1, 0.94],
+  lift: [0.02, 0.015, 0.01],
+  contrast: 0.18,
+  grain: 0.035,
+  env: 0.38,
+};
+
 /** 12:00, Union Square: the look test. Restrained and photographic. */
 export const NOON: Look = {
   dof: 1.5,
@@ -48,13 +90,57 @@ export const NOON: Look = {
   env: 0.38,
 };
 
-// Hours run 6..30 like lightingAt (time.ts). Only 12:00 is tuned so far.
+/** 15:00, on the Pyramid: golden afternoon, the city soft far below. */
+const AFTERNOON: Look = {
+  dof: 1.3,
+  focusRange: 14,
+  tilt: 0,
+  saturation: 0.06,
+  gain: [1.04, 1, 0.93],
+  lift: [0.02, 0.017, 0.012],
+  contrast: 0.16,
+  grain: 0.035,
+  env: 0.38,
+};
+
+/** 18:00, the Ferry Building: sunset, deep orange, long shadows. */
+const SUNSET: Look = {
+  dof: 1.5,
+  focusRange: 14,
+  tilt: 0,
+  saturation: 0.1,
+  gain: [1.07, 0.99, 0.86],
+  lift: [0.03, 0.018, 0.012],
+  contrast: 0.2,
+  grain: 0.04,
+  env: 0.32,
+};
+
+/** 22:00, the Embarcadero: blue night, the lamps and windows warm. */
+const NIGHT: Look = {
+  dof: 1.5,
+  focusRange: 14,
+  tilt: 0,
+  saturation: 0.12,
+  gain: [1.02, 1, 1],
+  lift: [0.008, 0.01, 0.022],
+  contrast: 0.14,
+  grain: 0.045,
+  env: 0.45,
+};
+
+/** 06:00 tomorrow, high over Russian Hill: the sunrise again, the city a soft miniature. */
+const FINALE: Look = { ...SUNRISE, dof: 1, focusRange: 24 };
+
 const KEYS: [number, Look][] = [
-  [6, TODAY],
-  [9, TODAY],
+  [6, SUNRISE],
+  [7, MORNING],
+  [9, LATE_MORNING],
   [12, NOON],
-  [15, TODAY],
-  [30, TODAY],
+  [15, AFTERNOON],
+  [18, SUNSET],
+  [22, NIGHT],
+  [30, FINALE],
 ];
 
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;

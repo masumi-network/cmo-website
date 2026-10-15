@@ -1,7 +1,7 @@
 // The sky dome's look through the day: a gradient from the horizon up, the sun's
 // glow, stars at night, and soft fair-weather clouds with haze toward the horizon.
-// Per-hour keys like lightingAt (src/lib/time.ts). Only 12:00 is tuned; every
-// other key is today's clear sky, so a scroll blends the clouds in and out.
+// One key per chapter hour, like lightingAt (src/lib/time.ts); `?look=off` keeps
+// today's clear sky (TODAY).
 
 import { BackSide, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, RedFormat, RepeatWrapping, ShaderMaterial, Vector3 } from "three";
 import { mixHex, type Lighting } from "@/lib/time";
@@ -29,13 +29,21 @@ const NOON: Sky = { cover: 0.38, softness: 0.14, scale: 1.6, wind: 0.02, shade: 
 /** Today's clear sky. Cloud shape is noon's, so only cover and haze change on a scroll. */
 export const TODAY: Sky = { ...NOON, cover: 0, haze: 0, hazeHeight: 0, fogScale: 1 };
 
-// Hours run 6..30 (30 = 06:00 next day), like lightingAt.
+// Hours run 6..30 (30 = 06:00 next day), like lightingAt. Cloud shape is noon's, so a scroll changes cover and haze.
 const KEYS: [number, Sky][] = [
-  [6, TODAY],
-  [9, TODAY],
+  // sunrise: thin cloud, a deep warm haze over the bay
+  [6, { ...NOON, cover: 0.3, shade: 0.4, haze: 0.8, hazeHeight: 0.15, fogScale: 0.7 }],
+  // morning mist up the street
+  [7, { ...NOON, cover: 0.25, shade: 0.45, haze: 0.7, hazeHeight: 0.12, fogScale: 0.75 }],
+  [9, { ...NOON, cover: 0.3, haze: 0.5, hazeHeight: 0.08, fogScale: 0.85 }],
   [12, NOON],
-  [15, TODAY],
-  [30, TODAY],
+  // big afternoon clouds over the bay
+  [15, { ...NOON, cover: 0.42, haze: 0.55, fogScale: 0.8 }],
+  // sunset: lit cloud bands, a thick golden haze
+  [18, { ...NOON, cover: 0.35, shade: 0.6, haze: 0.7, hazeHeight: 0.14, fogScale: 0.75 }],
+  // night: a few clouds, a little haze so the far lights soften
+  [22, { ...NOON, cover: 0.2, haze: 0.4, hazeHeight: 0.06, fogScale: 0.85 }],
+  [30, { ...NOON, cover: 0.3, shade: 0.4, haze: 0.8, hazeHeight: 0.15, fogScale: 0.7 }],
 ];
 
 export function skyAt(hour: number): Sky {
