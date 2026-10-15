@@ -2,6 +2,8 @@
 
 // Time of day: sun or moon, sky dome, fog and night glow, driven by scroll.
 
+// Height-aware haze in the fog chunks: patched at import, before any shader compiles.
+import "./haze";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { Fog, Frustum, Matrix4, Sphere, Vector3, type Camera, type DirectionalLight, type HemisphereLight, type Mesh } from "three";
