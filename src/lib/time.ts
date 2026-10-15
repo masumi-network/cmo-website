@@ -56,8 +56,9 @@ export type Lighting = {
 
 // Art-directed keyframes, not astronomy. Hours run 6..30 (30 = 06:00 next day).
 const KEYS: [number, Lighting][] = [
-  // 06:00 opening shot: the sun glints off the bay in frame, so it is a fifth dimmer than the finale's.
-  [6, { elevation: 8, azimuth: 240, sunColor: "#ffa456", sunIntensity: 2.88, skyTop: "#5583cc", skyHorizon: "#f7c08c", fog: "#eec9a6", ambient: 0.4, night: 0 }],
+  // 06:00 opening shot: the low sun sits in the frame's upper left corner, by the title, so it backlights the
+  // scene warm without glaring in the middle, and its glint on the bay falls low on the left. A fifth dimmer than the finale's.
+  [6, { elevation: 14, azimuth: 250, sunColor: "#ffa456", sunIntensity: 2.88, skyTop: "#5583cc", skyHorizon: "#f7c08c", fog: "#eec9a6", ambient: 0.4, night: 0 }],
   [7, { elevation: 14, azimuth: 60, sunColor: "#ffcc98", sunIntensity: 3.5, skyTop: "#6d9ee0", skyHorizon: "#f0dcc6", fog: "#e6dfd6", ambient: 0.47, night: 0 }],
   [9, { elevation: 55, azimuth: 90, sunColor: "#ffe6c4", sunIntensity: 3.5, skyTop: "#6f9ee0", skyHorizon: "#dce5ee", fog: "#e8e5de", ambient: 0.45, night: 0 }],
   // 12:00 is the photo look test (F13): warm sun from the side, less fill, so shapes read.

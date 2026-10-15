@@ -189,7 +189,7 @@ describe("what the chapter cameras see", () => {
         }
       }
     });
-    expect(checked).toBeGreaterThan(3); // 06:00 and the morning shots look toward the sun
+    expect(checked).toBeGreaterThan(0); // the 06:00 desktop shot keeps the low sun in its upper left corner
   });
 
   it("09:00: the Sutro-like mast stands on the south ridge in the desktop frame, in the sky between the card and the trees", () => {
