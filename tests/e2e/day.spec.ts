@@ -16,8 +16,8 @@ async function open(page: Page, query = "") {
   await expect(page.getByRole("heading", { name: "Marketing, on autopilot." })).toBeVisible();
 }
 
-async function waitForCity(page: Page) {
-  await expect(page.locator("[data-scene]")).toHaveAttribute("data-scene", /ready|static/, { timeout: 60_000 });
+async function waitForCity(page: Page, timeout = 60_000) {
+  await expect(page.locator("[data-scene]")).toHaveAttribute("data-scene", /ready|static/, { timeout });
 }
 
 async function goToChapter(page: Page, index: number) {
@@ -174,13 +174,16 @@ test("posters load only near the current chapter, and leave once the 3D is in", 
 
 test("on a phone, Cuso stands clear of the cards in every chapter, and the cards fit", heavy, async ({ page, isMobile }) => {
   test.skip(!isMobile, "phone layout");
-  test.setTimeout(400_000); // one page load per chapter in software WebGL
+  // One page load per chapter in software WebGL. Each load compiles every shader on the CPU
+  // (about 0.6 s per program), and the dev server is slower still: about 55 s a chapter there
+  // (2026-10-16, after the backdrop, street detail and realism passes). 12 min leaves room for 8.
+  test.setTimeout(720_000);
   for (const [i, chapter] of chapters.entries()) {
     // Load the page already scrolled to the chapter, so Cuso starts there:
     // at software WebGL frame rates the walk between places takes minutes.
     await open(page);
     await goToChapter(page, i);
-    await waitForCity(page);
+    await waitForCity(page, 120_000); // a busy machine can take over a minute to compile
     const bubble = page.getByText(chapter.bubble); // he has arrived when he speaks
     expect(await until(page, () => bubble.isVisible(), 60_000), `${chapter.id}: Cuso arrives`).toBe(true);
     await settle(page, 2000); // the camera eases in
