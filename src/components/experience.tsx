@@ -9,6 +9,7 @@ import { AskBar } from "@/components/ask-bar";
 import { Chapters } from "@/components/chapters";
 import { Hud } from "@/components/hud";
 import { chapters } from "@/content/day";
+import { attachFly, loadWalk } from "@/lib/fly";
 import { goToChapter, sectionHeight } from "@/lib/navigate";
 import { useCity } from "@/lib/store";
 import { activeIndex } from "@/lib/time";
@@ -117,11 +118,18 @@ export function Experience() {
   // The posters go once the 3D has faded in over them.
   const [covered, setCovered] = useState(false);
   const mode = useCity((s) => s.mode);
+  const walk = useCity((s) => s.walk);
   const active = useCity((s) => activeIndex(s.progress, chapters.length));
   const onReady = useCallback(() => setReady(true), []);
   const onGo = useCallback((index: number) => goToChapter(index), []);
 
+  // The walk setting, as this visitor left it.
+  useEffect(() => useCity.getState().setWalk(loadWalk()), []);
+
+  // Fly mode (default): one scroll, one chapter (fly.ts). Walk mode: the scroll is the time of day.
   useEffect(() => {
+    document.documentElement.toggleAttribute("data-walk", walk);
+    if (!walk) return attachFly();
     let frame = 0;
     const update = () => {
       cancelAnimationFrame(frame);
@@ -135,7 +143,7 @@ export function Experience() {
       window.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
     };
-  }, []);
+  }, [walk]);
 
   useEffect(() => {
     document.documentElement.style.overflow = mode === "explore" ? "hidden" : "";

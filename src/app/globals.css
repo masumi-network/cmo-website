@@ -82,14 +82,15 @@
   }
 }
 
-/* Touch: one swipe, one chapter. Sections are taller than the screen, so the
-   page can rest anywhere in a chapter's first part (where the camera rests),
-   never halfway between two places. */
+/* Walk mode on touch: one swipe, one chapter. Sections are taller than the
+   screen, so the page can rest anywhere in a chapter's first part (where the
+   camera rests), never halfway between two places. Fly mode needs no snap:
+   it takes over scrolling (fly.ts). */
 @media (pointer: coarse) {
-  html {
+  html[data-walk] {
     scroll-snap-type: y mandatory;
   }
-  main > section {
+  html[data-walk] main > section {
     scroll-snap-align: start;
     scroll-snap-stop: always;
   }

@@ -1,7 +1,8 @@
 // Jumping to a chapter (the rail, an Explore pin, Ask Cuso): the page lands
 // on it at once; the scene flies the camera there (jumpTime) while Cuso
 // walks his last few steps in (camera-rig.tsx, cuso.tsx), and the light
-// cross-fades to the new hour. Scrolling instead walks him the whole way.
+// cross-fades to the new hour. Scrolling does the same in fly mode (fly.ts);
+// in walk mode it walks him the whole way.
 
 import { Vector3 } from "three";
 import { chapters } from "@/content/day";
@@ -42,9 +43,10 @@ export function shownHour({ progress, jump }: { progress: number; jump: Jump | n
   return u >= 1 ? hour : sweepHour(jump.hour, hour, u);
 }
 
-export function goToChapter(index: number) {
+/** `scroll` false: the page is already scrolling there (fly mode follows a scroll it did not make, fly.ts). */
+export function goToChapter(index: number, scroll = true) {
   const cut = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const state = useCity.getState();
   state.jumpTo(index, shownHour(state, performance.now() / 1000), jumpTime(Math.min(Math.round(state.progress), chapters.length - 1), index), cut);
-  window.scrollTo({ top: index * sectionHeight(), behavior: "instant" });
+  if (scroll) window.scrollTo({ top: index * sectionHeight(), behavior: "instant" });
 }

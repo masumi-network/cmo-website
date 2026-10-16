@@ -162,8 +162,19 @@ describe("BrandForm", () => {
 });
 
 describe("Hud", () => {
-  it("has no settings button (its only switch was photo-real, now removed)", () => {
+  afterEach(() => localStorage.clear());
+
+  it("has a walk mode switch in settings: off (fly) by default, remembered when turned on", async () => {
     render(<Hud onGo={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const walk = screen.getByRole("switch", { name: "Walk mode" });
+    expect(walk).toHaveAttribute("aria-checked", "false");
+    await userEvent.click(walk);
+    expect(walk).toHaveAttribute("aria-checked", "true");
+    expect(useCity.getState().walk).toBe(true);
+    expect(localStorage.getItem("cmo.walk")).toBe("1");
+    await userEvent.click(walk);
+    expect(useCity.getState().walk).toBe(false);
+    expect(localStorage.getItem("cmo.walk")).toBeNull();
   });
 });

@@ -27,6 +27,8 @@ type CityState = {
   /** Bumps when Cuso should celebrate (spin). */
   cheer: number;
   jump: Jump | null;
+  /** Walk mode (a setting): scrolling walks Cuso the whole way. Off is fly mode, one scroll one chapter (fly.ts). */
+  walk: boolean;
   setProgress: (progress: number) => void;
   setMode: (mode: Mode) => void;
   setWebsite: (website: string) => void;
@@ -35,6 +37,7 @@ type CityState = {
   say: (reply: string) => void;
   /** Land on chapter `index` now (see Jump). */
   jumpTo: (index: number, hour: number, time: number, cut: boolean) => void;
+  setWalk: (walk: boolean) => void;
 };
 
 export const initialCity = {
@@ -46,6 +49,7 @@ export const initialCity = {
   reply: "",
   cheer: 0,
   jump: null as Jump | null,
+  walk: false,
 };
 
 export const useCity = create<CityState>((set) => ({
@@ -57,4 +61,5 @@ export const useCity = create<CityState>((set) => ({
   agree: () => set((s) => ({ agreed: true, cheer: s.cheer + 1, reply: "Great. Sleep well. I got this." })),
   say: (reply) => set({ reply }),
   jumpTo: (index, hour, time, cut) => set({ progress: index, jump: { index, at: performance.now() / 1000, hour, time, cut } }),
+  setWalk: (walk) => set({ walk }),
 }));
