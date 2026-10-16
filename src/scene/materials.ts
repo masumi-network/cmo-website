@@ -345,7 +345,8 @@ export function towerMaterial(facade: Texture, tile: { w: number; h: number }, g
  * is (part, per-tower seed, floodlight height or 0). Parts (PART in towers.tsx):
  * 0 curtain wall (mullions, a spandrel at each floor, panes that differ a
  * little), 1 tar-and-gravel roof, 2 shop fronts (middle bay is the entrance),
- * 3 plain, 4 metal, 5 aluminium cladding, 6 and 8 a punched window pane (`aUv`
+ * 3 plain, 4 metal, 5 the Pyramid's precast crown (`aUv`: panels across, bands up; v < 0 its aluminium
+ * spire), 6 and 8 a punched window pane (`aUv`
  * is its column and storey plus where on the pane: a one-over-one sash or a
  * steel factory window), 7 masonry (limestone ashlar or running-bond brick with
  * stone grain, facade.ts). Flat tops of parts 0 to 2 are roofs. At night
@@ -375,6 +376,7 @@ export function downtownMaterial(stone: Texture, curtain = true) {
       float fMetal = 0.0;
       float fGl = 0.0;  // how much of this pixel is glass
       float fGlF0 = 0.06; // its head-on reflectance
+      ${VALUE_NOISE}
       ${GLASS_ENV_GLSL}
       // 1 near the grid lines of x (half width w, in cells), anti-aliased; the average once cells shrink under a pixel.
       float fLine(float x, float w) {
@@ -446,10 +448,35 @@ export function downtownMaterial(stone: Texture, curtain = true) {
         float fBusy = fHash(vec2(fCell.y, vInfo.y * 57.0) + fFace);
         float fOn = step(fHash(vec2(floor(fCell.x / 3.0), fCell.y) + fKey), fBusy * 0.8);
         fLit = (1.0 - fBar) * fOn * (0.7 + 0.3 * fRnd);
-      } else if (fPart > 4.5) {
-        // Brushed aluminium cladding (the Pyramid's crown): light, only a little metallic, so it never goes dark.
+      } else if (fPart > 4.5 && vTUv.y < -0.5) {
+        // The Pyramid's spire: brushed aluminium, light and only a little metallic, so it never goes dark.
         fRough = 0.5;
         fMetal = 0.15;
+      } else if (fPart > 4.5) {
+        // The Pyramid's precast crown: exposed aggregate panels (aUv: panels across, bands up), a dark joint
+        // between panels, the arrises along the joints and band edges chipped here and there, each panel
+        // a hair different in tone.
+        vec2 fP = vTUv;
+        vec2 fT2 = normalize(vec2(-vFNormal.z, vFNormal.x) + vec2(1e-5, 0.0));
+        vec2 fW = abs(vFNormal.y) > 0.97 ? vFPos.xz : vec2(dot(vFPos.xz, fT2), vFPos.y);
+        float fPxW = length(fwidth(vFPos));
+        // how far to the panel's edge (world units, about half a metre a panel and a band)
+        float fE = 0.5 * min(abs(fract(fP.x + 0.5) - 0.5), min(fract(fP.y), 1.0 - fract(fP.y)));
+        float fJoint = fLine(fP.x, 0.012);
+        // aggregate: a grain in about every other 4 mm cell, dark or light; gone once grains are under a pixel
+        vec2 fG = floor(fW * 260.0);
+        float fGh = fHash(fG + vInfo.y * 7.0);
+        float fGrain = (1.0 - smoothstep(0.3, 0.7, fPxW * 260.0)) * (fGh < 0.28 ? -0.16 : (fGh > 0.82 ? 0.1 : 0.0));
+        float fChip = (1.0 - smoothstep(0.004, 0.022, fE)) * smoothstep(0.62, 0.8, fVNoise(fW * 22.0)) * (1.0 - smoothstep(0.02, 0.05, fPxW));
+        float fPanel = fHash(floor(fP) + 3.0);
+        // the cast's own texture: blotches, a fine speckle, rain darkening down from each band's top edge
+        float fSpeck = mix(fVNoise(fW * 90.0), 0.5, smoothstep(0.3, 0.7, fPxW * 90.0));
+        float fRain = (1.0 - smoothstep(0.0, 0.6, 1.0 - fract(fP.y))) * smoothstep(0.45, 0.8, fVNoise(vec2(fW.x * 7.0, fW.y * 0.6)));
+        diffuseColor.rgb = fTint * (0.95 + 0.09 * fPanel) * (0.93 + 0.1 * fVNoise(fW * 1.7) + 0.06 * fVNoise(fW * 9.0)) * (0.94 + 0.12 * fSpeck) * (1.0 + fGrain) * (1.0 + 0.1 * fChip) * (1.0 - 0.1 * fRain);
+        diffuseColor.rgb = mix(diffuseColor.rgb, fTint * 0.42, fJoint);
+        fRough = 0.8 + 0.08 * fVNoise(fW * 6.0) + 0.08 * fChip;
+        // the chips: their broken faces lean every way
+        facBend = (vec3(fT2.x, 0.0, fT2.y) * (fVNoise(fW * 40.0) - 0.5) + vec3(0.0, 1.0, 0.0) * (fVNoise(fW * 40.0 + 9.0) - 0.5)) * 0.8 * fChip;
       } else if (fPart > 3.5) {
         fRough = 0.4;
         fMetal = 0.6;
@@ -459,7 +486,7 @@ export function downtownMaterial(stone: Texture, curtain = true) {
       roughnessFactor = fRough;
       metalnessFactor = fMetal;
       float fFl = vInfo.z > 0.5 ? smoothstep(vInfo.z, vInfo.z + 0.6, vFPos.y) * (1.0 - 0.45 * smoothstep(vInfo.z, vInfo.z + 5.0, vFPos.y)) : 0.0;
-      fFl *= abs(fPart - 5.0) < 0.5 ? 0.4 : 1.0; // aluminium is pale: a softer wash keeps it calm
+      fFl *= abs(fPart - 5.0) < 0.5 ? 0.4 : 1.0; // the crown is pale: a softer wash keeps it calm
       if (fGl > 0.0) {
         vec3 fV = normalize(vFPos - cameraPosition);
         vec3 fN = normalize(vFNormal + facBend);

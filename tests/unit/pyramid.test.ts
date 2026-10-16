@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { chapters } from "@/content/day";
 import { PLAZA, heightAt, surfaceAt } from "@/lib/terrain";
 import { STREET } from "@/scene/grid";
-import { ALUMINIUM, BEACON, FACADE, PYRAMID, SPIRE, WINGS, plazaWallGeometry, pyramidGeometry, pyramidHalf } from "@/scene/pyramid";
+import { BEACON, CROWN, FACADE, PYRAMID, SPIRE, WINGS, plazaWallGeometry, pyramidGeometry, pyramidHalf } from "@/scene/pyramid";
 import { PART } from "@/scene/towers";
 
 const g = pyramidGeometry();
@@ -67,12 +67,31 @@ describe("Transamerica Pyramid model", () => {
     expect(FACADE.depth).toBeGreaterThan(0.03);
   });
 
-  it("floodlights the aluminium crown and spire at night, nothing else", () => {
+  it("floodlights the precast crown and spire at night, nothing else", () => {
     each((_x, y, _z, i) => {
-      const metal = Math.round(info.getX(i)) === ALUMINIUM;
-      expect(info.getZ(i) > 0).toBe(metal);
-      if (metal) expect(y).toBeGreaterThanOrEqual(FACADE.crown - EPS);
+      const crown = Math.round(info.getX(i)) === CROWN.part;
+      expect(info.getZ(i) > 0).toBe(crown);
+      if (crown) expect(y).toBeGreaterThanOrEqual(FACADE.crown - EPS);
     });
+  });
+
+  it("maps the crown's precast panels: aUv counts panels across (a joint at each whole number) and its bands up", () => {
+    const uv = g.attributes.aUv;
+    const bands = new Set<number>();
+    let joints = 0;
+    each((x, y, z, i) => {
+      if (Math.round(info.getX(i)) !== CROWN.part || inSpire(x, y, z) || y > PYRAMID.height - EPS) return;
+      const [u, v] = [uv.getX(i), uv.getY(i)];
+      // across: the corner's distance along its face, in panels
+      expect(Math.abs(u) * CROWN.panel).toBeLessThanOrEqual(pyramidHalf(y) + PROUD + EPS);
+      expect(v).toBeGreaterThanOrEqual(-EPS);
+      expect(v).toBeLessThanOrEqual(CROWN.bands + EPS);
+      bands.add(Math.floor(v - EPS));
+      joints = Math.max(joints, Math.floor(Math.abs(u)));
+    });
+    expect(bands.size).toBeGreaterThanOrEqual(CROWN.bands);
+    // the widest band is several panels each side of the middle
+    expect(joints).toBeGreaterThanOrEqual(2);
   });
 
   it("stays cheap: one geometry of a few thousand triangles", () => {

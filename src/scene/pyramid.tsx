@@ -28,7 +28,7 @@ export const BEACON: [number, number, number] = [SPIRE.x, SPIRE.top + 0.03, SPIR
 /**
  * The precast facade, all inside the `pyramidHalf` envelope: a street-level
  * arcade of A-frame columns up to `arcade`, then `floors` storeys of window
- * bays up to the aluminium crown. Each storey is a floor band (`band` tall)
+ * bays up to the precast crown. Each storey is a floor band (`band` tall)
  * under a row of windows between mullion ribs (`rib` wide, every `col`), with
  * the glass `depth` back from the face. Window rows get shorter up the taper:
  * a solid corner panel fills in where a whole bay no longer fits.
@@ -49,10 +49,15 @@ const ARCADE = {
   bay: 0.8,
 };
 
-/** `downtownMaterial` part for the crown's aluminium cladding (light, a little metallic). */
-export const ALUMINIUM = 5;
+/**
+ * The crown: `bands` courses of precast panels up to Cuso's platform, each `panel` wide, drawn by
+ * `downtownMaterial` part 5 (exposed aggregate, joints, chipped arrises). Its aUv counts panels across
+ * (a joint at each whole number) and bands up (plus where up its band); the spire shares the part as
+ * plain aluminium (aUv v < 0).
+ */
+export const CROWN = { part: 5, panel: 0.5, bands: 9 };
 
-const COLOR = { precast: "#ece9e2", plaza: "#c8c3b9", glass: "#3b4651", lobby: "#d4cfc5", aluminium: "#e0e3e5" };
+const COLOR = { precast: "#ece9e2", plaza: "#c8c3b9", glass: "#3b4651", lobby: "#d4cfc5", crown: "#e7e3da", spire: "#e0e3e5" };
 
 type V3 = [number, number, number];
 type Surface = { part: number; color: string; flood?: number; uv?: (p: V3) => [number, number] };
@@ -214,33 +219,36 @@ export function pyramidGeometry(ground = 0) {
     poly([[f.n[0] * base - f.t[0] * base, plaza, f.n[2] * base - f.t[2] * base], [f.n[0] * base + f.t[0] * base, plaza, f.n[2] * base + f.t[2] * base], [0, plaza, 0]], [0, -1, 0], plazaSurf);
     poly([at(f, -base, -0.3, pyramidHalf(-0.3) - base), at(f, base, -0.3, pyramidHalf(-0.3) - base), at(f, base, plaza, pyramidHalf(plaza) - base), at(f, -base, plaza, pyramidHalf(plaza) - base)], axis(0), plazaSurf);
 
-    // Aluminium crown: windowless panels with fine joints, 0.012 proud of the faces, up to Cuso's platform.
-    const alu: Surface = { part: ALUMINIUM, color: COLOR.aluminium, flood };
-    const panels = 9;
+    // The precast crown: windowless bands of panels with fine joints, 0.012 proud of the faces, up to Cuso's platform.
+    const { bands, panel } = CROWN;
     const joint = 0.025;
-    const ph = (PYRAMID.height - crown) / panels;
-    for (let p = 0; p < panels; p++) {
+    const ph = (PYRAMID.height - crown) / bands;
+    for (let p = 0; p < bands; p++) {
       const y0 = crown + p * ph;
-      const y1 = p === panels - 1 ? PYRAMID.height : y0 + ph - joint;
+      const y1 = p === bands - 1 ? PYRAMID.height : y0 + ph - joint;
+      const course: Surface = { part: CROWN.part, color: COLOR.crown, flood, uv: (q) => [along(q) / panel, p + (q[1] - y0) / (y1 - y0)] };
       block(f, (iu, iy, id) => {
         const y = iy ? y1 : y0;
         const dep = id ? (p === 0 && !iy ? depth : 0.01) : -0.012;
         return [(iu ? 1 : -1) * (pyramidHalf(y) - dep), y, dep];
-      }, p === panels - 1 ? ["front", "bottom"] : ["front", "top", "bottom"], alu);
-      if (p < panels - 1) block(f, (iu, iy) => [(iu ? 1 : -1) * (pyramidHalf(iy ? y0 + ph : y1) - 0.01), iy ? y0 + ph : y1, 0.01], ["front"], alu, axis(y1));
+      }, p === bands - 1 ? ["front", "bottom"] : ["front", "top", "bottom"], course);
+      // the joint behind: the middle of a panel, in shade
+      const back: Surface = { ...course, uv: (q) => [along(q) / panel, p + 0.5] };
+      if (p < bands - 1) block(f, (iu, iy) => [(iu ? 1 : -1) * (pyramidHalf(iy ? y0 + ph : y1) - 0.01), iy ? y0 + ph : y1, 0.01], ["front"], back, axis(y1));
     }
   }
 
-  // The platform on top, where Cuso stands.
+  // The platform on top, where Cuso stands: the same precast, its slabs a panel square.
   const top = pyramidHalf(PYRAMID.height) + 0.012;
-  const alu: Surface = { part: ALUMINIUM, color: COLOR.aluminium, flood };
-  poly([[-top, PYRAMID.height, -top], [top, PYRAMID.height, -top], [top, PYRAMID.height, top], [-top, PYRAMID.height, top]], axis(0), alu);
+  const slab: Surface = { part: CROWN.part, color: COLOR.crown, flood, uv: (q) => [q[0] / CROWN.panel, q[2] / CROWN.panel] };
+  poly([[-top, PYRAMID.height, -top], [top, PYRAMID.height, -top], [top, PYRAMID.height, top], [-top, PYRAMID.height, top]], axis(0), slab);
 
-  // The spire: a slim four-sided needle rising out of the north face.
+  // The spire: a slim four-sided needle of aluminium rising out of the north face (aUv v < 0: plain metal).
   const { x, z, half, base, top: tip } = SPIRE;
   const apex: V3 = [x, tip, z];
   const sq: V3[] = [[x - half, base, z - half], [x + half, base, z - half], [x + half, base, z + half], [x - half, base, z + half]];
-  for (let k = 0; k < 4; k++) poly([sq[k], sq[(k + 1) % 4], apex], [x, base + (tip - base) / 3, z], alu);
+  const needle: Surface = { part: CROWN.part, color: COLOR.spire, flood, uv: () => [0, -1] };
+  for (let k = 0; k < 4; k++) poly([sq[k], sq[(k + 1) % 4], apex], [x, base + (tip - base) / 3, z], needle);
 
   // Wings: plain precast shafts with plumb outer walls (lift shaft east, stairs west).
   for (const [side, y0, y1, w] of WINGS) {
