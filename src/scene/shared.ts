@@ -2,7 +2,7 @@
 // useFrame can read and write them without React re-renders.
 
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { createContext, useEffect, useRef } from "react";
 import { Vector2, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { chapters, type Vec3 } from "@/content/day";
 import { shownHour } from "@/lib/navigate";
@@ -34,6 +34,8 @@ export const rig = {
  * (too small to read in a reflection). Shadows follow `castShadow`, not layers.
  */
 export const DETAIL = 1;
+/** True on phones and weak machines (experience.tsx). For parts that pick cheaper materials there without a prop chain. */
+export const Lite = createContext(false);
 /** Keep `o` out of reflections. Use as a ref callback: `ref={detail}`. */
 export const detail = (o: { layers: { set: (n: number) => void } } | null) => o?.layers.set(DETAIL);
 

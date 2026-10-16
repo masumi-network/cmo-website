@@ -4,20 +4,26 @@
 // the long route board under the windows.
 //
 // A double-ended California St car at miniature scale: an enclosed cabin in
-// the middle, open grip sections with outward benches and running boards at
-// both ends, curved dashes, a clerestory roof that dips over the end
-// platforms, a brass headlamp and bell at each end. All static parts are
-// merged into one geometry per material (9 draw calls per car).
+// the middle, open grip sections with slatted benches back to back and
+// running boards at both ends, curved dashes, a clerestory roof that dips over
+// the end platforms, a brass headlamp and bell at each end. Varnished teak
+// (posts, sashes, benches, floors, ceiling; wood.ts grain per board), maroon
+// and cream satin paint, brass. Edges are cut (chamferBox), contact shadow is
+// baked per vertex (ao.ts), the windows are clear shop glass. All static
+// parts are merged into one geometry per material (9 draw calls per car).
 
-import { useEffect, useMemo } from "react";
-import { BoxGeometry, BufferGeometry, CircleGeometry, CylinderGeometry, ExtrudeGeometry, LatheGeometry, MeshStandardMaterial, PlaneGeometry, Shape, Vector2 } from "three";
+import { useContext, useEffect, useMemo } from "react";
+import { BoxGeometry, BufferGeometry, CircleGeometry, CylinderGeometry, ExtrudeGeometry, LatheGeometry, MeshStandardMaterial, PlaneGeometry, Shape, Vector2, Vector3 } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { surfaceAt } from "@/lib/terrain";
+import { vertexAO, type Box } from "./ao";
+import { glassMaterial } from "./materials";
 import { useBrand, useGlow, type V3 } from "./parts";
-import { detail, useNightGlow } from "./shared";
+import { Lite, detail, useNightGlow } from "./shared";
 import { useSign } from "./textures";
 import { GAUGE } from "./grid";
+import { WOOD_LOOKS, chamferBox, tagBoard, woodBoard, woodMaterial, type WoodLook } from "./wood";
 
 export { GAUGE };
 
@@ -29,7 +35,7 @@ const CAB = 0.95; // cabin half-length
 const DASH = 2.3; // the curved dash at each end, at the centre line
 const DASH_R = 1.7; // dash curve radius
 const FLOOR = 0.4; // underside of the body
-const SEAT = 0.92; // top of the lower body: bench height
+const SEAT = 0.92; // top of the lower body: the floor of the cabin and open sections
 const WIN = 1.0; // window sill
 const BOARD = 1.62; // letterboard (cream band under the roof)
 /** The brand's route board on each side, [width, height]. */
@@ -39,6 +45,8 @@ const ROOF = 2.42; // roof half-length (overhangs the dash)
 const ROOF_W = 0.93; // roof half-width (overhangs the sides)
 const STEP = 0.34; // running board top
 const STEP_OUT = 1.02; // running board outer edge
+const DECK = SEAT + 0.014; // top of the floor boards
+const BENCH = DECK + 0.1; // top of the bench seats
 
 /** Size of the car, for placement. `step` is a spot on the running board (+x end, +z side). */
 export const CAR = {
@@ -126,150 +134,212 @@ const merge = (parts: BufferGeometry[]) => {
   return g;
 };
 
+/** Darkens the vertex colours by the light each vertex gets (AO), never below `floor`. */
+function shade(g: BufferGeometry, blockers: Box[], floor = 0.3) {
+  const ao = vertexAO(g.attributes.position.array, g.attributes.normal.array, blockers, 16, 0.4);
+  const c = g.attributes.color;
+  for (let i = 0; i < c.count; i++) {
+    const k = floor + (1 - floor) * ao[i];
+    c.setXYZ(i, c.getX(i) * k, c.getY(i) * k, c.getZ(i) * k);
+  }
+  return g;
+}
+
 const ENDS = [-1, 1];
 const SIDES = [-1, 1];
 
-export type CarParts = Record<"maroon" | "cream" | "gold" | "dark" | "wood" | "roof" | "glass" | "lamp" | "board", BufferGeometry>;
+const SOLID = ["maroon", "cream", "gold", "dark", "wood", "roof"] as const;
+type Solid = (typeof SOLID)[number];
+export type CarParts = Record<Solid | "glass" | "lamp" | "board", BufferGeometry>;
 
-/** All the car's static geometry, one merged geometry per material. */
+/** All the car's static geometry, one merged geometry per material. Solid parts carry `aWood` and AO-shaded vertex colours. */
 export function carGeometry(): CarParts {
-  const maroon: BufferGeometry[] = [];
-  const cream: BufferGeometry[] = [];
-  const gold: BufferGeometry[] = [];
-  const dark: BufferGeometry[] = [];
-  const wood: BufferGeometry[] = [];
-  const roof: BufferGeometry[] = [];
+  const solid: Record<Solid, BufferGeometry[]> = { maroon: [], cream: [], gold: [], dark: [], wood: [], roof: [] };
   const glass: BufferGeometry[] = [];
   const lamp: BufferGeometry[] = [];
   const board: BufferGeometry[] = [];
+  const blockers: Box[] = [];
+  let n = 0;
+  const centre = new Vector3();
+  /** Adds a part; `axis` is the grain (or brushing) direction. Wood gets a tone per board, paint and brass none. */
+  const add = (part: Solid, g: BufferGeometry, axis: 0 | 1 | 2 = 0) => {
+    const flat = g.index ? g.toNonIndexed() : g;
+    if (flat !== g) g.dispose();
+    flat.computeBoundingBox();
+    flat.boundingBox!.getCenter(centre);
+    const b = woodBoard(n++, 5);
+    solid[part].push(tagBoard(flat, [centre.x, centre.y, centre.z], axis, part === "wood" ? b : { seed: b.seed, tone: 1 }));
+  };
+  /** A box with cut edges (`cut` 0: sharp) that also blocks light for the AO bake (unless `block` is false). */
+  const piece = (part: Solid, sx: number, sy: number, sz: number, x: number, y: number, z: number, cut = 0.006, axis: 0 | 1 | 2 = 0, block = true) => {
+    add(part, at(cut > 0 ? chamferBox(sx, sy, sz, cut) : new BoxGeometry(sx, sy, sz), x, y, z), axis);
+    if (block) blockers.push({ min: [x - sx / 2, y - sy / 2, z - sz / 2], max: [x + sx / 2, y + sy / 2, z + sz / 2] });
+  };
+  /** Floor boards along x between x0 and x1, across the car within ±half. */
+  const boards = (x0: number, x1: number, half: number, width: number) => {
+    const count = Math.round((half * 2) / width);
+    const w = (half * 2) / count;
+    for (let i = 0; i < count; i++) piece("wood", x1 - x0, DECK - SEAT, w - 0.006, (x0 + x1) / 2, (SEAT + DECK) / 2, -half + w * (i + 0.5), 0.003);
+  };
 
   // Lower body: one maroon block, gold pinstripes along it.
-  maroon.push(rbox(BODY * 2, SEAT - FLOOR, W * 2, 0, (SEAT + FLOOR) / 2, 0, 0.03));
+  add("maroon", rbox(BODY * 2, SEAT - FLOOR, W * 2, 0, (SEAT + FLOOR) / 2, 0, 0.03));
+  blockers.push({ min: [-BODY, FLOOR, -W], max: [BODY, SEAT, W] });
   for (const s of SIDES) {
     const z = s * (W + 0.003);
-    gold.push(box(BODY * 2 - 0.08, 0.012, 0.01, 0, SEAT - 0.045, z), box(BODY * 2 - 0.08, 0.012, 0.01, 0, FLOOR + 0.045, z));
+    piece("gold", BODY * 2 - 0.08, 0.012, 0.01, 0, SEAT - 0.045, z, 0, 0, false);
+    piece("gold", BODY * 2 - 0.08, 0.012, 0.01, 0, FLOOR + 0.045, z, 0, 0, false);
     // Route board with the brand, framed in gold.
     board.push(sidePlane(ROUTE_BOARD[0], ROUTE_BOARD[1], 0, 0.665, s, W + 0.005));
-    gold.push(box(2.54, 0.012, 0.008, 0, 0.665 + 0.126, z), box(2.54, 0.012, 0.008, 0, 0.665 - 0.126, z));
-    gold.push(box(0.012, 0.264, 0.008, 1.264, 0.665, z), box(0.012, 0.264, 0.008, -1.264, 0.665, z));
+    piece("gold", 2.54, 0.012, 0.008, 0, 0.665 + 0.126, z, 0, 0, false);
+    piece("gold", 2.54, 0.012, 0.008, 0, 0.665 - 0.126, z, 0, 0, false);
+    piece("gold", 0.012, 0.264, 0.008, 1.264, 0.665, z, 0, 1, false);
+    piece("gold", 0.012, 0.264, 0.008, -1.264, 0.665, z, 0, 1, false);
   }
 
   // Underframe and two trucks with small wheels on the rails.
-  dark.push(box(BODY * 2 + 0.2, 0.08, W * 2 - 0.2, 0, FLOOR - 0.04, 0));
+  add("dark", box(BODY * 2 + 0.2, 0.08, W * 2 - 0.2, 0, FLOOR - 0.04, 0));
   for (const e of ENDS) {
     const x = e * 1.3;
-    dark.push(box(0.12, 0.08, 1.0, x, 0.27, 0));
+    add("dark", box(0.12, 0.08, 1.0, x, 0.27, 0));
     for (const s of SIDES) {
-      dark.push(box(0.78, 0.07, 0.04, x, 0.19, s * 0.5));
-      for (const dx of [-0.26, 0.26]) dark.push(at(new CylinderGeometry(0.12, 0.12, 0.045, 14).rotateX(Math.PI / 2), x + dx, 0.142, s * (GAUGE / 2)));
+      add("dark", box(0.78, 0.07, 0.04, x, 0.19, s * 0.5));
+      for (const dx of [-0.26, 0.26]) add("dark", at(new CylinderGeometry(0.12, 0.12, 0.045, 14).rotateX(Math.PI / 2), x + dx, 0.142, s * (GAUGE / 2)));
     }
   }
 
-  // Cabin: cream window band, posts between four windows a side, sash bars.
+  // Floors: teak boards along the car over the cabin and both open sections.
+  boards(-BODY + 0.07, BODY - 0.07, W - 0.05, 0.13);
+
+  // Cabin: cream panel under the windows, teak posts, sill, head rail and sash bars, clear glass.
   const winH = BOARD - WIN;
   for (const s of SIDES) {
-    cream.push(box(CAB * 2, WIN - SEAT, 0.05, 0, (SEAT + WIN) / 2, s * (W - 0.025)));
-    for (let i = 0; i <= 4; i++) cream.push(box(0.07, winH, 0.06, -CAB + (i * CAB) / 2, (WIN + BOARD) / 2, s * (W - 0.03)));
-    cream.push(box(CAB * 2, 0.03, 0.04, 0, 1.36, s * (W - 0.035)));
+    piece("cream", CAB * 2, WIN - SEAT, 0.05, 0, (SEAT + WIN) / 2, s * (W - 0.025), 0.008);
+    for (let i = 0; i <= 4; i++) piece("wood", 0.07, winH, 0.06, -CAB + (i * CAB) / 2, (WIN + BOARD) / 2, s * (W - 0.03), 0.008, 1);
+    piece("wood", CAB * 2 + 0.04, 0.03, 0.085, 0, WIN + 0.015, s * (W - 0.035), 0.008);
+    piece("wood", CAB * 2, 0.03, 0.075, 0, BOARD - 0.015, s * (W - 0.035), 0.006);
+    piece("wood", CAB * 2, 0.026, 0.035, 0, 1.36, s * (W - 0.04), 0.006, 0, false);
     glass.push(sidePlane(CAB * 2, winH, 0, (WIN + BOARD) / 2, s, W - 0.055));
     // Letterboard: a cream band the whole length, gold lines top and bottom.
-    cream.push(box(BODY * 2, EAVE - BOARD, 0.05, 0, (BOARD + EAVE) / 2, s * (W - 0.025)));
-    gold.push(box(BODY * 2 - 0.04, 0.012, 0.01, 0, BOARD + 0.035, s * (W + 0.003)), box(BODY * 2 - 0.04, 0.012, 0.01, 0, EAVE - 0.035, s * (W + 0.003)));
+    piece("cream", BODY * 2 - 0.01, EAVE - BOARD, 0.047, 0, (BOARD + EAVE) / 2, s * (W - 0.0265), 0.01); // 3 mm inside the corner posts
+    piece("gold", BODY * 2 - 0.04, 0.012, 0.01, 0, BOARD + 0.035, s * (W + 0.003), 0, 0, false);
+    piece("gold", BODY * 2 - 0.04, 0.012, 0.01, 0, EAVE - 0.035, s * (W + 0.003), 0, 0, false);
+    // Inside: a long bench along each wall, three slats on brackets.
+    for (let k = 0; k < 3; k++) piece("wood", CAB * 2 - 0.12, 0.02, 0.07, 0, BENCH - 0.01, s * (W - 0.1 - k * 0.085), 0.004);
+    for (const x of [-CAB + 0.15, 0, CAB - 0.15]) piece("dark", 0.03, BENCH - DECK - 0.02, 0.22, x, (DECK + BENCH - 0.02) / 2, s * (W - 0.17), 0.004);
   }
-  // Cabin end walls, each with a window.
+  // Cabin end walls, each with a window framed in teak.
   for (const e of ENDS) {
     const half = 0.5; // window opening half-width
-    for (const s of SIDES) cream.push(box(0.05, EAVE - SEAT, W - half, e * CAB, (SEAT + EAVE) / 2, s * (half + (W - half) / 2)));
-    cream.push(box(0.05, EAVE - BOARD, half * 2, e * CAB, (BOARD + EAVE) / 2, 0), box(0.05, WIN - SEAT, half * 2, e * CAB, (SEAT + WIN) / 2, 0));
-    cream.push(box(0.06, winH, 0.06, e * CAB, (WIN + BOARD) / 2, 0), box(0.06, 0.03, half * 2, e * CAB, 1.36, 0));
+    for (const s of SIDES) piece("cream", 0.05, EAVE - SEAT, W - half - 0.004, e * CAB, (SEAT + EAVE) / 2, s * (half + (W - half - 0.004) / 2), 0.008, 1);
+    piece("cream", 0.05, EAVE - BOARD, half * 2, e * CAB, (BOARD + EAVE) / 2, 0, 0.008);
+    piece("cream", 0.05, WIN - SEAT, half * 2, e * CAB, (SEAT + WIN) / 2, 0, 0.008);
+    piece("wood", 0.07, 0.03, half * 2 + 0.04, e * CAB, WIN + 0.015, 0, 0.006, 2);
+    piece("wood", 0.06, winH, 0.06, e * CAB, (WIN + BOARD) / 2, 0, 0.008, 1);
+    piece("wood", 0.06, 0.026, half * 2, e * CAB, 1.36, 0, 0.006, 2, false);
     glass.push(endPlane(half * 2, winH, e, CAB + 0.02, (WIN + BOARD) / 2));
   }
 
-  // Open grip sections: outward benches back to back, brass poles, cream corner posts.
+  // Open grip sections: slatted benches back to back on brackets, brass poles, teak corner posts.
   const benchX = (CAB + BODY) / 2;
-  const benchL = BODY - CAB - 0.06;
+  const benchL = BODY - CAB - 0.08;
   for (const e of ENDS) {
-    wood.push(box(benchL, 0.36, 0.08, e * benchX, SEAT + 0.18, 0), box(benchL + 0.02, 0.03, 0.12, e * benchX, SEAT + 0.375, 0));
+    const x = e * benchX;
+    for (const dx of [-0.42, 0, 0.42].map((d) => d * benchL)) piece("wood", 0.035, 0.42, 0.05, x + dx, DECK + 0.21, 0, 0.006, 1); // back posts
+    piece("wood", benchL + 0.03, 0.03, 0.09, x, DECK + 0.435, 0, 0.008); // cap rail
     for (const s of SIDES) {
-      wood.push(box(benchL, 0.04, 0.42, e * benchX, SEAT + 0.02, s * 0.57));
-      cream.push(box(0.07, EAVE - SEAT, 0.07, e * (BODY - 0.035), (SEAT + EAVE) / 2, s * (W - 0.035)));
-      for (const x of [1.3, 1.65]) gold.push(rod(0.017, e * x, SEAT, BOARD, s * (W - 0.05)));
-      // Running board on brackets, with a dark edge.
-      dark.push(box(1.0, 0.03, STEP_OUT - W + 0.02, e * 1.55, STEP - 0.015, s * (W + STEP_OUT) / 2));
-      gold.push(box(1.0, 0.008, 0.01, e * 1.55, STEP - 0.008, s * (STEP_OUT + 0.005)));
-      for (const x of [1.15, 1.95]) dark.push(box(0.04, 0.08, STEP_OUT - W, e * x, STEP - 0.065, s * (W + STEP_OUT) / 2));
+      for (let k = 0; k < 4; k++) piece("wood", benchL, 0.022, 0.085, x, BENCH - 0.011, s * (0.39 + k * 0.1), 0.005);
+      for (let k = 0; k < 3; k++) piece("wood", benchL, 0.06, 0.018, x, BENCH + 0.05 + k * 0.085, s * 0.035, 0.005);
+      for (const dx of [-0.42, 0, 0.42].map((d) => d * benchL)) piece("dark", 0.03, BENCH - DECK - 0.022, 0.36, x + dx, (DECK + BENCH - 0.022) / 2, s * 0.58, 0.004);
+      piece("wood", 0.07, EAVE - DECK, 0.07, e * (BODY - 0.035), (DECK + EAVE) / 2, s * (W - 0.035), 0.01, 1);
+      for (const px of [1.3, 1.65]) add("gold", rod(0.017, e * px, DECK, BOARD, s * (W - 0.05)), 1);
+      // Running board: teak treads on brackets, with a brass nosing.
+      piece("wood", 1.0, 0.03, STEP_OUT - W + 0.02, e * 1.55, STEP - 0.015, s * (W + STEP_OUT) / 2, 0.006);
+      piece("gold", 1.0, 0.008, 0.01, e * 1.55, STEP - 0.008, s * (STEP_OUT + 0.005), 0, 0, false);
+      for (const bx of [1.15, 1.95]) piece("dark", 0.04, 0.08, STEP_OUT - W, e * bx, STEP - 0.065, s * (W + STEP_OUT) / 2, 0);
     }
   }
 
-  // End platforms: wood floor, curved maroon dash with a brass rail, bumper, grip lever.
+  // End platforms: teak floor, curved maroon dash with a brass rail, bumper, grip lever.
   for (const e of ENDS) {
-    wood.push(slab(platformShape(), 0.5, 0.05, e));
-    dark.push(slab(platformShape(), 0.45, 0.1, e));
-    maroon.push(slab(dashRing(DASH_R - 0.05, DASH_R), 0.95, 0.55, e));
-    gold.push(slab(dashRing(DASH_R - 0.06, DASH_R + 0.008), 0.975, 0.025, e));
-    gold.push(slab(dashRing(DASH_R - 0.01, DASH_R + 0.004), 0.885, 0.012, e));
-    dark.push(slab(dashRing(DASH_R - 0.03, DASH_R + 0.05), 0.42, 0.07, e));
-    dark.push(rod(0.018, e * 2.1, 0.5, 1.22, 0.18), box(0.03, 0.03, 0.12, e * 2.1, 1.23, 0.18));
+    add("wood", slab(platformShape(), 0.5, 0.05, e));
+    add("dark", slab(platformShape(), 0.45, 0.1, e));
+    add("maroon", slab(dashRing(DASH_R - 0.05, DASH_R), 0.95, 0.55, e));
+    add("gold", slab(dashRing(DASH_R - 0.06, DASH_R + 0.008), 0.975, 0.025, e), 2);
+    add("gold", slab(dashRing(DASH_R - 0.01, DASH_R + 0.004), 0.885, 0.012, e), 2);
+    add("dark", slab(dashRing(DASH_R - 0.03, DASH_R + 0.05), 0.42, 0.07, e));
+    add("dark", rod(0.018, e * 2.1, 0.5, 1.22, 0.18));
+    add("dark", box(0.03, 0.03, 0.12, e * 2.1, 1.23, 0.18));
   }
 
-  // Roof: arched, overhanging, dipping over the platforms; maroon fascia; clerestory with deck lights.
-  roof.push(bend(archedRoof(ROOF_W, 0.04, 0.07, ROOF, 0.018).translate(0, EAVE, 0)));
-  for (const s of SIDES) maroon.push(bend(box(ROOF * 2, 0.06, 0.02, 0, EAVE + 0.01, s * (ROOF_W + 0.02), 24)));
+  // Roof: arched, overhanging, dipping over the platforms; maroon fascia; teak ceiling; clerestory with deck lights.
+  add("roof", bend(archedRoof(ROOF_W, 0.04, 0.07, ROOF, 0.018).translate(0, EAVE, 0)));
+  blockers.push({ min: [-BODY, EAVE, -ROOF_W], max: [BODY, EAVE + 0.06, ROOF_W] });
+  for (const s of SIDES) add("maroon", bend(box(ROOF * 2, 0.06, 0.02, 0, EAVE + 0.01, s * (ROOF_W + 0.02), 24)));
+  for (let k = 0; k < 7; k++) {
+    const w = ((W - 0.05) * 2) / 7;
+    piece("wood", BODY * 2 - 0.1, 0.014, w - 0.004, 0, EAVE - 0.007, -(W - 0.05) + w * (k + 0.5), 0.003, 0, false);
+  }
   const cTop = EAVE + 0.07;
-  roof.push(rbox(3.3, 0.12, 0.7, 0, cTop + 0.06, 0, 0.025));
-  roof.push(archedRoof(0.4, 0.015, 0.025, 1.7, 0.012).translate(0, cTop + 0.12, 0));
+  add("roof", rbox(3.3, 0.12, 0.7, 0, cTop + 0.06, 0, 0.025));
+  add("roof", archedRoof(0.4, 0.015, 0.025, 1.7, 0.012).translate(0, cTop + 0.12, 0));
   for (const s of SIDES) {
     glass.push(sidePlane(3.0, 0.05, 0, cTop + 0.065, s, 0.352));
-    for (let i = 0; i <= 10; i++) roof.push(box(0.03, 0.06, 0.01, -1.5 + i * 0.3, cTop + 0.065, s * 0.354));
+    for (let i = 0; i <= 10; i++) add("roof", box(0.03, 0.06, 0.01, -1.5 + i * 0.3, cTop + 0.065, s * 0.354));
   }
+  // Ceiling lamps: three in the cabin, one over each open section (lit at night).
+  for (const x of [-0.6, 0, 0.6, -benchX, benchX]) lamp.push(at(new CylinderGeometry(0.05, 0.06, 0.02, 12), x, EAVE - 0.024, 0));
 
   // Headlamp and bell at each end, on the roof.
   for (const e of ENDS) {
     const lx = 2.32;
     const roofTop = EAVE + 0.128 - hood(lx);
     const ly = roofTop + 0.08;
-    dark.push(box(0.06, 0.06, 0.05, e * (lx - 0.02), roofTop + 0.01, 0));
-    gold.push(at(new CylinderGeometry(0.06, 0.055, 0.11, 16).rotateZ(Math.PI / 2), e * lx, ly, 0));
+    add("dark", box(0.06, 0.06, 0.05, e * (lx - 0.02), roofTop + 0.01, 0));
+    add("gold", at(new CylinderGeometry(0.06, 0.055, 0.11, 16).rotateZ(Math.PI / 2), e * lx, ly, 0));
     lamp.push(at(new CircleGeometry(0.05, 16).rotateY((e * Math.PI) / 2), e * (lx + 0.056), ly, 0));
     const bx = e * 1.98;
     const by = EAVE + 0.12 - hood(bx);
-    dark.push(rod(0.012, bx, by - 0.02, by + 0.13, 0, 6));
+    add("dark", rod(0.012, bx, by - 0.02, by + 0.13, 0, 6), 1);
     const profile = [[0.055, 0], [0.05, 0.012], [0.037, 0.035], [0.031, 0.058], [0.019, 0.074], [0.001, 0.08]].map(([r, y]) => new Vector2(r, y));
-    gold.push(at(new LatheGeometry(profile, 16), bx, by + 0.05, 0));
+    add("gold", at(new LatheGeometry(profile, 16), bx, by + 0.05, 0), 1);
   }
 
-  return {
-    maroon: merge(maroon),
-    cream: merge(cream),
-    gold: merge(gold),
-    dark: merge(dark),
-    wood: merge(wood),
-    roof: merge(roof),
-    glass: merge(glass),
-    lamp: merge(lamp),
-    board: merge(board),
-  };
+  const out = Object.fromEntries(SOLID.map((k) => [k, shade(merge(solid[k]), blockers)])) as Record<Solid, BufferGeometry>;
+  return { ...out, glass: merge(glass), lamp: merge(lamp), board: merge(board) };
 }
 
 // --- materials (shared by every car and rail) ------------------------------
 
-let shared: Record<"maroon" | "cream" | "gold" | "dark" | "wood" | "roof" | "steel" | "groove", MeshStandardMaterial> | null = null;
-function paints() {
-  shared ??= {
-    maroon: new MeshStandardMaterial({ color: "#7b2a22", roughness: 0.4 }),
-    cream: new MeshStandardMaterial({ color: "#efe2c4", roughness: 0.55 }),
-    gold: new MeshStandardMaterial({ color: "#c9a24c", roughness: 0.32, metalness: 0.7 }),
-    dark: new MeshStandardMaterial({ color: "#2b2725", roughness: 0.55, metalness: 0.4 }),
-    wood: new MeshStandardMaterial({ color: "#8a5a36", roughness: 0.6 }),
-    roof: new MeshStandardMaterial({ color: "#6a615a", roughness: 0.8 }),
-    steel: new MeshStandardMaterial({ color: "#b4b1ab", roughness: 0.35, metalness: 0.65 }),
-    groove: new MeshStandardMaterial({ color: "#1c1b1a", roughness: 0.9 }),
-  };
-  return shared;
+const PAINT = WOOD_LOOKS.paint;
+const FINISH: Record<Solid, [string, WoodLook]> = {
+  maroon: ["#7b2a22", PAINT],
+  cream: ["#efe2c4", { ...PAINT, rough: [0.38, 0.55] }],
+  gold: ["#c9a24c", WOOD_LOOKS.brass],
+  dark: ["#2b2725", { ...PAINT, rough: [0.5, 0.72], metal: 0.35 }],
+  wood: ["#946640", WOOD_LOOKS.teak],
+  roof: ["#6a615a", { ...PAINT, contrast: 0.15, rough: [0.7, 0.92] }],
+};
+
+type Paints = Record<Solid, MeshStandardMaterial> & { glass: MeshStandardMaterial };
+const shared: { full?: Paints; lite?: Paints } = {};
+/** The car's materials: on phones plain standard ones (programs the city already has). */
+export function carMaterials(lite: boolean): Paints {
+  const key = lite ? "lite" : "full";
+  return (shared[key] ??= {
+    ...(Object.fromEntries(SOLID.map((k) => [k, woodMaterial(FINISH[k][0], FINISH[k][1], lite)])) as Record<Solid, MeshStandardMaterial>),
+    glass: glassMaterial(),
+  });
 }
 
+let rails: Record<"steel" | "groove", MeshStandardMaterial> | null = null;
+const railMaterials = () =>
+  (rails ??= {
+    steel: new MeshStandardMaterial({ color: "#b4b1ab", roughness: 0.35, metalness: 0.65 }),
+    groove: new MeshStandardMaterial({ color: "#1c1b1a", roughness: 0.9 }),
+  });
+
 let carParts: CarParts | null = null;
-const SOLID = ["maroon", "cream", "gold", "dark", "wood", "roof"] as const;
 
 // --- components --------------------------------------------------------------
 
@@ -284,7 +354,7 @@ function strip(x0: number, x1: number, z: number, width: number, top: number) {
 
 /** Two running rails with their grooves, and the cable slot between them. */
 export function Rails({ x0, x1, z }: { x0: number; x1: number; z: number }) {
-  const m = paints();
+  const m = railMaterials();
   const { steel, groove } = useMemo(() => {
     const rail = GAUGE / 2;
     return {
@@ -309,12 +379,9 @@ function ground(x: number, z: number) {
 
 /** The car itself, its origin on the street between the rails. `moving`: kept out of reflections (they would show it where it was). */
 export function CarModel({ moving = false }: { moving?: boolean }) {
-  const m = paints();
+  const m = carMaterials(useContext(Lite));
   const parts = (carParts ??= carGeometry());
   const panel = useSign(useBrand(), { bg: "#f3e8cf", fg: "#6b2a1f", width: 1536, panel: ROUTE_BOARD });
-  const glass = useMemo(() => new MeshStandardMaterial({ color: "#1d2127", roughness: 0.15, metalness: 0.5, emissive: "#ffd9a0", emissiveIntensity: 0 }), []);
-  useNightGlow(glass, 1.5);
-  useEffect(() => () => glass.dispose(), [glass]);
   const lamp = useGlow("#fff1cf", 3, 0.15);
   const boardMat = useMemo(() => new MeshStandardMaterial({ map: panel, roughness: 0.5, emissive: "#ffffff", emissiveMap: panel, emissiveIntensity: 0 }), [panel]);
   useNightGlow(boardMat, 0.35); // the route board is lit at night, so the brand still reads
@@ -325,7 +392,7 @@ export function CarModel({ moving = false }: { moving?: boolean }) {
       {SOLID.map((k) => (
         <mesh key={k} ref={layer} geometry={parts[k]} material={m[k]} castShadow receiveShadow />
       ))}
-      <mesh ref={layer} geometry={parts.glass} material={glass} />
+      <mesh ref={layer} geometry={parts.glass} material={m.glass} />
       <mesh ref={layer} geometry={parts.lamp} material={lamp} />
       <mesh ref={layer} geometry={parts.board} material={boardMat} receiveShadow />
     </>

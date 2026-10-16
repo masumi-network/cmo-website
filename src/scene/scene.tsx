@@ -27,7 +27,7 @@ import { Pier } from "./pier";
 import { Pins } from "./pins";
 import { Post } from "./post";
 import { Reflections } from "./reflections";
-import { DETAIL, rig } from "./shared";
+import { DETAIL, Lite, rig } from "./shared";
 
 /** Dev only: `?perf` shows frame rate, draw calls, triangles and programs. Compiled out of production builds. */
 const PerfOverlay =
@@ -120,29 +120,31 @@ function Scene({ onReady, onGo, lite }: Props) {
     >
       <PerformanceMonitor onDecline={() => setDpr([1, 1])} />
       <Suspense fallback={null}>
-        <Atmosphere lite={lite} />
-        <City lite={lite} />
-        <Parked lite={lite} />
-        <RoofClutter lite={lite} />
-        <Backdrop lite={lite} />
-        <Rooftop />
-        <Shopfront />
-        <MuralWall />
-        <UnionSquare />
-        <Pyramid />
-        <CoitTower />
-        <FerryBuilding />
-        <Pier />
-        <Shadowless when={lite}>
-          <BayBridge />
-          <GoldenGate />
-          <Roads />
-        </Shadowless>
-        <Cuso />
-        <Pins onGo={onGo} />
-        <Reflections lite={lite} />
-        <Ready onReady={onReady} />
-        {PerfOverlay && <PerfOverlay />}
+        <Lite value={lite}>
+          <Atmosphere lite={lite} />
+          <City lite={lite} />
+          <Parked lite={lite} />
+          <RoofClutter lite={lite} />
+          <Backdrop lite={lite} />
+          <Rooftop />
+          <Shopfront />
+          <MuralWall />
+          <UnionSquare />
+          <Pyramid />
+          <CoitTower />
+          <FerryBuilding />
+          <Pier />
+          <Shadowless when={lite}>
+            <BayBridge />
+            <GoldenGate />
+            <Roads />
+          </Shadowless>
+          <Cuso />
+          <Pins onGo={onGo} />
+          <Reflections lite={lite} />
+          <Ready onReady={onReady} />
+          {PerfOverlay && <PerfOverlay />}
+        </Lite>
       </Suspense>
       <CameraRig />
       {/* Retina already draws 4 pixels per point: 2x MSAA looks the same as 4x there (checked on the Golden Gate
