@@ -4,7 +4,7 @@
 // foam along every shore, a planar reflection in full mode), Yerba Buena, five
 // sailboats and a ferry; Alcatraz and Treasure Island are in islands.tsx. Boat
 // routes and the shore distance field are pure functions, tested in
-// tests/unit/bay.test.ts.
+// tests/unit/bay.test.ts; the reflections and ripples are in water.ts.
 
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
@@ -54,7 +54,9 @@ import { LAND, insideLand } from "./layout";
 import { BAY_ANCHORS, ISLAND, ROADS, piers } from "./roads";
 import { COAST_BOX, COAST_OFF, ROCKS, SURF_GLSL, coastHeight } from "./coast";
 import { useGlow } from "./parts";
-import { rig } from "./shared";
+import { glassUniforms } from "./reflections";
+import { damp, dayNow, rig } from "./shared";
+import { CHOP_GLSL, PROBE_GLSL, SKY_GLSL, SMEAR_GLSL, leanSkip, mirrorWanted, waterAt } from "./water";
 
 /** The water surface. Pier, cliffs and bridges are built around it. */
 export const WATER_Y = -0.45;
@@ -783,6 +785,15 @@ function waterMaterial(mirror: boolean) {
     uNight: { value: 0 },
     uMirror: { value: null as WebGLRenderTarget["texture"] | null },
     uMirrorMatrix: { value: new Matrix4() },
+    /** 0..1: the mirror fades out in Explore and high overhead (water.ts mirrorWanted). */
+    uMirrorOn: { value: 1 },
+    /** Per hour (water.ts waterAt). */
+    uSmear: { value: 0 },
+    uSky: { value: 0 },
+    // phones: the glass probe (reflections.ts), shared with the glass
+    uGlassEnv: glassUniforms.uGlassEnv,
+    uGlassMix: glassUniforms.uGlassMix,
+    uProbePos: glassUniforms.uProbePos,
   };
   const material = new MeshStandardMaterial({ roughness: 0.14, metalness: 0, envMapIntensity: 0 });
   if (mirror) material.defines = { MIRROR: "" };
@@ -821,10 +832,17 @@ function waterMaterial(mirror: boolean) {
         uniform vec3 uSkyTop;
         uniform vec3 uSkyHorizon;
         uniform float uNight;
+        uniform float uSmear;
+        uniform float uSky;
         varying vec3 vWorld;
         #ifdef MIRROR
           uniform sampler2D uMirror;
+          uniform float uMirrorOn;
           varying vec4 vMirror;
+        #else
+          uniform samplerCube uGlassEnv;
+          uniform float uGlassMix;
+          uniform vec3 uProbePos;
         #endif
         ${SURF_GLSL}`,
       )
@@ -833,11 +851,8 @@ function waterMaterial(mirror: boolean) {
         /* glsl */ `#include <color_fragment>
         vec2 wp = vWorld.xz;
         float camDist = distance(cameraPosition, vWorld);
-        // Two ripple layers drifting at different scales and directions.
-        vec2 r1 = texture2D(uRipples, wp * 0.043 + uTime * vec2(0.011, 0.004)).xy * 2.0 - 1.0;
-        vec2 r2 = texture2D(uRipples, wp * 0.117 + vec2(0.37, 0.71) + uTime * vec2(-0.006, 0.015)).xy * 2.0 - 1.0;
-        float calm = 1.0 - 0.8 * smoothstep(15.0, 180.0, camDist);
-        vec2 slope = (r1 * 0.55 + r2 * 0.45) * 0.26 * calm;
+        // Three ripple layers drifting at different scales and directions (water.ts CHOP).
+        ${CHOP_GLSL}
         vec3 waterN = normalize(vec3(slope.x, 1.0, slope.y));
         // Shallows and foam from the baked distance to the shore.
         vec2 shoreUv = (wp - uShoreBox.xy) * uShoreBox.zw;
@@ -877,14 +892,18 @@ function waterMaterial(mirror: boolean) {
         /* glsl */ `
         vec3 V = normalize(cameraPosition - vWorld);
         float fresnel = 0.04 + 0.96 * pow(1.0 - max(dot(waterN, V), 0.0), 5.0);
-        // The sky gradient sees softer ripples than the mirror (less streaking at grazing angles).
-        vec3 R = reflect(-V, normalize(vec3(slope.x * 0.4, 1.0, slope.y * 0.4)));
+        // The sky gradient sees softer ripples than the mirror; grazing waves see more of
+        // it, over the first degrees above the horizon (water.ts SKY).
+        ${SKY_GLSL}
         vec3 reflection = mix(uSkyHorizon, uSkyTop, smoothstep(-0.02, 0.55, R.y));
         #ifdef MIRROR
-          // Ripples bend the reflection less with distance. The sky is left out
-          // of the mirror (alpha 0) and drawn as the smooth gradient instead.
-          vec4 mirrored = texture2D(uMirror, vMirror.xy / vMirror.w + slope * 0.6 / (vMirror.w + 8.0));
-          reflection = mix(reflection, mirrored.rgb, mirrored.a);
+          // Ripples smear the mirror into streaks down the screen (water.ts SMEAR). The sky is
+          // left out of the mirror (alpha 0) and drawn as the smooth gradient instead.
+          ${SMEAR_GLSL}
+          reflection = mix(reflection, mirrored.rgb, mirrored.a * uMirrorOn);
+        #else
+          // Phones: the glass probe near the chapter's subject, never darker than the gradient.
+          ${PROBE_GLSL}
         #endif
         float k = clamp(0.1 + fresnel, 0.0, 1.0) * (1.0 - foam);
         outgoingLight = mix(totalDiffuse, reflection, k) + reflectedLight.directSpecular * (1.0 - foam) * 2.0 + totalEmissiveRadiance;
@@ -907,8 +926,13 @@ const _clip = new Vector4();
 const _q = new Vector4();
 const _size = new Vector2();
 const _clear = new Color();
+const _middle = new Vector3();
 /** Bay objects that should not show in the reflection (they sit on the surface). */
 const notReflected = new Set<Object3D>();
+
+/** What renderMirror hides, and whether each was visible. */
+const _hide: Object3D[] = [];
+const _was: boolean[] = [];
 
 function renderMirror(gl: WebGLRenderer, scene: Scene, camera: Camera, target: WebGLRenderTarget, matrix: Matrix4, hidden: Object3D[]) {
   camera.updateMatrixWorld();
@@ -935,8 +959,12 @@ function renderMirror(gl: WebGLRenderer, scene: Scene, camera: Camera, target: W
   e[10] = _clip.z + 1;
   e[14] = _clip.w;
 
-  for (const o of hidden) o.visible = false;
-  for (const o of notReflected) o.visible = false;
+  _hide.length = _was.length = 0;
+  _hide.push(...hidden, ...notReflected);
+  for (const o of _hide) {
+    _was.push(o.visible);
+    o.visible = false;
+  }
   const previous = gl.getRenderTarget();
   const shadows = gl.shadowMap.autoUpdate;
   const alpha = gl.getClearAlpha();
@@ -950,14 +978,15 @@ function renderMirror(gl: WebGLRenderer, scene: Scene, camera: Camera, target: W
   gl.setClearColor(_clear, alpha);
   gl.shadowMap.autoUpdate = shadows;
   gl.setRenderTarget(previous);
-  for (const o of notReflected) o.visible = true;
-  for (const o of hidden) o.visible = true;
+  _hide.forEach((o, i) => (o.visible = _was[i]));
 }
 
 export function Water({ lite }: { lite: boolean }) {
   const mesh = useRef<Mesh>(null);
   const hemi = useRef<HemisphereLight | null>(null);
   const dome = useRef<Object3D | null>(null);
+  /** Left out of the mirror by material (water.ts leanSkip): houses, ground, trees, Cuso, shop glass, small wood. */
+  const lean = useRef<Object3D[] | null>(null);
   const { material, uniforms } = useMemo(() => waterMaterial(!lite), [lite]);
   const mirror = useMemo(() => (lite ? null : new WebGLRenderTarget(1, 1, { type: HalfFloatType })), [lite]);
   useEffect(() => {
@@ -968,8 +997,12 @@ export function Water({ lite }: { lite: boolean }) {
     };
   }, [material, mirror, uniforms]);
 
-  useFrame(({ gl, scene, camera, clock }) => {
+  useFrame(({ gl, scene, camera, clock }, dt) => {
     uniforms.uTime.value = clock.elapsedTime;
+    const day = dayNow();
+    const hour = waterAt(day.hour);
+    uniforms.uSmear.value = hour.smear;
+    uniforms.uSky.value = hour.sky;
     const night = rig.night;
     uniforms.uNight.value = night;
     uniforms.uDeep.value.lerpColors(DAY.deep, NIGHT.deep, night);
@@ -992,11 +1025,24 @@ export function Water({ lite }: { lite: boolean }) {
     }
     // Not before `Ready` (scene.tsx) has compiled every shader: a mirror render would compile them one by one.
     if (!mirror || !mesh.current || !scene.userData.shadersReady) return;
+    const on = uniforms.uMirrorOn;
+    on.value += (mirrorWanted(camera.position.y - WATER_Y, day.mode === "explore") - on.value) * damp(4, dt);
+    if (on.value < 0.01) return;
+    if (!lean.current) {
+      lean.current = [];
+      scene.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh || Array.isArray(mesh.material)) return;
+        const sphere = mesh.geometry.boundingSphere ?? (mesh.geometry.computeBoundingSphere(), mesh.geometry.boundingSphere!);
+        const middle = _middle.copy(sphere.center).applyMatrix4(mesh.matrixWorld);
+        if (leanSkip(mesh.material.customProgramCacheKey(), mesh.name, insideLand(middle.x, middle.z))) lean.current!.push(mesh);
+      });
+    }
     gl.getDrawingBufferSize(_size);
     const w = Math.min(1024, Math.round(_size.x / 2));
     const h = Math.round((w * _size.y) / _size.x);
     if (mirror.width !== w || mirror.height !== h) mirror.setSize(w, h);
-    renderMirror(gl, scene, camera, mirror, uniforms.uMirrorMatrix.value, dome.current ? [mesh.current, dome.current] : [mesh.current]);
+    renderMirror(gl, scene, camera, mirror, uniforms.uMirrorMatrix.value, [mesh.current, ...(dome.current ? [dome.current] : []), ...lean.current]);
   });
 
   return (
