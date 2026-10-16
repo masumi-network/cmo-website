@@ -13,7 +13,7 @@
 // sign 1, corner lamp 2 (the city's acorn lamp, street.tsx).
 
 import { useLayoutEffect, useMemo } from "react";
-import { BoxGeometry, CatmullRomCurve3, Color, Float32BufferAttribute, LatheGeometry, MeshStandardMaterial, PlaneGeometry, SphereGeometry, TorusGeometry, TubeGeometry, Vector2, Vector3, type BufferGeometry, type Object3D, type Texture } from "three";
+import { BoxGeometry, BufferGeometry, CatmullRomCurve3, Color, Float32BufferAttribute, LatheGeometry, MeshStandardMaterial, PlaneGeometry, SphereGeometry, TorusGeometry, TubeGeometry, Vector2, Vector3, type Object3D, type Texture } from "three";
 import { heightAt } from "@/lib/terrain";
 import { facadeNight } from "./facade";
 import { PALETTES, SLOT, builder, palette, type Frame, type Rect } from "./house-models";
@@ -144,12 +144,13 @@ function shellGeometry() {
 // bevelled tile, pressed tin, marble, glaze, chrome, leather, the canvas.
 
 /** Surfaces the painted material draws (aMat). */
-export const CAFE_MAT = { plain: 0, wood: 1, floor: 2, tile: 3, marble: 4, glaze: 5, leaf: 6, art: 7, plaster: 8, metal: 9, boards: 10, chrome: 11, leather: 12, tin: 13 } as const;
+export const CAFE_MAT = { plain: 0, wood: 1, floor: 2, tile: 3, marble: 4, glaze: 5, leaf: 6, art: 7, plaster: 8, metal: 9, boards: 10, chrome: 11, leather: 12, tin: 13, paint: 14, sign: 15, varnish: 16 } as const;
 type Mat = (typeof CAFE_MAT)[keyof typeof CAFE_MAT];
 
 const C = {
   // the shopfront and the sidewalk
   green: "#2f5141",
+  paint: "#36594a", // the shopfront's enamel, outside
   brass: "#a2874f",
   iron: "#262b29",
   tile: "#d9d3c5",
@@ -206,28 +207,91 @@ function slab(side: Side, a0: number, a1: number, b0: number, b1: number, c0: nu
 }
 
 /**
+ * A box of `size` round the origin with its four edges along `axis` cut at
+ * 45 degrees, `bevel` deep: an eight-sided prism with flat caps. 28 triangles.
+ */
+export function chamfered(size: V3, axis: 0 | 1 | 2, bevel: number) {
+  const [u, v] = ([[1, 2], [2, 0], [0, 1]] as const)[axis];
+  const [hu, hv, hw] = [size[u] / 2, size[v] / 2, size[axis] / 2];
+  const e = Math.min(bevel, hu * 0.45, hv * 0.45);
+  const ring: [number, number][] = [[hu, -hv + e], [hu, hv - e], [hu - e, hv], [-hu + e, hv], [-hu, hv - e], [-hu, -hv + e], [-hu + e, -hv], [hu - e, -hv]];
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const at = (a: number, b: number, w: number) => {
+    const p = [0, 0, 0];
+    [p[u], p[v], p[axis]] = [a, b, w];
+    return p;
+  };
+  // one triangle, wound to face away from the middle; flat normal
+  const tri = (a: number[], b: number[], c: number[]) => {
+    const n = new Vector3(...b).sub(new Vector3(...a)).cross(new Vector3(...c).sub(new Vector3(...a))).normalize();
+    const out = n.dot(new Vector3(...a).add(new Vector3(...b)).add(new Vector3(...c))) >= 0;
+    if (!out) n.negate();
+    for (const q of out ? [a, b, c] : [a, c, b]) {
+      pos.push(...q);
+      nrm.push(n.x, n.y, n.z);
+    }
+  };
+  ring.forEach(([a0, b0], i) => {
+    const [a1, b1] = ring[(i + 1) % ring.length];
+    tri(at(a0, b0, -hw), at(a1, b1, -hw), at(a1, b1, hw));
+    tri(at(a0, b0, -hw), at(a1, b1, hw), at(a0, b0, hw));
+  });
+  for (const w of [-hw, hw]) for (let i = 1; i < ring.length - 1; i++) tri(at(...ring[0], w), at(...ring[i], w), at(...ring[i + 1], w));
+  const g = new BufferGeometry();
+  g.setAttribute("position", new Float32BufferAttribute(pos, 3));
+  g.setAttribute("normal", new Float32BufferAttribute(nrm, 3));
+  g.setAttribute("uv", new Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  return g;
+}
+
+/** Paint wears thin on the chamfers: a touch lighter there. */
+const WEAR = 1.22;
+
+/**
+ * A painted member of the shopfront (pilaster, mullion, rail): a slab with its
+ * long edges chamfered (`along`: "b" upright, "a" along the wall), in satin
+ * green paint, its chamfers a little worn.
+ */
+function member(side: Side, a0: number, a1: number, b0: number, b1: number, c0: number, c1: number, along: "a" | "b", bevel = 0.015) {
+  const [x0, x1, z0, z1] = side === "front" ? [a0, a1, c0, c1] : [W / 2 + c0, W / 2 + c1, -a1, -a0];
+  return paintBox([(x0 + x1) / 2, (b0 + b1) / 2, (z0 + z1) / 2], [x1 - x0, b1 - b0, z1 - z0], along === "b" ? 1 : side === "front" ? 0 : 2, bevel);
+}
+
+/** The same, from a centre and a size. */
+function paintBox(p: V3, size: V3, axis: 0 | 1 | 2, bevel: number) {
+  const g = tint(chamfered(size, axis, bevel).translate(...p), C.paint, 0, CAFE_MAT.paint);
+  const { normal, color } = g.attributes;
+  for (let i = 0; i < normal.count; i++) {
+    const n = [normal.getX(i), normal.getY(i), normal.getZ(i)].filter((c) => Math.abs(c) > 0.1);
+    if (n.length > 1) color.setXYZ(i, color.getX(i) * WEAR, color.getY(i) * WEAR, color.getZ(i) * WEAR);
+  }
+  return g;
+}
+
+/**
  * One run of shopfront between two pilasters: stall riser with raised panels,
  * sill, glass (in the glass mesh) split by mullions, transom bar, transom
  * lights, head rail. `lights`: the display's panes; transoms split each in two.
  */
 function display(side: Side, a0: number, a1: number, lights: number, out: BufferGeometry[], glass: BufferGeometry[]) {
-  const p = (a0_: number, a1_: number, b0: number, b1: number, c0: number, c1: number, hex: string) => out.push(tint(slab(side, a0_, a1_, b0, b1, c0, c1), hex, 0));
+  const m = (a0_: number, a1_: number, b0: number, b1: number, c0: number, c1: number, along: "a" | "b", bevel: number) => out.push(member(side, a0_, a1_, b0, b1, c0, c1, along, bevel));
   const w = (a1 - a0) / lights;
-  p(a0, a1, 0, 0.55, 0, 0.04, C.green); // stall riser
-  p(a0 - 0.02, a1, 0.55, 0.62, 0, 0.1, C.green); // sill
-  p(a0, a1, 2.25, 2.33, 0, 0.07, C.green); // transom bar
-  p(a0, a1, 2.62, 2.68, 0, 0.05, C.green); // head rail
+  out.push(tint(slab(side, a0, a1, 0, 0.55, 0, 0.04), C.paint, 0, CAFE_MAT.paint)); // stall riser
+  m(a0 - 0.02, a1, 0.55, 0.62, 0, 0.1, "a", 0.02); // sill
+  m(a0, a1, 2.25, 2.33, 0, 0.07, "a", 0.015); // transom bar
+  m(a0, a1, 2.62, 2.68, 0, 0.05, "a", 0.012); // head rail
   for (let i = 0; i < lights; i++) {
     const l0 = a0 + i * w;
-    p(l0 + 0.1, l0 + w - 0.1, 0.12, 0.44, 0.04, 0.055, C.green); // raised panel
-    glass.push(pane(side, l0, l0 + w, 0.62, 2.25));
+    m(l0 + 0.1, l0 + w - 0.1, 0.12, 0.44, 0.04, 0.055, "a", 0.01); // raised panel
+    glass.push(...glazed(pane(side, l0, l0 + w, 0.62, 2.25)));
   }
-  glass.push(pane(side, a0, a1, 2.33, 2.62));
+  glass.push(...glazed(pane(side, a0, a1, 2.33, 2.62)));
   // stiles at the ends, mullions between the lights, a muntin halving each transom light
-  p(a0, a0 + 0.06, 0.62, 2.25, 0, 0.05, C.green);
-  p(a1 - 0.06, a1, 0.62, 2.25, 0, 0.05, C.green);
-  for (let i = 1; i < lights; i++) p(a0 + i * w - 0.03, a0 + i * w + 0.03, 0.62, 2.62, 0, 0.05, C.green);
-  for (let i = 0; i < lights; i++) p(a0 + (i + 0.5) * w - 0.018, a0 + (i + 0.5) * w + 0.018, 2.33, 2.62, 0, 0.04, C.green);
+  m(a0, a0 + 0.06, 0.62, 2.25, 0, 0.05, "b", 0.012);
+  m(a1 - 0.06, a1, 0.62, 2.25, 0, 0.05, "b", 0.012);
+  for (let i = 1; i < lights; i++) m(a0 + i * w - 0.03, a0 + i * w + 0.03, 0.62, 2.62, 0, 0.05, "b", 0.012);
+  for (let i = 0; i < lights; i++) m(a0 + (i + 0.5) * w - 0.018, a0 + (i + 0.5) * w + 0.018, 2.33, 2.62, 0, 0.04, "b", 0.008);
 }
 
 /** A pane of glass recessed 0.03 behind the frame, facing out. */
@@ -237,21 +301,29 @@ function pane(side: Side, a0: number, a1: number, b0: number, b1: number) {
   return placed(g, [W / 2 - 0.03, (b0 + b1) / 2, -(a0 + a1) / 2], [0, Math.PI / 2, 0]);
 }
 
+/** The pane's thickness: its inner surface reflects too (real glass reflects about twice what one surface does). */
+export const GLASS_GAP = 0.006;
+/** A pane's outer face and its inner face GLASS_GAP behind it. */
+function glazed(g: BufferGeometry): BufferGeometry[] {
+  const n = new Vector3().fromBufferAttribute(g.attributes.normal, 0).multiplyScalar(-GLASS_GAP);
+  return [g, g.clone().translate(n.x, n.y, n.z)];
+}
+
 /** A pilaster: plinth, shaft, and a console under the fascia cornice. */
 function pilaster(side: Side, a0: number, a1: number, console: boolean, out: BufferGeometry[]) {
-  out.push(tint(slab(side, a0 - 0.02, a1 + 0.02, -0.6, 0.32, 0, 0.14), C.green, 0));
-  out.push(tint(slab(side, a0, a1, 0.32, 2.68, 0, 0.1), C.green, 0));
-  out.push(tint(slab(side, a0 - 0.015, a1 + 0.015, 2.55, 2.68, 0, 0.12), C.green, 0)); // capital
+  out.push(member(side, a0 - 0.02, a1 + 0.02, -0.6, 0.32, 0, 0.14, "b", 0.02));
+  out.push(member(side, a0, a1, 0.32, 2.68, 0, 0.1, "b", 0.025));
+  out.push(member(side, a0 - 0.015, a1 + 0.015, 2.55, 2.68, 0, 0.12, "a", 0.015)); // capital
   if (console) {
-    out.push(tint(slab(side, a0 + 0.03, a1 - 0.03, 2.68, 3.58, 0, 0.13), C.green, 0));
-    out.push(tint(slab(side, a0 + 0.01, a1 - 0.01, 3.4, 3.58, 0, 0.17), C.green, 0)); // its scroll head
+    out.push(member(side, a0 + 0.03, a1 - 0.03, 2.68, 3.58, 0, 0.13, "b", 0.02));
+    out.push(member(side, a0 + 0.01, a1 - 0.01, 3.4, 3.58, 0, 0.17, "a", 0.02)); // its scroll head
   }
 }
 
 function frontGeometry(glass: BufferGeometry[]) {
   const out: BufferGeometry[] = [];
   const p = (side: Side, a0: number, a1: number, b0: number, b1: number, c0: number, c1: number, hex: string) =>
-    out.push(tint(slab(side, a0, a1, b0, b1, c0, c1), hex, 0, hex === C.wood ? CAFE_MAT.wood : hex === C.brass ? CAFE_MAT.metal : CAFE_MAT.plain));
+    out.push(hex === C.green ? tint(slab(side, a0, a1, b0, b1, c0, c1), C.paint, 0, CAFE_MAT.paint) : tint(slab(side, a0, a1, b0, b1, c0, c1), hex, 0, hex === C.wood ? CAFE_MAT.wood : hex === C.brass ? CAFE_MAT.metal : CAFE_MAT.plain));
 
   // the front: a granite base course, pilaster, display (three lights), post, recessed door, corner post
   p("front", -4, 3.72, -0.6, 0, 0, 0.06, C.stone);
@@ -259,21 +331,21 @@ function frontGeometry(glass: BufferGeometry[]) {
   pilaster("front", -4, -3.72, true, out);
   display("front", -3.72, 2.2, 3, out, glass);
   pilaster("front", 2.2, 2.44, false, out);
-  out.push(tint(box([3.92, -0.14, -0.08], [0.44, 0.92, 0.44]), C.green, 0)); // corner post: plinth, shaft
-  out.push(tint(box([3.92, 1.5, -0.08], [0.4, 2.36, 0.4]), C.green, 0));
-  out.push(tint(box([3.92, 2.615, -0.08], [0.43, 0.13, 0.43]), C.green, 0));
-  for (const g of [slab("front", 3.79, 3.97, 2.68, 3.58, 0, 0.13), slab("front", 3.77, 3.99, 3.4, 3.58, 0, 0.17)]) out.push(tint(g, C.green, 0));
-  for (const g of [slab("east", 0.03, 0.21, 2.68, 3.58, 0, 0.13), slab("east", 0.01, 0.23, 3.4, 3.58, 0, 0.17)]) out.push(tint(g, C.green, 0));
+  out.push(paintBox([3.92, -0.14, -0.08], [0.44, 0.92, 0.44], 1, 0.03)); // corner post: plinth, shaft, cap
+  out.push(paintBox([3.92, 1.5, -0.08], [0.4, 2.36, 0.4], 1, 0.035));
+  out.push(paintBox([3.92, 2.615, -0.08], [0.43, 0.13, 0.43], 1, 0.03));
+  out.push(member("front", 3.79, 3.97, 2.68, 3.58, 0, 0.13, "b", 0.02), member("front", 3.77, 3.99, 3.4, 3.58, 0, 0.17, "a", 0.02));
+  out.push(member("east", 0.03, 0.21, 2.68, 3.58, 0, 0.13, "b", 0.02), member("east", 0.01, 0.23, 3.4, 3.58, 0, 0.17, "a", 0.02));
 
   // the recessed entry: side panels, soffit, mosaic threshold, a wooden door with a glazed panel
   const [e0, e1, back] = [2.44, 3.72, -0.6];
   p("front", e0, e0 + 0.04, 0, 2.25, back, 0, C.green);
   p("front", e1 - 0.04, e1, 0, 2.25, back, 0, C.green);
   p("front", e0, e1, 2.2, 2.25, back, 0, C.green);
-  p("front", e0, e1, 2.25, 2.33, 0, 0.07, C.green); // transom bar
-  p("front", e0, e1, 2.62, 2.68, 0, 0.05, C.green); // head rail
-  p("front", (e0 + e1) / 2 - 0.018, (e0 + e1) / 2 + 0.018, 2.33, 2.62, 0, 0.04, C.green);
-  glass.push(pane("front", e0, e1, 2.33, 2.62));
+  out.push(member("front", e0, e1, 2.25, 2.33, 0, 0.07, "a", 0.015)); // transom bar
+  out.push(member("front", e0, e1, 2.62, 2.68, 0, 0.05, "a", 0.012)); // head rail
+  out.push(member("front", (e0 + e1) / 2 - 0.018, (e0 + e1) / 2 + 0.018, 2.33, 2.62, 0, 0.04, "b", 0.008));
+  glass.push(...glazed(pane("front", e0, e1, 2.33, 2.62)));
   p("front", e0, e1, -0.6, 0.02, back, 0.1, C.tile); // and its step
   p("front", e0 + 0.04, 2.6, 0, 2.2, back - 0.04, back, C.green);
   p("front", 3.56, e1 - 0.04, 0, 2.2, back - 0.04, back, C.green);
@@ -283,15 +355,15 @@ function frontGeometry(glass: BufferGeometry[]) {
   p("front", 2.7, 3.46, 0, 1.0, back - 0.04, back + 0.01, C.wood);
   p("front", 2.78, 3.38, 0.14, 0.86, back + 0.01, back + 0.02, C.wood); // kick panel
   p("front", 3.36, 3.4, 1.0, 1.16, back + 0.01, back + 0.05, C.brass); // pull handle
-  glass.push(placed(new PlaneGeometry(0.76, 1.1), [3.08, 1.55, back - 0.015]));
+  glass.push(...glazed(placed(new PlaneGeometry(0.76, 1.1), [3.08, 1.55, back - 0.015])));
 
   // the fascia with the sign, a brass bead round it, the fascia cornice; round the corner too
   p("front", -4, 4.08, 2.68, 3.62, 0, 0.08, C.green);
   p("east", 0, WRAP, 2.68, 3.62, 0, 0.08, C.green);
-  p("front", -4.04, 4.12, 3.58, 3.66, 0, 0.12, C.green);
-  p("east", 0, WRAP + 0.04, 3.58, 3.66, 0, 0.12, C.green);
-  p("front", -4.2, 4.2, 3.66, 3.82, 0, RELIEF - 0.02, C.green);
-  p("east", 0, WRAP + 0.08, 3.66, 3.82, 0, RELIEF - 0.02, C.green);
+  out.push(member("front", -4.04, 4.12, 3.58, 3.66, 0, 0.12, "a", 0.015));
+  out.push(member("east", 0, WRAP + 0.04, 3.58, 3.66, 0, 0.12, "a", 0.015));
+  out.push(member("front", -4.2, 4.2, 3.66, 3.82, 0, RELIEF - 0.02, "a", 0.03));
+  out.push(member("east", 0, WRAP + 0.08, 3.66, 3.82, 0, RELIEF - 0.02, "a", 0.03));
   const [sw, sh] = [SHOP_SIGN[0] / 2, SHOP_SIGN[1] / 2];
   const [, sy] = SHOP.sign;
   p("front", -sw - 0.04, sw + 0.04, sy + sh, sy + sh + 0.04, 0.08, 0.1, C.brass);

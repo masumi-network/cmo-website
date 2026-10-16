@@ -3,13 +3,13 @@
 // inside. Everything stays in its footprint or on its own sidewalk, off the
 // street and off Cuso's routes, in a handful of draw calls.
 
-import { Vector3, type BufferGeometry } from "three";
+import { Color, Vector3, type BufferGeometry } from "three";
 import { describe, expect, it } from "vitest";
 import { heightAt } from "@/lib/terrain";
 import { SLOT, SLOTS } from "@/scene/house-models";
 import { groundAt, streetDrop } from "@/scene/grid";
 import { PATHS } from "@/scene/routes";
-import { ATLAS, CAFE_MAT, PENDANTS, ROOM, SHOP, SHOP_SIGN, TABLES, cafeText, shopParts } from "@/scene/shop";
+import { ATLAS, CAFE_MAT, GLASS_GAP, PENDANTS, ROOM, SHOP, SHOP_SIGN, TABLES, cafeText, chamfered, shopParts } from "@/scene/shop";
 import { LAMP } from "@/scene/street";
 
 const parts = shopParts();
@@ -44,6 +44,59 @@ describe("the Hayes Valley shop", () => {
     expect(tris(parts.interior)).toBeLessThan(20_000);
     const total = Object.values(parts).reduce((s, g) => s + tris(g), 0);
     expect(total).toBeLessThan(26_000);
+    // the chamfered shopfront: about 3k triangles more than plain boxes (1.6k)
+    expect(tris(parts.front)).toBeLessThan(4_600);
+  });
+
+  it("chamfers a member's long edges: an eight-sided prism the box's size, every face facing out", () => {
+    const g = chamfered([0.2, 1.2, 0.1], 1, 0.02);
+    expect(tris(g)).toBe(28);
+    g.computeBoundingBox();
+    expect(g.boundingBox!.min.toArray()).toEqual([-0.1, -0.6, -0.05].map((v) => expect.closeTo(v, 6)));
+    expect(g.boundingBox!.max.toArray()).toEqual([0.1, 0.6, 0.05].map((v) => expect.closeTo(v, 6)));
+    const pos = g.attributes.position;
+    const nrm = g.attributes.normal;
+    let diagonal = 0;
+    for (let t = 0; t < pos.count; t += 3) {
+      const mid = new Vector3();
+      for (let k = 0; k < 3; k++) mid.add(new Vector3().fromBufferAttribute(pos, t + k).divideScalar(3));
+      const n = new Vector3().fromBufferAttribute(nrm, t);
+      expect(n.length()).toBeCloseTo(1, 6);
+      expect(n.dot(mid)).toBeGreaterThan(0);
+      // the winding agrees with the normal
+      const [a, b, c] = [0, 1, 2].map((k) => new Vector3().fromBufferAttribute(pos, t + k));
+      expect(b.clone().sub(a).cross(c.clone().sub(a)).dot(n)).toBeGreaterThan(0);
+      if (Math.abs(n.x) > 0.1 && Math.abs(n.z) > 0.1) diagonal++;
+    }
+    expect(diagonal).toBe(8); // four chamfers, two triangles each
+  });
+
+  it("chamfers the shopfront's pilasters, mullions and rails, a little worn on the edges", () => {
+    const { normal, color, aMat } = parts.front.attributes;
+    let bevel = 0;
+    let worn = 0;
+    for (let i = 0; i < normal.count; i++) {
+      if (aMat.getX(i) !== CAFE_MAT.paint) continue;
+      const n = [normal.getX(i), normal.getY(i), normal.getZ(i)].map(Math.abs).filter((v) => v > 0.1);
+      if (n.length < 2) continue;
+      bevel++;
+      if (color.getX(i) > new Color("#36594a").r + 0.005) worn++;
+    }
+    expect(bevel / 3).toBeGreaterThan(200);
+    expect(worn).toBe(bevel);
+  });
+
+  it("glazes every pane with two surfaces, outer and inner, so it reflects like real glass", () => {
+    const { position: pos, normal: nrm } = parts.glass.attributes;
+    expect(pos.count % 12).toBe(0);
+    for (let i = 0; i < pos.count; i += 12) {
+      for (let k = 0; k < 6; k++) {
+        const outer = new Vector3().fromBufferAttribute(pos, i + k);
+        const inner = new Vector3().fromBufferAttribute(pos, i + 6 + k);
+        const n = new Vector3().fromBufferAttribute(nrm, i + k);
+        expect(outer.sub(inner).toArray()).toEqual(n.multiplyScalar(GLASS_GAP).toArray().map((v) => expect.closeTo(v, 6)));
+      }
+    }
   });
 
   it("paints the building with the row houses' material: known paints, every pane a window", () => {
