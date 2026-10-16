@@ -88,16 +88,21 @@ const DETAIL_GLSL = /* glsl */ `
  * comes from the distances' screen derivatives (exact on a flat face). Adds to fBendW (world space).
  */
 const BEVEL_GLSL = /* glsl */ `{
-    vec3 fNw = normalize(vFNormal);
+    // derivatives first (they need every pixel of the quad), the rest only near an edge
     vec3 fDpx = dFdx(vFPos);
     vec3 fDpy = dFdy(vFPos);
-    vec3 fR1 = cross(fDpy, fNw);
-    vec3 fR2 = cross(fNw, fDpx);
-    float fDet = dot(fDpx, fR1);
     vec4 fE = vEdge + ${EDGE.off.toFixed(1)};
+    vec4 fEx = dFdx(fE);
+    vec4 fEy = dFdy(fE);
     vec4 fB = max(1.0 - fE / ${EDGE.bevel}, 0.0) * (1.0 - smoothstep(${EDGE.bevel * 0.5}, ${EDGE.bevel * 2}, fPx));
-    vec3 fOut = -(fR1 * dot(dFdx(fE), fB) + fR2 * dot(dFdy(fE), fB)) * fDet / max(fDet * fDet, 1e-24);
-    fBendW += fOut / max(1.0, length(fOut) / 1.4);
+    if (fB.x + fB.y + fB.z + fB.w > 0.0) {
+      vec3 fNw = normalize(vFNormal);
+      vec3 fR1 = cross(fDpy, fNw);
+      vec3 fR2 = cross(fNw, fDpx);
+      float fDet = dot(fDpx, fR1);
+      vec3 fOut = -(fR1 * dot(fEx, fB) + fR2 * dot(fEy, fB)) * fDet / max(fDet * fDet, 1e-24);
+      fBendW += fOut / max(1.0, length(fOut) / 1.4);
+    }
   }`;
 
 /**
@@ -147,9 +152,10 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
       vec3 fAx = fUpright ? vec3(fT.x, 0.0, fT.y) : vec3(1.0, 0.0, 0.0);
       vec3 fAy = fUpright ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, 1.0);
       if (fSlot == ${SLOT.body} && fUpright) {
-        fC *= texture2D(uSiding, vec2(fAlong, vFPos.y) / 1.6).rgb * 1.12;
-        // satin house paint, chalkier in patches
-        fRoughK = 0.66 + 0.16 * fVNoise(fS * 1.3 + vSeed * 40.0);
+        vec3 fSid = texture2D(uSiding, vec2(fAlong, vFPos.y) / 1.6).rgb;
+        fC *= fSid * 1.12;
+        // satin house paint, chalkier where the siding is weathered (its darker shade)
+        fRoughK = 0.62 + 0.5 * clamp(0.6 - fLuma(fSid), 0.0, 0.4);
       } else if (fSlot >= ${SLOT.trim} && fSlot <= ${SLOT.door}) {
         // gloss trim paint, dulled where weather and hands wear it
         float fWear = smoothstep(0.35, 0.85, fVNoise(fS * 2.3 + vSeed * 40.0));
@@ -167,9 +173,14 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
         // troweled stucco: a soft mottle, never a pattern; trowel swirls and sand grain in relief
         // (they show in a raking sun), rougher where the sand stands out
         vec3 fTr = fVNoiseD(fS * 7.0 + 3.0);
-        vec3 fSand = fVNoiseD(fS * 90.0);
-        fC *= 0.95 + 0.07 * fVNoise(fS * 3.0) + 0.04 * fVNoise(fS * 11.0) + 0.05 * (fSand.x - 0.5) * fNear(90.0);
-        vec2 fG = fTr.yz * 0.06 * fNear(7.0) + fSand.yz * 0.06 * fNear(90.0);
+        fC *= 0.95 + 0.07 * fVNoise(fS * 3.0) + 0.04 * fTr.x;
+        vec2 fG = fTr.yz * 0.06 * fNear(7.0);
+        float fSandK = fNear(90.0);
+        if (fSandK > 0.0) {
+          vec3 fSand = fVNoiseD(fS * 90.0);
+          fC *= 1.0 + 0.05 * (fSand.x - 0.5) * fSandK;
+          fG += fSand.yz * 0.06 * fSandK;
+        }
         fBendW = -(fG.x * fAx + fG.y * fAy);
         fRoughK = 0.84 + 0.1 * fTr.x;
       } else if (fSlot == ${SLOT.stone}) {
@@ -191,31 +202,40 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
       } else if (fSlot == ${SLOT.gravel}) {
         // tar and gravel: rounded stones up close, each its own tone, tar between them (gone once a
         // pixel covers them), weathered patches
-        vec2 fG2 = vFPos.xz * 55.0;
-        vec2 fCi = floor(fG2);
-        vec2 fF = fract(fG2);
-        float fD1 = 8.0;
-        vec2 fTo = vec2(0.0);
-        vec2 fCell = fCi;
-        for (int j = -1; j <= 1; j++) {
-          for (int i = -1; i <= 1; i++) {
-            vec2 fO = vec2(float(i), float(j));
-            vec2 fR = fO + 0.2 + 0.6 * vec2(fHash(fCi + fO), fHash(fCi + fO + 17.0)) - fF;
-            float fDd = dot(fR, fR);
-            if (fDd < fD1) { fD1 = fDd; fTo = fR; fCell = fCi + fO; }
-          }
-        }
         float fFine = fNear(55.0);
-        // further off, a speckle until that too is under a pixel
-        float fSpeck = mix(1.0, 0.62 + 0.76 * (0.6 * fVNoise(vFPos.xz * 40.0) + 0.4 * fVNoise(vFPos.xz * 97.0)), 1.0 - smoothstep(0.012, 0.04, fPx));
-        float fH = fHash(fCell + 5.0);
-        float fStone = 1.0 - smoothstep(0.36, 0.52, sqrt(fD1));
-        float fH2 = fHash(fCell + 9.0);
-        // grey, tan and the odd dark stone
-        vec3 fPebble = (fH2 < 0.45 ? vec3(0.86, 0.85, 0.83) : (fH2 < 0.85 ? vec3(1.1, 1.0, 0.86) : vec3(0.55, 0.53, 0.5))) * (0.82 + 0.36 * fH);
-        fC *= (0.86 + 0.26 * fVNoise(vFPos.xz * 1.3)) * mix(vec3(fSpeck), mix(vec3(0.5), fPebble, fStone), fFine);
-        fBendW = -vec3(fTo.x, 0.0, fTo.y) * 1.6 * fStone * fFine;
-        fRoughK = mix(0.92, mix(0.7, 0.88, fH), fStone * fFine);
+        vec3 fGr = vec3(1.0);
+        fRoughK = 0.92;
+        if (fFine > 0.0) {
+          // the nearest stone among the four cells round this point (each stone kept inside its cell)
+          vec2 fG2 = vFPos.xz * 55.0;
+          vec2 fCi = floor(fG2 - 0.5);
+          vec2 fF = fG2 - fCi;
+          float fD1 = 8.0;
+          vec2 fTo = vec2(0.0);
+          vec2 fCell = fCi;
+          for (int j = 0; j <= 1; j++) {
+            for (int i = 0; i <= 1; i++) {
+              vec2 fO = vec2(float(i), float(j));
+              vec2 fR = fO + 0.25 + 0.5 * vec2(fHash(fCi + fO), fHash(fCi + fO + 17.0)) - fF;
+              float fDd = dot(fR, fR);
+              if (fDd < fD1) { fD1 = fDd; fTo = fR; fCell = fCi + fO; }
+            }
+          }
+          float fH = fHash(fCell + 5.0);
+          float fH2 = fract(fH * 31.7);
+          float fStone = 1.0 - smoothstep(0.36, 0.52, sqrt(fD1));
+          // grey, tan and the odd dark stone
+          vec3 fPebble = (fH2 < 0.45 ? vec3(0.86, 0.85, 0.83) : (fH2 < 0.85 ? vec3(1.1, 1.0, 0.86) : vec3(0.55, 0.53, 0.5))) * (0.82 + 0.36 * fH);
+          fGr = mix(vec3(0.5), fPebble, fStone);
+          fBendW = -vec3(fTo.x, 0.0, fTo.y) * 1.6 * fStone * fFine;
+          fRoughK = mix(0.92, mix(0.7, 0.88, fH), fStone * fFine);
+        }
+        if (fFine < 1.0) {
+          // further off, a speckle until that too is under a pixel
+          float fSpeck = mix(1.0, 0.62 + 0.76 * (0.6 * fVNoise(vFPos.xz * 40.0) + 0.4 * fVNoise(vFPos.xz * 97.0)), 1.0 - smoothstep(0.012, 0.04, fPx));
+          fGr = mix(vec3(fSpeck), fGr, fFine);
+        }
+        fC *= (0.86 + 0.26 * fVNoise(vFPos.xz * 1.3)) * fGr;
       } else if (fSlot == ${SLOT.roof}) {
         // rows run along the slope, stacked up it
         vec2 fUv = vec2(fAlong, vFPos.y / max(0.3, length(vFNormal.xz))) / 1.3;
@@ -259,8 +279,9 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
         vec2 fM = vPane * vec2(${VINYL.w}, ${VINYL.h});
         vec2 fQ = vPane * vec2(${VINYL.sheets[0]}.0, ${VINYL.sheets[1]}.0);
         vec2 fSd = abs(fract(fQ + 0.5) - 0.5) * vec2(${VINYL.w / VINYL.sheets[0]}, ${VINYL.h / VINYL.sheets[1]});
-        float fSeam = max(1.0 - smoothstep(0.0012, 0.0012 + fPx, fSd.x), 1.0 - smoothstep(0.0012, 0.0012 + fPx, fSd.y));
-        float fLap = max(1.0 - smoothstep(0.01, 0.01 + fPx, fSd.x), 1.0 - smoothstep(0.01, 0.01 + fPx, fSd.y)) * step(0.5, fract(fQ.x + 0.5));
+        // each as strong as its share of the pixel: hairlines fade away with distance instead of drawing a grid
+        float fSeam = max(1.0 - smoothstep(0.0012, 0.0012 + fPx, fSd.x), 1.0 - smoothstep(0.0012, 0.0012 + fPx, fSd.y)) * min(1.0, 0.0024 / fPx);
+        float fLap = max(1.0 - smoothstep(0.01, 0.01 + fPx, fSd.x), 1.0 - smoothstep(0.01, 0.01 + fPx, fSd.y)) * step(0.5, fract(fQ.x + 0.5)) * min(1.0, 0.02 / fPx);
         vec3 fW = fVNoiseD(fM * 4.0);
         vec3 fW2 = fVNoiseD(fM * vec2(1.5, 9.0) + 4.0); // wrinkles running down each sheet
         float fNearSeam = 1.0 - smoothstep(0.0, 0.12, min(fSd.x, fSd.y));
