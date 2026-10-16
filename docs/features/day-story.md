@@ -1,13 +1,15 @@
 # F01 · Day story
 
-Last updated: 2026-10-15 · Status: done
+Last updated: 2026-10-16 · Status: done
 
 ## What it does
 - The page is one day in San Francisco: 06:00 to 22:00, then "tomorrow".
 - Each scroll section is one chapter: one place, one job Cuso does.
 - The camera rests while you read a chapter, then flies to the next one.
-- The top rail shows the time. Click a time to jump there (desktop): the page snaps to the chapter, the camera flies there in 1.6 to 4 s, longer the farther it really goes, so it never rushes (under 60 units a second; it peaked over 200 when every jump took 1.3 s). It flies one eased arc: across, up and the aim move together. It arcs only over roofs its path crosses, rising first only when a tall building stands right beside the start (`flight.ts`). The aim turns the short way round as the camera crosses, so it never swings back and never looks more than about 45 degrees down. Before (fixed 2026-10-15), the aim point was blended on its own: on rise-first flights it ran ahead of the camera, so 06:00 to 09:00 turned, turned back and turned again (a bounce), and near-opposite shots looked straight down (85 degrees, 09:00 to 15:00). Tested for every pair of shots, desktop and phone. A second click flies on without a jerk, the light cross-fades the short way round the clock, and Cuso pops in 3.5 units short of his spot (never mid-jump, never where the Union Square cable car runs) and walks or hops the last steps (`goToChapter` in `navigate.ts`, `arrival()` in `routes.ts`, `navigation.test.ts`). Explore pins and Ask Cuso use the same jump. Reduced motion cuts straight to the shot. Scrolling still walks the full route.
-- On touch screens one swipe moves one chapter: the page snaps to chapter starts and can only rest where the camera rests, never halfway between two places.
+- **Fly mode (the default, phones too):** one scroll moves one chapter, the same flight as clicking the next time on the rail. A mouse notch, a trackpad flick (its whole inertia tail counts as one), a swipe, or a key (arrows, Page Up/Down, Space, Home, End) all step once (`src/lib/fly.ts`). A new flick inside a long inertia tail (twice as strong, 0.6 s after the step) counts as a new step; a 0.2 s pause in wheel events ends a gesture. Scrolls the page did not make (the scrollbar, an anchor, Tab moving focus into a card, find in page) fly to the chapter they reach, then the page snaps to its start once it settles. A reload or deep link lands on the chapter the page shows, with no flight. Pinch zoom and Explore are left alone; keys do nothing while you type.
+- **Walk mode (a setting):** the gear in the top bar opens Settings with one switch, "Walk mode". On, scrolling is the time of day again and Cuso walks the streets continuously, as before 2026-10-16. Remembered per visitor (`cmo.walk` in localStorage; blocked storage means fly). The rail, Explore pins and Ask Cuso fly in both modes.
+- The top rail shows the time. Click a time to jump there (desktop): the page snaps to the chapter, the camera flies there in 1.6 to 4 s, longer the farther it really goes, so it never rushes (under 60 units a second; it peaked over 200 when every jump took 1.3 s). It flies one eased arc: across, up and the aim move together. It arcs only over roofs its path crosses, rising first only when a tall building stands right beside the start (`flight.ts`). The aim turns the short way round as the camera crosses, so it never swings back and never looks more than about 45 degrees down. Before (fixed 2026-10-15), the aim point was blended on its own: on rise-first flights it ran ahead of the camera, so 06:00 to 09:00 turned, turned back and turned again (a bounce), and near-opposite shots looked straight down (85 degrees, 09:00 to 15:00). Tested for every pair of shots, desktop and phone. A second click flies on without a jerk, the light cross-fades the short way round the clock, and Cuso pops in 3.5 units short of his spot (never mid-jump, never where the Union Square cable car runs) and walks or hops the last steps (`goToChapter` in `navigate.ts`, `arrival()` in `routes.ts`, `navigation.test.ts`). Explore pins and Ask Cuso use the same jump. Reduced motion cuts straight to the shot. In walk mode, scrolling walks the full route.
+- Walk mode on touch screens: one swipe moves one chapter: the page snaps to chapter starts and can only rest where the camera rests, never halfway between two places.
 
 | Time | Place | Job |
 | --- | --- | --- |
@@ -23,9 +25,10 @@ Last updated: 2026-10-15 · Status: done
 ## How it works
 - All chapter content and camera shots: `src/content/day.ts` (one source of truth).
 - `frame()` places the camera like a photographer: `yaw` = where the camera stands, `side` = Cuso on the right (+) or left (−) third.
-- Scroll position → `progress` (in sections) → `travel()` → from/to chapter + eased `t` (`src/lib/time.ts`).
+- Fly mode: `progress` is always a whole chapter, set by `goToChapter` (`navigate.ts`); `attachFly()` in `fly.ts` takes over wheel, touch and keys (`preventDefault`) while the page is in Story. Pure parts: `wheelStep`, `keyTarget`, `swipeStep` (`fly.test.ts`).
+- Walk mode: scroll position → `progress` (in sections) → `travel()` → from/to chapter + eased `t` (`src/lib/time.ts`).
 - Each section is `SECTION_VH` (1.6) screens tall (`svh`). The first 45% is rest, the rest is travel. `sectionHeight()` measures the first section, so phone browser bars sliding in and out do not shift the story.
-- Touch snapping: `scroll-snap-type: y mandatory` under `(pointer: coarse)` in `globals.css`. A section is taller than the screen, so any spot in its first 0.6 screens is a valid rest (all inside the rest part).
+- Touch snapping (walk mode only): `scroll-snap-type: y mandatory` under `(pointer: coarse)` and `html[data-walk]` in `globals.css`. Fly mode needs none: it moves the page itself. A section is taller than the screen, so any spot in its first 0.6 screens is a valid rest (all inside the rest part).
 
 ## Phones
 - Layout: cards sit at the bottom, one column, compact type (`md:` keeps desktop as it was). Detail cards show only where they are the thing to do (09:00 draft, 22:00 weekly note). The weekly note folds its list away; tap the headline to open it.
@@ -37,8 +40,12 @@ Last updated: 2026-10-15 · Status: done
 - Every chapter heading comes into view as you scroll (e2e).
 - The rail highlights the current chapter (e2e, desktop).
 - Phones: in every chapter Cuso is on screen and no card covers him, cards fit the screen, no sideways scroll (e2e, mobile). Gap finder and phone shots (unit, `framing.test.ts`).
-- Touch: a scroll always comes to rest inside a chapter's rest part (e2e, mobile).
+- Walk mode on touch: a scroll always comes to rest inside a chapter's rest part (e2e, mobile).
 - Time moves forward; every chapter has a poster (unit).
+- Fly mode: a wheel notch or key lands exactly on the next chapter (e2e, desktop); one swipe moves one chapter however far the finger goes (e2e, mobile); wheel gestures, inertia, keys, swipes, outside scrolls and the remembered setting (unit, `fly.test.ts`).
+- Walk mode: the switch in Settings brings back free scrolling and survives a reload (e2e, desktop; unit, `components.test.tsx`).
 
 ## Gotchas
 - Copy rules from the brand guide: plain words, no em dashes. A unit test checks the dashes.
+- Phone top bar: the Explore toggle is an icon (map / close) since 2026-10-16, so the settings gear fits beside "Join the waitlist" at 375 px. Words there pushed the waitlist button off screen.
+- e2e that checks the page rests on a chapter must allow sub-pixel `scrollY` on phones (device pixel ratio 2.625): use `toBeCloseTo`.

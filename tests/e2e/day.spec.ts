@@ -217,9 +217,75 @@ test("on a phone, the weekly note folds open", async ({ page, isMobile }) => {
   await expect(page.getByText("Morning posts got the most saves", { exact: false })).toBeVisible();
 });
 
-test("on touch, a scroll always comes to rest on a chapter, never between two", async ({ page, isMobile }) => {
+const sectionTop = (page: Page) => page.evaluate(() => scrollY / document.querySelector<HTMLElement>("main > section")!.offsetHeight);
+
+async function walkMode(page: Page, on: boolean) {
+  await page.getByRole("button", { name: "Settings" }).click();
+  const walk = page.getByRole("switch", { name: "Walk mode" });
+  if ((await walk.getAttribute("aria-checked")) !== String(on)) await walk.click();
+  await expect(walk).toHaveAttribute("aria-checked", String(on));
+  await page.keyboard.press("Escape");
+}
+
+test("fly mode: a scroll or a key flies one chapter and lands on it", async ({ page, isMobile }) => {
+  test.skip(isMobile, "phones swipe (next test)");
+  await open(page, "?static");
+  await page.mouse.move(700, 600);
+  await page.mouse.wheel(0, 100);
+  await expect(page.getByRole("heading", { name: "Learns your brand" })).toBeInViewport();
+  await expect.poll(() => sectionTop(page)).toBeCloseTo(1, 2); // on the chapter, not part way
+  await page.waitForTimeout(400); // a pause: the next notch is a new gesture
+  await page.mouse.wheel(0, 100);
+  await expect.poll(() => sectionTop(page)).toBeCloseTo(2, 2);
+  await expect(page.getByRole("navigation", { name: "Time of day" }).getByRole("button", { name: /09:00/ })).toHaveAttribute("aria-current", "step");
+  await page.waitForTimeout(400);
+  await page.mouse.wheel(0, -100);
+  await expect.poll(() => sectionTop(page)).toBeCloseTo(1, 2);
+  await page.keyboard.press("End");
+  await expect(page.getByRole("heading", { name: "Your city. Your CMO." })).toBeInViewport();
+  await page.keyboard.press("Home");
+  await expect(page.getByRole("heading", { name: "Marketing, on autopilot." })).toBeInViewport();
+});
+
+test("fly mode on a phone: one swipe, one chapter, however far the finger goes", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "touch");
+  await open(page, "?static");
+  const cdp = await page.context().newCDPSession(page);
+  const swipe = async (from: number, to: number) => {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 200, y: from }] });
+    for (let i = 1; i <= 8; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 200, y: from + ((to - from) * i) / 8 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+  await swipe(700, 150);
+  await expect(page.getByRole("heading", { name: "Learns your brand" })).toBeInViewport();
+  await expect.poll(() => sectionTop(page)).toBeCloseTo(1, 2);
+  await swipe(650, 300);
+  await expect.poll(() => sectionTop(page)).toBeCloseTo(2, 2);
+  await swipe(300, 650);
+  await expect.poll(() => sectionTop(page)).toBeCloseTo(1, 2);
+});
+
+test("walk mode, in settings, brings back the scroll walk and is remembered", async ({ page, isMobile }) => {
+  test.skip(isMobile, "phones snap in walk mode (next test)");
+  await open(page, "?static");
+  await walkMode(page, true);
+  await page.mouse.move(700, 600);
+  await page.mouse.wheel(0, 300);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(300); // the page scrolls freely, part way into the day
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Marketing, on autopilot." })).toBeVisible();
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(page.getByRole("switch", { name: "Walk mode" })).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+  await walkMode(page, false);
+  await page.mouse.wheel(0, 100);
+  await expect.poll(() => sectionTop(page)).toBeCloseTo(1, 2); // fly again
+});
+
+test("walk mode on touch: a scroll always comes to rest on a chapter, never between two", async ({ page, isMobile }) => {
   test.skip(!isMobile, "snapping is for touch screens");
   await open(page, "?static");
+  await walkMode(page, true);
   await goToChapter(page, 1);
   await page.mouse.move(200, 400);
   await page.mouse.wheel(0, 500); // stops part way: snaps back into the chapter or on to the next
