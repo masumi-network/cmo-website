@@ -317,7 +317,7 @@ const FINISH: Record<Solid, [string, WoodLook]> = {
   cream: ["#efe2c4", { ...PAINT, rough: [0.38, 0.55] }],
   gold: ["#c9a24c", WOOD_LOOKS.brass],
   dark: ["#2b2725", { ...PAINT, rough: [0.5, 0.72], metal: 0.35 }],
-  wood: ["#946640", WOOD_LOOKS.teak],
+  wood: ["#9c7444", WOOD_LOOKS.teak],
   roof: ["#6a615a", { ...PAINT, contrast: 0.15, rough: [0.7, 0.92] }],
 };
 
