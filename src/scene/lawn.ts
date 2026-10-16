@@ -37,6 +37,9 @@ const trail = (width: number, ...ctrl: [number, number][]): Trail => ({ width, p
 
 // Park interiors (inside the kerb): Golden Gate x -64.6..-37.4, z 16.4..21.6; Twin Peaks x -48.6..-21.4,
 // z 26.4..41.6; Pioneer x -0.6..10.6, z -33.6..-18.4; Dolores x -16.6..-5.4, z 36.4..41.6.
+/** Pioneer Park's walk up from the south, to the ring round Coit Tower's plaza. Cuso takes it to 23:00 (routes.ts). */
+export const PIONEER_WALK = trail(0.42, [0.6, -18.5], [1.3, -20.4], [3.4, -21.8], [2.9, -23.9]);
+
 export const TRAILS: Trail[] = [
   // Golden Gate Park: a long meandering walk, and a crossing where x -51 used to run.
   trail(0.55, [-64.5, 18.6], [-60, 19.6], [-55, 18.2], [-49, 19.6], [-43, 18], [-37.5, 19.2]),
@@ -46,7 +49,7 @@ export const TRAILS: Trail[] = [
   trail(0.4, [-34.4, 26.5], [-35.6, 29], [-34.6, 31.6], [-35.1, 34], [-35.6, 36.4], [-34.2, 39], [-34.9, 41.5]),
   // Pioneer Park: a ring round Coit Tower's plaza, a walk up from the south and the steps from the east.
   trail(0.42, ...Array.from({ length: 25 }, (_, i): [number, number] => [2 + 1.95 * Math.cos((i / 24) * Math.PI * 2), -26 + 1.95 * Math.sin((i / 24) * Math.PI * 2)])),
-  trail(0.42, [0.6, -18.5], [1.3, -20.4], [3.4, -21.8], [2.9, -23.9]),
+  PIONEER_WALK,
   trail(0.38, [10.5, -27.2], [8, -26.4], [5.6, -26.9], [3.9, -26.4]),
   // Dolores Park: a long diagonal and a short cross walk.
   trail(0.5, [-16.5, 40.8], [-13.4, 39.4], [-10.6, 38.6], [-7.6, 37.6], [-5.5, 37]),

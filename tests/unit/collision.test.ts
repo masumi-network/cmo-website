@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { chapters } from "@/content/day";
 import { heightAt, surfaceAt } from "@/lib/terrain";
 import { CAR } from "@/scene/cable-car";
+import { BENCHES, COIT, LAMPS, coitSeat } from "@/scene/coit-tower";
 import { FERRY, FERRY_CAR } from "@/scene/ferry";
 import { UNION } from "@/scene/union-square";
 import { ACCEL, BRAKE, LINE, crossings, cusoMayGo, holdsAtUnion, startCar, stepCar, type CableCar } from "@/scene/cable-line";
@@ -141,6 +142,16 @@ function landmarkSolids(): Solid[] {
     out.push(around("Ferry Building plinth", FERRY.x, FERRY.z, plinth[0] / 2, plinth[2] / 2, -0.6, plinth[1]));
     out.push(around("Ferry Building", FERRY.x, FERRY.z, hall[0] / 2, hall[2] / 2, plinth[1], hall[1]));
     out.push(around("Ferry Building tower", FERRY.x, FERRY.z, tower[0] / 2, tower[0] / 2, hall[1], tower[1]));
+  }
+
+  // 23:00 Coit Tower: the lobby, the shaft, and the plaza's lamps and benches (local to the plaza centre).
+  {
+    const g = coitSeat().top;
+    const { lobby, shaft } = COIT;
+    out.push(around("Coit Tower lobby", COIT.x, COIT.z, lobby.w / 2 + lobby.podium, lobby.w / 2 + lobby.podium, g, g + lobby.h));
+    out.push(around("Coit Tower shaft", COIT.x, COIT.z, shaft.r, shaft.r, g, g + COIT.top));
+    for (const [x, z] of LAMPS) out.push(around("Coit Tower lamp", COIT.x + x, COIT.z + z, 0.03, 0.03, g, g + LAMP.height * 0.12));
+    for (const [x, z] of BENCHES) out.push(around("Coit Tower bench", COIT.x + x, COIT.z + z, 0.1, 0.1, g, g + 0.11));
   }
 
   // 22:00 pier: the deck (from below) and its railing.

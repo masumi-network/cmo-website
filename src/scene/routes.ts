@@ -10,6 +10,7 @@
 import { chapters, type ChapterId, type Vec3 } from "@/content/day";
 import { surfaceAt } from "@/lib/terrain";
 import { SPEED } from "./gait";
+import { PIONEER_WALK } from "./lawn";
 import { STREET, WALK_OFFSET, WALK_X, WALK_Z, X_STREETS, Z_STREETS, streetDrop } from "./grid";
 
 export type Mode = "walk" | "dash" | "jump";
@@ -47,10 +48,12 @@ const APPROACH: Record<ChapterId, Step[]> = {
   seo: [ground(6.5, lineZ(-6)), ground(6.5, -7.0), { p: [6.5, PYRAMID_TIP + 0.5, -10.1], how: "jump" }],
   newsletter: [ground(19.15, lineZ(4))],
   night: [ground(lineX(29), 24.2), ground(30.2, 24.2), { p: [31.4, 0.55, 24.2], how: "jump" }],
+  // up the x -3 sidewalk, along the park's south side, up Pioneer Park's walk, then a hop up the plaza's wall
+  pricing: [ground(lineX(-3), lineZ(-6)), ground(lineX(-3), -17.6), ground(0.6, -17.6), ...PIONEER_WALK.points.map(([x, z]) => ground(x, z))],
   join: ROOFTOP_WAY,
 };
-/** Moves onto the spot that are jumps (the pyramid tip). */
-const JUMP_TO_SPOT: ChapterId[] = ["seo"];
+/** Moves onto the spot that are jumps (the pyramid tip, Coit Tower's plaza). */
+const JUMP_TO_SPOT: ChapterId[] = ["seo", "pricing"];
 
 type Node = { x: number; z: number; lines: string[] };
 

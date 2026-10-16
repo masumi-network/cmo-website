@@ -97,6 +97,26 @@ test("the rail jumps to a chapter", async ({ page, isMobile }) => {
   await expect(page.getByRole("heading", { name: "Runs your ads" })).toBeInViewport();
 });
 
+test("23:00 pricing: the rail and a deep link land on the price card; a plan's Join reaches the signup", async ({ page, isMobile }) => {
+  await open(page, "?static#chapter-pricing");
+  await expect(page.getByRole("heading", { name: "Hire Cuso" })).toBeInViewport();
+  const plans = page.getByRole("list", { name: isMobile ? "Plans, compact" : "Plans" });
+  await expect(plans).toBeVisible();
+  await expect(plans).toContainText("$300");
+  await expect(plans).toContainText("$800");
+  const card = page.locator("#chapter-pricing [data-card]");
+  const box = (await card.boundingBox())!;
+  const { height, width } = page.viewportSize()!;
+  expect(box.y >= 0 && box.y + box.height <= height && box.x >= 0 && box.x + box.width <= width, "the card fits the screen").toBe(true);
+  await shot(page, "13-pricing");
+  await plans.getByRole("button", { name: "Join the waitlist" }).first().click();
+  await expect(page.getByRole("heading", { name: "Your city. Your CMO." })).toBeInViewport();
+  await expect(page.locator("#waitlist-finale-email")).toBeFocused();
+  if (isMobile) return; // no rail on phones
+  await page.getByRole("navigation", { name: "Time of day" }).getByRole("button", { name: /23:00/ }).click();
+  await expect(page.getByRole("heading", { name: "Hire Cuso" })).toBeInViewport();
+});
+
 test("the Ask bar never covers a card", async ({ page, isMobile }) => {
   test.skip(isMobile, "the ask bar is desktop only");
   for (const width of [1024, 1280, 1440, 1920]) {

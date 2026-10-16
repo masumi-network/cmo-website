@@ -25,6 +25,7 @@ feature? Update its doc and its row in the same change.
 | F11 | Site check: Cuso reviews your site and reports back | planned | ok | [site-check](site-check.md) | | |
 | F12 | Photo-real mode: removed 2026-10-15 (traced plates, live Explore trace, light probes, the settings switch). The test keeps it out | removed | ok | [photoreal](photoreal.md) | | `tests/unit/photoreal-removed.test.ts` |
 | F13 | Photo look: per-hour light, post, sky and foreground, tuned at every chapter | v0 | ok | [photo-look](photo-look.md) | `src/lib/time.ts`, `src/scene/sky.ts`, `src/scene/atmosphere.tsx`, `src/scene/reflections.ts`, `src/scene/foreground.tsx`, `src/lib/look.ts`, `src/scene/post.tsx`, `src/scene/grade.ts`, `src/content/day.ts`, `src/scene/backdrop.tsx`, `src/scene/skyline.ts`, `src/lib/haze.ts`, `src/scene/haze.ts` | `tests/unit/time.test.ts`, `tests/unit/sky.test.ts`, `tests/unit/atmosphere.test.ts`, `tests/unit/reflections.test.ts`, `tests/unit/foreground.test.ts`, `tests/unit/look.test.ts`, `tests/unit/framing.test.ts`, `tests/unit/backdrop.test.ts`, `tests/unit/haze.test.ts` |
+| F14 | Pricing: the 23:00 stop at Coit Tower, the three plans, plan events | done | ok | [pricing](pricing.md) | `src/content/pricing.ts`, `src/components/pricing.tsx`, `src/scene/coit-tower.tsx`, `src/scene/routes.ts`, `src/scene/lawn.ts`, `src/scene/flight.ts` | `tests/unit/components.test.tsx`, `tests/unit/coit-tower.test.ts`, `tests/unit/collision.test.ts`, `tests/unit/ask.test.ts`, `tests/unit/ground.test.ts`, `tests/e2e/day.spec.ts` |
 
 ## How we verify
 

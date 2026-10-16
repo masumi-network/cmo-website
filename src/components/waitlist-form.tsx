@@ -6,11 +6,15 @@ import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCity } from "@/lib/store";
 import { track } from "@/lib/track";
 import { normalizeWebsite, waitlistSchema } from "@/lib/waitlist";
 
 /** Which form: the hero card (06:00) or the finale (tomorrow 06:00). Ids and analytics use it. */
 export type WaitlistSource = "hero" | "finale";
+
+/** Put the cursor in a form's email field, without scrolling (the page is already there). */
+export const focusSignup = (source: WaitlistSource) => document.getElementById(`waitlist-${source}-email`)?.focus({ preventScroll: true });
 
 type Status = { kind: "idle" } | { kind: "sending" } | { kind: "error"; message: string };
 type Step = "email" | "website" | "done";
@@ -53,7 +57,8 @@ export function WaitlistForm({ source, className }: { source: WaitlistSource; cl
     if (error) return fail(error.startsWith("No connection") ? "network" : "server", error);
     setStatus({ kind: "idle" });
     setStep("website");
-    track("sign_up", { method: "waitlist", source });
+    const plan = useCity.getState().plan;
+    track("sign_up", { method: "waitlist", source, ...(plan && { plan }) });
   }
 
   async function addSite(event: React.FormEvent<HTMLFormElement>) {

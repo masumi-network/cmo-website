@@ -4,6 +4,7 @@ import { LocateFixed, Map as MapIcon, Settings2, X } from "lucide-react";
 import { Popover, Switch } from "radix-ui";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import { focusSignup } from "@/components/waitlist-form";
 import { chapterIndex, chapters } from "@/content/day";
 import { saveWalk } from "@/lib/fly";
 import { track } from "@/lib/track";
@@ -27,7 +28,7 @@ export function Hud({ onGo }: { onGo: (index: number) => void }) {
   const join = () => {
     track("cta_click", { source: "topbar", chapter: chapter.id });
     const hero = active === 0;
-    const field = () => document.getElementById(hero ? "waitlist-hero-email" : "waitlist-finale-email")?.focus({ preventScroll: true });
+    const field = () => focusSignup(hero ? "hero" : "finale");
     setMode("story");
     if (!hero) onGo(chapterIndex("join"));
     field();
@@ -49,7 +50,8 @@ export function Hud({ onGo }: { onGo: (index: number) => void }) {
         </button>
 
         {mode === "story" && (
-          <nav aria-label="Time of day" className="pointer-events-auto absolute left-1/2 hidden -translate-x-1/2 gap-0.5 rounded-full bg-card/92 p-1 backdrop-blur-sm lg:flex">
+          // Centred in the room between the wordmark and the buttons (justify-between): eight stops no longer fit centred on the page under 1440 px.
+          <nav aria-label="Time of day" className="pointer-events-auto hidden gap-0.5 rounded-full bg-card/92 p-1 backdrop-blur-sm lg:flex">
             {RAIL.map((c) => {
               const i = chapterIndex(c.id);
               const on = i === active;
@@ -60,12 +62,13 @@ export function Hud({ onGo }: { onGo: (index: number) => void }) {
                   aria-current={on ? "step" : undefined}
                   onClick={() => onGo(i)}
                   className={cn(
-                    "flex h-11 min-w-16 cursor-pointer flex-col items-center justify-center rounded-full px-2.5 transition-colors",
+                    "flex h-11 min-w-12 cursor-pointer flex-col items-center justify-center rounded-full px-2 transition-colors xl:min-w-16 xl:px-2.5",
                     on ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted",
                   )}
                 >
                   <span className="font-mono text-xs leading-none">{c.time}</span>
-                  <span className="text-[11px] leading-snug opacity-80">{c.label}</span>
+                  {/* Under 1280 px, times only (the label stays for screen readers). */}
+                  <span className="sr-only text-[11px] leading-snug opacity-80 xl:not-sr-only">{c.label}</span>
                 </button>
               );
             })}

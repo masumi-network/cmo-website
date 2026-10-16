@@ -74,7 +74,8 @@ export function coitSeat() {
 // Plaza furniture, local to the plaza centre (x east, z south). Angles are atan2(z, x).
 const polar = (deg: number, r: number): [number, number] => [r * Math.cos((deg * Math.PI) / 180), r * Math.sin((deg * Math.PI) / 180)];
 /** Acorn lamps round the parapet, and benches facing the view. */
-export const LAMPS = [30, 90, 150, -150, -90, -30].map((a) => polar(a, 1.34));
+// None due south (90): that is where Cuso stands at 23:00 (the pricing chapter, day.ts).
+export const LAMPS = [30, 150, -150, -90, -30].map((a) => polar(a, 1.34));
 export const BENCHES = [0, 60, 120, -120, -60].map((a) => polar(a, 1.26));
 const LAMP_SCALE = 0.12;
 /** The walks: out of the west door, and round the base. */

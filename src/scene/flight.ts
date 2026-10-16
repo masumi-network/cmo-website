@@ -50,7 +50,8 @@ export function flightPlan(a: Vector3, b: Vector3): Plan {
     }
     if (plan.lift <= 40) return plan;
   }
-  return { lift: 40, hold: 0.24 };
+  // Nothing calmer clears it: rise first, high (09:00 to 23:00 starts beside a 30-unit tower on its way north).
+  return { lift: 46, hold: 0.24 };
 }
 
 /**

@@ -2,6 +2,7 @@
 // inside useFrame via getState(), so scrolling never re-renders the canvas.
 
 import { create } from "zustand";
+import type { PlanId } from "@/content/pricing";
 import { sampleBrand } from "@/content/sample";
 
 export type Mode = "story" | "explore";
@@ -29,6 +30,8 @@ type CityState = {
   jump: Jump | null;
   /** Walk mode (a setting): scrolling walks Cuso the whole way. Off is fly mode, one scroll one chapter (fly.ts). */
   walk: boolean;
+  /** The plan whose Join the visitor pressed (23:00): sent with the signup to analytics. */
+  plan: PlanId | null;
   setProgress: (progress: number) => void;
   setMode: (mode: Mode) => void;
   setWebsite: (website: string) => void;
@@ -38,6 +41,7 @@ type CityState = {
   /** Land on chapter `index` now (see Jump). */
   jumpTo: (index: number, hour: number, time: number, cut: boolean) => void;
   setWalk: (walk: boolean) => void;
+  setPlan: (plan: PlanId) => void;
 };
 
 export const initialCity = {
@@ -50,6 +54,7 @@ export const initialCity = {
   cheer: 0,
   jump: null as Jump | null,
   walk: false,
+  plan: null as PlanId | null,
 };
 
 export const useCity = create<CityState>((set) => ({
@@ -62,4 +67,5 @@ export const useCity = create<CityState>((set) => ({
   say: (reply) => set({ reply }),
   jumpTo: (index, hour, time, cut) => set({ progress: index, jump: { index, at: performance.now() / 1000, hour, time, cut } }),
   setWalk: (walk) => set({ walk }),
+  setPlan: (plan) => set({ plan }),
 }));

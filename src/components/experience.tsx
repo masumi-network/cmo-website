@@ -169,7 +169,7 @@ export function Experience() {
   useEffect(() => track("chapter_view", { chapter: chapters[active].id, index: active, walk: useCity.getState().walk }), [active]);
 
   const id = chapters[active].id;
-  const showAsk = mode === "story" && id !== "arrive" && id !== "join";
+  const showAsk = mode === "story" && id !== "arrive" && id !== "pricing" && id !== "join"; // the price card takes the bottom
 
   return (
     <>

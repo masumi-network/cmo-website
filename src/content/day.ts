@@ -9,6 +9,7 @@ export type ChapterId =
   | "seo"
   | "newsletter"
   | "night"
+  | "pricing"
   | "join";
 
 import { at, heightAt } from "@/lib/terrain";
@@ -19,6 +20,9 @@ export type Vec3 = readonly [number, number, number];
 const RUSSIAN_HILL_ROOF = 8 + heightAt(-14, -10.4);
 const UNION_SQUARE_ROOF = 5 + heightAt(7, 9);
 const PYRAMID_TIP = 28 + heightAt(6.5, -11);
+/** Coit Tower's plaza top (centre 2, -26, radius 1.5): the highest ground under it, as coitSeat() in coit-tower.tsx. */
+const COIT_PLAZA =
+  Math.max(...Array.from({ length: 11 * 48 }, (_, k) => heightAt(2 + (k % 11) * 0.15 * Math.cos(((k / 11) | 0) * (Math.PI / 24)), -26 + (k % 11) * 0.15 * Math.sin(((k / 11) | 0) * (Math.PI / 24))))) + 0.03;
 
 type Shot = { position: Vec3; target: Vec3 };
 
@@ -178,6 +182,23 @@ export const chapters: readonly Chapter[] = [
     spot: [33.6, 0.55, 24.2],
     camera: frame([33.6, 0.55, 24.2], { yaw: 315, distance: 6.5, height: 1.1, look: 1.3, side: -0.3 }),
     phone: frame([33.6, 0.55, 24.2], { yaw: 315, distance: 5, height: 5.5, look: 0.6, side: 0 }),
+    dark: true,
+  },
+  {
+    id: "pricing",
+    hour: 23,
+    time: "23:00",
+    label: "Pricing",
+    title: "Hire Cuso",
+    body: "Pick the job that fits. No setup fees. Cancel anytime.",
+    place: "Coit Tower",
+    bubble: "Ready when you are.",
+    poster: "/posters/pricing.jpg",
+    // On the plaza's south edge, between two benches (a lamp gave him its place); the lit tower and the Golden Gate behind him.
+    // High in the shot (look below him): the price card takes the bottom of the screen.
+    spot: [2, COIT_PLAZA, -24.95],
+    camera: frame([2, COIT_PLAZA, -24.95], { yaw: 45, distance: 16, height: 4, look: -1.2, side: 0 }), // height 3 drops a house on the hill (blocksView) and reshuffles the rest
+    phone: frame([2, COIT_PLAZA, -24.95], { yaw: 45, distance: 14, height: 3, look: 0, side: 0 }),
     dark: true,
   },
   {

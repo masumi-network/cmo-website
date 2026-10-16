@@ -58,7 +58,7 @@ test("the costliest views stay within their draw call and triangle budget", { ta
   const mode = isMobile ? CEILING.lite : CEILING.full;
   await watchRenderer(page);
   // The costliest views (most triangles, most draw calls, the mirror's widest), to keep the run short.
-  const views = [chapterIndex("arrive"), chapterIndex("social"), chapterIndex("newsletter"), "explore" as const];
+  const views = [chapterIndex("arrive"), chapterIndex("social"), chapterIndex("newsletter"), chapterIndex("pricing"), "explore" as const];
   for (const view of views) {
     // Load already scrolled to the chapter, so Cuso starts there (the walk takes minutes in software WebGL).
     await page.goto("/?v=3d"); // phones: never the posters-only half of the A/B test

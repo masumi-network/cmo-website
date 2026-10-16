@@ -7,6 +7,7 @@ import { ArrowDown } from "lucide-react";
 import { cn } from "cn";
 import { AdsCard, ApprovalCard, BrandBrainCard, Card, ChapterCard, NewsletterCard, RankCard, WeeklyNote } from "@/components/cards";
 import { BrandForm } from "@/components/brand-form";
+import { Pricing } from "@/components/pricing";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { chapters, type Chapter, type ChapterId } from "@/content/day";
 import { SECTION_VH } from "@/lib/navigate";
@@ -93,7 +94,7 @@ export function Chapters({ onGo }: { onGo: (index: number) => void }) {
             style={{ height: last ? "100svh" : `${SECTION_VH * 100}svh` }}
           >
             <div className="sticky top-0 h-svh text-foreground">
-              {chapter.id === "arrive" ? <Hero chapter={chapter} onGo={onGo} /> : last ? <Finale chapter={chapter} /> : <Work chapter={chapter} />}
+              {chapter.id === "arrive" ? <Hero chapter={chapter} onGo={onGo} /> : last ? <Finale chapter={chapter} /> : chapter.id === "pricing" ? <Pricing chapter={chapter} onGo={onGo} /> : <Work chapter={chapter} />}
             </div>
           </section>
         );

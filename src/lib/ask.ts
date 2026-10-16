@@ -132,6 +132,18 @@ export const INTENTS: readonly Intent[] = [
     ],
   },
   {
+    id: "pricing",
+    chapter: "pricing",
+    terms: "price, prices, pricing, cost, how much, expensive, cheap, afford, fee, pay, payment, subscription, subscribe, billing, invoice, per month, monthly, free, trial, free trial, discount",
+    weak: "plan",
+    typos: true,
+    replies: [
+      { text: "Plans start at $300 a month. Come and see." },
+      { text: "Intern $300, Manager $800, Chief is custom." },
+      { text: "No setup fees. Cancel anytime. Here are the plans." },
+    ],
+  },
+  {
     id: "join",
     chapter: "join",
     terms:
@@ -141,17 +153,6 @@ export const INTENTS: readonly Intent[] = [
       { text: "I'm almost ready. Let me save you a spot." },
       { text: "Not open yet. Come, I'll put you on the list." },
       { text: "Join the waitlist and I start with your brand first." },
-    ],
-  },
-  {
-    id: "pricing",
-    terms: "price, prices, pricing, cost, how much, expensive, cheap, afford, fee, pay, payment, subscription, subscribe, billing, invoice, per month, monthly, free, trial, free trial, discount",
-    weak: "plan",
-    typos: true,
-    replies: [
-      { text: "No price yet. Join the waitlist to hear first." },
-      { text: "It's a subscription. Prices come at launch." },
-      { text: "You see your plan before you pay a thing." },
     ],
   },
   {

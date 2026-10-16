@@ -6,6 +6,7 @@
 import { Vector3, type BufferGeometry } from "three";
 import { describe, expect, it } from "vitest";
 import { heightAt } from "@/lib/terrain";
+import { chapters } from "@/content/day";
 import { BENCHES, COIT, KIND, LAMPS, WALKS, coitParts, coitSeat } from "@/scene/coit-tower";
 import { CLEAR, OBSTACLES, PARKS } from "@/scene/layout";
 import { TRAILS } from "@/scene/lawn";
@@ -139,5 +140,15 @@ describe("the plaza: lamps and benches", () => {
     for (const t of things) for (const w of WALKS) expect(toLine(t.x, t.z, w), `${t.what} on a walk`).toBeGreaterThan(t.r + 0.08);
     // the door walk leaves the west face
     expect(WALKS.some((w) => w.some(([x, z]) => Math.abs(x + COIT.lobby.w / 2) < 0.1 && Math.abs(z) < EPS))).toBe(true);
+  });
+});
+
+describe("the 23:00 stop", () => {
+  it("puts Cuso on the plaza top, clear of the lamps and benches", () => {
+    const spot = chapters.find((c) => c.id === "pricing")!.spot;
+    expect(spot[1]).toBeCloseTo(coitSeat().top, 6);
+    const [x, z] = [spot[0] - COIT.x, spot[2] - COIT.z];
+    for (const [px, pz] of [...LAMPS, ...BENCHES]) expect(Math.hypot(px - x, pz - z)).toBeGreaterThan(0.5);
+    expect(Math.hypot(x, z)).toBeLessThan(COIT.plaza); // on the plaza
   });
 });

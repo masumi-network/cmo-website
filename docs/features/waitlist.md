@@ -25,8 +25,9 @@ Last updated: 2026-10-16 · Status: done (needs the Vercel env vars) · Launch: 
 | `cta_click` | `source: topbar`, `chapter` | the top-bar Join |
 | `form_start` | `source: hero, finale` | first focus on that email field |
 | `form_error` | `source`, `kind: invalid, server, network, website` | a failed try |
-| `sign_up` | `method: waitlist`, `source` | on the list (as `main`, plus `source`) |
+| `sign_up` | `method: waitlist`, `source`, `plan` (after a plan's Join) | on the list (as `main`, plus `source`) |
 | `website_added` | `source` | the extra step saved |
+| `pricing_view` / `plan_open` / `plan_cta` | none / `plan` / `plan` | the 23:00 stop on screen (once a visit) / a phone row opened / a plan's button (F14) |
 | `explore_open`, `ask_cuso` (`intent`), `walk_mode` (`on`) | | the side paths |
 
 - Funnel in GA: `chapter_view` index 0 → `form_start` → `sign_up` by `source`; split by `phone_test` for the phone A/B test.

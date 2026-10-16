@@ -1,12 +1,13 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalCard, WeeklyNote } from "@/components/cards";
 import { AskBar } from "@/components/ask-bar";
 import { BrandForm } from "@/components/brand-form";
 import { Hud } from "@/components/hud";
+import { Pricing } from "@/components/pricing";
 import { WaitlistForm } from "@/components/waitlist-form";
-import { chapterIndex } from "@/content/day";
+import { chapterIndex, chapters } from "@/content/day";
 import { initialCity, useCity } from "@/lib/store";
 
 beforeEach(() => useCity.setState(initialCity));
@@ -246,5 +247,82 @@ describe("Hud", () => {
     await userEvent.click(screen.getAllByRole("button", { name: "Join the waitlist" })[0]);
     expect(onGo).toHaveBeenCalledWith(chapterIndex("join"));
     expect(screen.getByLabelText("Email")).toHaveFocus();
+  });
+});
+
+describe("Pricing", () => {
+  const chapter = chapters[chapterIndex("pricing")];
+  afterEach(() => localStorage.clear());
+
+  it("shows the three plans from the live site, the popular one marked", () => {
+    render(<Pricing chapter={chapter} onGo={vi.fn()} />);
+    const plans = screen.getByRole("list", { name: "Plans" });
+    for (const [name, price] of [["Intern", "$300"], ["Manager", "$800"], ["Chief", "Custom"]]) {
+      const plan = within(plans).getByRole("listitem", { name });
+      expect(plan).toHaveTextContent(price);
+    }
+    expect(within(plans).getByRole("listitem", { name: "Manager" })).toHaveTextContent("Popular");
+    expect(screen.getByText("Ad spend is not included. You pay platforms like Google and Meta directly.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Hire Cuso" })).toBeInTheDocument();
+  });
+
+  it("a plan's Join flies to the finale, focuses its email and remembers the plan for the signup", async () => {
+    const onGo = vi.fn();
+    const gtag = vi.fn();
+    vi.stubGlobal("gtag", gtag);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 })));
+    render(
+      <>
+        <Pricing chapter={chapter} onGo={onGo} />
+        <WaitlistForm source="finale" />
+      </>,
+    );
+    const intern = within(screen.getByRole("list", { name: "Plans" })).getByRole("listitem", { name: "Intern" });
+    await userEvent.click(within(intern).getByRole("button", { name: "Join the waitlist" }));
+    expect(onGo).toHaveBeenCalledWith(chapterIndex("join"));
+    expect(gtag).toHaveBeenCalledWith("event", "plan_cta", { plan: "intern" });
+    const email = document.getElementById("waitlist-finale-email")!;
+    expect(email).toHaveFocus();
+    await userEvent.type(email, "a@b.co{Enter}");
+    await waitFor(() => expect(gtag).toHaveBeenCalledWith("event", "sign_up", { method: "waitlist", source: "finale", plan: "intern" }));
+  });
+
+  it("Chief books a call on the same calendar as the live site", async () => {
+    const gtag = vi.fn();
+    vi.stubGlobal("gtag", gtag);
+    render(<Pricing chapter={chapter} onGo={vi.fn()} />);
+    const chief = within(screen.getByRole("list", { name: "Plans" })).getByRole("listitem", { name: "Chief" });
+    const call = within(chief).getByRole("link", { name: "Schedule a call" });
+    expect(call).toHaveAttribute("href", "https://cal.com/patricktobler");
+    expect(call).toHaveAttribute("target", "_blank");
+    call.addEventListener("click", (e) => e.preventDefault());
+    await userEvent.click(call);
+    expect(gtag).toHaveBeenCalledWith("event", "plan_cta", { plan: "chief" });
+  });
+
+  it("on phones, one plan is open at a time (Manager first); opening one is counted", async () => {
+    const gtag = vi.fn();
+    vi.stubGlobal("gtag", gtag);
+    render(<Pricing chapter={chapter} onGo={vi.fn()} />);
+    const rows = screen.getByRole("list", { name: "Plans, compact" });
+    const toggle = (name: RegExp) => within(rows).getByRole("button", { name });
+    expect(toggle(/Manager/)).toHaveAttribute("aria-expanded", "true");
+    expect(toggle(/Intern/)).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle(/Intern/));
+    expect(toggle(/Intern/)).toHaveAttribute("aria-expanded", "true");
+    expect(toggle(/Manager/)).toHaveAttribute("aria-expanded", "false");
+    expect(gtag).toHaveBeenCalledWith("event", "plan_open", { plan: "intern" });
+  });
+
+  it("counts a pricing view once a visit, when the stop is on screen", () => {
+    const gtag = vi.fn();
+    vi.stubGlobal("gtag", gtag);
+    const { rerender } = render(<Pricing chapter={chapter} onGo={vi.fn()} />);
+    expect(gtag.mock.calls.filter((c) => c[1] === "pricing_view")).toHaveLength(0);
+    act(() => useCity.setState({ progress: chapterIndex("pricing") }));
+    rerender(<Pricing chapter={chapter} onGo={vi.fn()} />);
+    act(() => useCity.setState({ progress: chapterIndex("join") }));
+    act(() => useCity.setState({ progress: chapterIndex("pricing") }));
+    expect(gtag.mock.calls.filter((c) => c[1] === "pricing_view")).toEqual([["event", "pricing_view", {}]]);
   });
 });

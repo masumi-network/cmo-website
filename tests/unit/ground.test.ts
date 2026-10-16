@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { heightAt } from "@/lib/terrain";
 import { EDGE, PARKS, X_STREETS, Z_STREETS, groundAt, inPark, insideLand } from "@/scene/grid";
+import { onTrail } from "@/scene/lawn";
 import { FOOTING } from "@/scene/materials";
 import { CLEAR, generateCity } from "@/scene/layout";
 import { PATHS, samplePath } from "@/scene/routes";
@@ -72,7 +73,7 @@ describe("ground: streets, sidewalks and parks", () => {
     expect(groundAt(-35, 20)).toBe("street"); // the park edge stays a street
   });
 
-  it("keeps cars and Cuso on open streets or sidewalks, never on park grass", () => {
+  it("keeps cars and Cuso on open streets, sidewalks or park trails, never on park grass", () => {
     const p = { x: 0, z: 0 };
     for (const car of makeCars()) {
       for (let s = 0; s < car.path.length; s += 0.5) {
@@ -83,7 +84,8 @@ describe("ground: streets, sidewalks and parks", () => {
     for (const path of PATHS) {
       for (let k = 0; k <= 200; k++) {
         const { pos, mode } = samplePath(path, k / 200);
-        if (mode !== "jump") expect(inPark(pos[0], pos[2]), `Cuso at ${pos[0]},${pos[2]}`).toBe(false);
+        // in a park only on its trails (Pioneer Park's walk up to Coit Tower, 23:00)
+        if (mode !== "jump") expect(inPark(pos[0], pos[2]) && !onTrail(pos[0], pos[2], 0.21), `Cuso at ${pos[0]},${pos[2]}`).toBe(false);
       }
     }
   });

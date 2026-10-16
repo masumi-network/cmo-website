@@ -10,7 +10,7 @@ import { chromium } from "@playwright/test";
 
 const base = process.env.BASE ?? "http://localhost:3000";
 const out = "public/posters";
-const ids = ["arrive", "learn", "social", "ads", "seo", "newsletter", "night", "join"];
+const ids = ["arrive", "learn", "social", "ads", "seo", "newsletter", "night", "pricing", "join"]; // day.ts order
 const sizes = [
   { suffix: "", viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1.5 },
   // Not touch: the phone shot and layout come from the width; full quality, not lite.
