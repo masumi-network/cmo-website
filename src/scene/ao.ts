@@ -28,18 +28,17 @@ export function hemisphere(n: number) {
 function hit(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, b: Box, reach: number) {
   let near = 0;
   let far = reach;
-  const o = [ox, oy, oz];
-  const d = [dx, dy, dz];
   for (let a = 0; a < 3; a++) {
-    if (Math.abs(d[a]) < 1e-9) {
-      if (o[a] < b.min[a] || o[a] > b.max[a]) return Infinity;
+    const o = a === 0 ? ox : a === 1 ? oy : oz;
+    const d = a === 0 ? dx : a === 1 ? dy : dz;
+    if (Math.abs(d) < 1e-9) {
+      if (o < b.min[a] || o > b.max[a]) return Infinity;
       continue;
     }
-    let t0 = (b.min[a] - o[a]) / d[a];
-    let t1 = (b.max[a] - o[a]) / d[a];
-    if (t0 > t1) [t0, t1] = [t1, t0];
-    near = Math.max(near, t0);
-    far = Math.min(far, t1);
+    const t0 = (b.min[a] - o) / d;
+    const t1 = (b.max[a] - o) / d;
+    near = Math.max(near, Math.min(t0, t1));
+    far = Math.min(far, Math.max(t0, t1));
     if (near > far) return Infinity;
   }
   return near;
@@ -47,12 +46,12 @@ function hit(ox: number, oy: number, oz: number, dx: number, dy: number, dz: num
 
 const inside = (x: number, y: number, z: number, b: Box) => x > b.min[0] && x < b.max[0] && y > b.min[1] && y < b.max[1] && z > b.min[2] && z < b.max[2];
 
-/** How far the point is from the box (0 inside). */
-function gap(x: number, y: number, z: number, b: Box) {
+/** Squared distance from the point to the box (0 inside). */
+function gap2(x: number, y: number, z: number, b: Box) {
   const dx = Math.max(b.min[0] - x, 0, x - b.max[0]);
   const dy = Math.max(b.min[1] - y, 0, y - b.max[1]);
   const dz = Math.max(b.min[2] - z, 0, z - b.max[2]);
-  return Math.hypot(dx, dy, dz);
+  return dx * dx + dy * dy + dz * dz;
 }
 
 /**
@@ -66,18 +65,27 @@ export function vertexAO(positions: ArrayLike<number>, normals: ArrayLike<number
   const out = new Float32Array(count).fill(1);
   const dirs = hemisphere(rays);
   const near: Box[] = [];
+  const seen = new Map<string, number>(); // merged geometry repeats each corner on every triangle that meets there
   for (let v = 0; v < count; v++) {
     const [nx, ny, nz] = [normals[v * 3], normals[v * 3 + 1], normals[v * 3 + 2]];
+    const key = [positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2], nx, ny, nz].map((c) => Math.round(c * 1e4)).join();
+    const known = seen.get(key);
+    if (known !== undefined) {
+      out[v] = known;
+      continue;
+    }
     const x = positions[v * 3] + nx * 1e-3;
     const y = positions[v * 3 + 1] + ny * 1e-3;
     const z = positions[v * 3 + 2] + nz * 1e-3;
     near.length = 0;
-    for (const b of boxes) if (gap(x, y, z, b) < reach) near.push(b);
-    if (!near.length) continue;
-    if (near.some((b) => inside(x, y, z, b))) {
-      out[v] = 0;
-      continue;
-    }
+    for (const b of boxes) if (gap2(x, y, z, b) < reach * reach) near.push(b);
+    out[v] = near.length ? light(x, y, z, nx, ny, nz) : 1;
+    seen.set(key, out[v]);
+  }
+  return out;
+
+  function light(x: number, y: number, z: number, nx: number, ny: number, nz: number) {
+    if (near.some((b) => inside(x, y, z, b))) return 0;
     // A tangent frame around the normal (Duff et al. 2017).
     const s = nz >= 0 ? 1 : -1;
     const a = -1 / (s + nz);
@@ -86,7 +94,9 @@ export function vertexAO(positions: ArrayLike<number>, normals: ArrayLike<number
     const u = [bb, s + ny * ny * a, -ny];
     let blocked = 0;
     for (let r = 0; r < rays; r++) {
-      const [lx, ly, lz] = [dirs[r * 3], dirs[r * 3 + 1], dirs[r * 3 + 2]];
+      const lx = dirs[r * 3];
+      const ly = dirs[r * 3 + 1];
+      const lz = dirs[r * 3 + 2];
       const dx = t[0] * lx + u[0] * ly + nx * lz;
       const dy = t[1] * lx + u[1] * ly + ny * lz;
       const dz = t[2] * lx + u[2] * ly + nz * lz;
@@ -94,7 +104,6 @@ export function vertexAO(positions: ArrayLike<number>, normals: ArrayLike<number
       for (const b of near) first = Math.min(first, hit(x, y, z, dx, dy, dz, b, reach));
       if (first < reach) blocked += 1 - first / reach;
     }
-    out[v] = 1 - blocked / rays;
+    return 1 - blocked / rays;
   }
-  return out;
 }
