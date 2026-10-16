@@ -8,20 +8,20 @@
 // at the west end. Two floors of flats above in two bay windows, under a
 // bracketed cornice. The side wall on Cuso's street (east) is a broad, flat
 // party wall: a painted base band and a line over the visitor's posts,
-// pasted up in a 4 x 3 grid. Two gooseneck lamps over the posts wash the
-// wall at night. A wooden ladder leans on it; a paint pail stands on the
-// sidewalk.
+// pasted up in a 4 x 3 grid: photo prints, wheatpasted. Two gooseneck lamps
+// over the posts wash the wall at night. A wooden ladder leans on it; a paint
+// pail stands on the sidewalk.
 //
-// Draw calls: building 1, props (ladder, pail, lamps) 1, lamp bulbs 1,
-// sign 1, night wash 1; posts 4 (cards, photos, and the new post's two).
+// Draw calls: building 1, ladder 1, props (pail, lamps) 1, lamp bulbs 1,
+// sign 1, night wash 1; posts 2 (the grid, the new post).
 
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { AdditiveBlending, Color, ConeGeometry, CylinderGeometry, Float32BufferAttribute, IcosahedronGeometry, Matrix4, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Quaternion, SphereGeometry, TorusGeometry, Vector3, type BufferGeometry, type Group, type Texture } from "three";
 import { heightAt } from "@/lib/terrain";
 import { useCity } from "@/lib/store";
-import { PALETTES, SLOT, builder, palette, type Builder, type Frame, type P2, type Rect, type Span } from "./house-models";
-import { box, cyl, drawn, merged, placed, useLandmarkTextures, useMat } from "./landmark-kit";
+import { PALETTES, SLOT, asKit, builder, palette, type Builder, type Frame, type P2, type Rect, type Span } from "./house-models";
+import { box, cyl, drawn, merged, placed, useLandmarkTextures } from "./landmark-kit";
 import { facadeNight } from "./facade";
 import { houseMaterial, glassMaterial } from "./materials";
 import { useGlow, type V3 } from "./parts";
@@ -35,10 +35,26 @@ export const POSTS = Array.from({ length: 12 }, (_, i) => {
   return { row, col, y: 1.2 + row * 1.35, z: 27.1 + col * 1.25, fresh: row === 1 && col === 2 };
 });
 
-/** One post's square of the 4 x 3 photo grid in posts.jpg (a small inset hides the seams). */
-export function postUv(g: BufferGeometry, row: number, col: number) {
-  const uv = g.getAttribute("uv");
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, col * 0.25 + 0.005 + uv.getX(i) * 0.24, row / 3 + 0.006 + uv.getY(i) * 0.32);
+/** A post's print: its size, and how far it stands off the wall (pasted flat). */
+const PRINT = { size: 1.18, off: 0.004 };
+
+/**
+ * The posts as prints pasted on the side wall (x MISSION.x1), in the house material's attributes:
+ * SLOT.poster, aPane its column and row in the 4 x 3 photo grid (posts.jpg) plus 0.05 + 0.9 x where
+ * on the print (the shader picks the photo's square and draws the white border round it).
+ */
+export function posterGeometry(posts: { row: number; col: number; y: number; z: number }[]) {
+  const parts = posts.map(({ row, col, y, z }) => {
+    const k = builder();
+    const h = PRINT.size / 2;
+    k.quad(EAST, Z1 - z - h, Z1 - z + h, y - h, y + h, PRINT.off, SLOT.poster);
+    const g = k.geometry();
+    const pane = g.attributes.aPane;
+    for (let i = 0; i < pane.count; i++) pane.setXY(i, col + 0.05 + 0.9 * pane.getX(i), row + 0.05 + 0.9 * pane.getY(i));
+    return g;
+  });
+  const g = merged(parts);
+  g.setAttribute("aPalette", new Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(PAINT), 1));
   return g;
 }
 
@@ -240,7 +256,7 @@ const PAINT = PALETTES.findIndex((p) => p.name === "apricot");
 // ---------------------------------------------------------------------------
 // Props: vertex-coloured.
 
-const C = { wood: "#b38a5a", rung: "#a27a4c", foot: "#2d2a27", tin: "#a8adb0", rim: "#8e9397", paint: "#3d5afe", iron: "#2e3230" };
+const C = { tin: "#a8adb0", rim: "#8e9397", paint: "#3d5afe", iron: "#2e3230" };
 
 function tint(g: BufferGeometry, hex: string) {
   const c = new Color(hex);
@@ -249,17 +265,20 @@ function tint(g: BufferGeometry, hex: string) {
   return g.index ? g.toNonIndexed() : g;
 }
 
-/** A wooden ladder, its foot at the origin, in the y-z plane: tapered rails and round rungs, rubber feet. */
+/**
+ * A wooden ladder, its foot at the origin, in the y-z plane: tapered rails and round rungs, rubber feet.
+ * In the house material's attributes: wood with the grain along each member (SLOT.wood), the feet tar.
+ */
 function ladder(h: number) {
   const out: BufferGeometry[] = [];
   const [bottom, topW] = [0.34, 0.27]; // half widths
   const splay = Math.atan2(bottom - topW, h);
   const half = (y: number) => bottom - ((bottom - topW) * y) / h;
   for (const s of [-1, 1]) {
-    out.push(tint(box([0, h / 2, s * half(h / 2)], [0.075, h, 0.035], [-s * splay, 0, 0]), C.wood));
-    out.push(tint(box([0, 0.03, s * bottom], [0.085, 0.06, 0.05]), C.foot));
+    out.push(asKit(box([0, h / 2, s * half(h / 2)], [0.075, h, 0.035], [-s * splay, 0, 0]), SLOT.wood, [0, 1, -s * splay]));
+    out.push(asKit(box([0, 0.03, s * bottom], [0.085, 0.06, 0.05]), SLOT.tar));
   }
-  for (let y = 0.32; y < h - 0.1; y += 0.36) out.push(tint(cyl([0, y, 0], 0.02, 0.02, 2 * half(y) + 0.05, 8, [Math.PI / 2, 0, 0]), C.rung));
+  for (let y = 0.32; y < h - 0.1; y += 0.36) out.push(asKit(cyl([0, y, 0], 0.02, 0.02, 2 * half(y) + 0.05, 8, [Math.PI / 2, 0, 0]), SLOT.wood, [0, 0, 1]));
   return out;
 }
 
@@ -784,12 +803,10 @@ function taqueriaMaterial(menu: Texture) {
 export function missionParts() {
   const { ladder: l, bucket: b } = MISSION;
   const { iron, bulbs } = lamps();
-  const props = merged([
-    ...ladder(l.h).map((g) => placed(g, [l.x, 0, l.z], [0, 0, l.lean])),
-    ...pail(b.r, b.h).map((g) => placed(g, [b.x, heightAt(b.x, b.z) - MISSION.ground, b.z])),
-    ...iron,
-  ]);
-  return { shell: shellGeometry(), props, bulbs: merged(bulbs), ...taqueria() };
+  const props = merged([...pail(b.r, b.h).map((g) => placed(g, [b.x, heightAt(b.x, b.z) - MISSION.ground, b.z])), ...iron]);
+  const steps = merged(ladder(l.h).map((g) => placed(g, [l.x, 0, l.z], [0, 0, l.lean])));
+  steps.setAttribute("aPalette", new Float32BufferAttribute(new Float32Array(steps.attributes.position.count).fill(PAINT), 1));
+  return { shell: shellGeometry(), ladder: steps, props, bulbs: merged(bulbs), ...taqueria() };
 }
 
 /** The night wash from the two lamps: soft warm cones down the wall, brightest under the lamps. */
@@ -820,11 +837,12 @@ export function MuralWall() {
   const approved = useCity((s) => s.approved);
   const { posts, siding } = useLandmarkTextures();
   const fresh = useRef<Group>(null);
-  // the posts glow a little at night, as if the lamps light them
-  const photo = useMemo(() => new MeshStandardMaterial({ map: posts, roughness: 0.6, emissive: "#ffe6c4", emissiveMap: posts, emissiveIntensity: 0 }), [posts]);
-  useNightGlow(photo, 0.35, 0);
-  const paper = useMat("#fbf8f2", 0.8);
-  const m = useMemo(() => ({ house: houseMaterial(siding, siding, palette()), props: new MeshStandardMaterial({ vertexColors: true, roughness: 0.65 }) }), [siding]);
+  // The prints: the house material with the photo grid as its second texture (one program for the
+  // building, the ladder and the posts); they glow a little at night, as if the lamps light them.
+  const m = useMemo(
+    () => ({ house: houseMaterial(siding, siding, palette()), posters: houseMaterial(siding, posts, palette()), props: new MeshStandardMaterial({ vertexColors: true, roughness: 0.65 }) }),
+    [siding, posts],
+  );
   const bulb = useGlow("#ffd9a0", 5, 0.2);
   const sign = useSign("TAQUERIA", { bg: "#f3ece0", fg: "#6b4230", panel: MISSION.sign.size, tracking: 0.3 });
   const signMat = useMemo(() => new MeshStandardMaterial({ map: sign, roughness: 0.7, emissive: "#fff1d8", emissiveMap: sign, emissiveIntensity: 0 }), [sign]);
@@ -835,18 +853,14 @@ export function MuralWall() {
   const shopGlass = useMemo(() => glassMaterial(), []);
   const wash = useMemo(() => new MeshBasicMaterial({ map: washTexture(), color: "#000", transparent: true, depthWrite: false, blending: AdditiveBlending }), []);
   const parts = useMemo(() => {
-    // Posts face east (+x) towards the street, on the side wall at x -5.4.
-    const card = (y: number, z: number) => box([-5.39, y, z], [0.022, 1.18, 1.18]);
-    const pic = ({ row, col }: { row: number; col: number }) => postUv(new PlaneGeometry(1.1, 1.1), row, col);
-    const on = (g: BufferGeometry, y: number, z: number, x = -5.374) => placed(g, [x, y, z], [0, Math.PI / 2, 0]);
+    // Posts face east (+x) towards the street, on the side wall at x -5.4; the new one grows out of its spot.
     const freshPost = POSTS.find((p) => p.fresh)!;
+    const freshAt: V3 = [X1, freshPost.y, freshPost.z];
     return {
       ...missionParts(),
-      cards: merged(POSTS.filter((p) => !p.fresh).map((p) => card(p.y, p.z))),
-      photos: merged(POSTS.filter((p) => !p.fresh).map((p) => on(pic(p), p.y, p.z))),
-      freshCard: box([-0.015, 0, 0], [0.022, 1.18, 1.18]),
-      freshPhoto: placed(pic(freshPost), [0.001, 0, 0], [0, Math.PI / 2, 0]),
-      freshAt: [-5.375, freshPost.y, freshPost.z] as V3,
+      posters: posterGeometry(POSTS.filter((p) => !p.fresh)),
+      freshPoster: posterGeometry([freshPost]).translate(-freshAt[0], -freshAt[1], -freshAt[2]),
+      freshAt,
     };
   }, []);
 
@@ -862,6 +876,7 @@ export function MuralWall() {
   return (
     <group position-y={MISSION.ground}>
       <mesh geometry={parts.shell} material={m.house} castShadow receiveShadow />
+      <mesh geometry={parts.ladder} material={m.house} castShadow receiveShadow />
       <mesh geometry={parts.props} material={m.props} castShadow receiveShadow />
       <mesh geometry={parts.bulbs} material={bulb} />
       <mesh ref={interior} geometry={parts.interior} material={inside} receiveShadow />
@@ -872,11 +887,9 @@ export function MuralWall() {
       <mesh position={[X1 + 0.03, (WASH.y0 + WASH.y1) / 2, (Z0 + Z1) / 2]} rotation-y={Math.PI / 2} material={wash} renderOrder={1}>
         <planeGeometry args={[D - 0.1, WASH.y1 - WASH.y0]} />
       </mesh>
-      <mesh geometry={parts.cards} material={paper} castShadow receiveShadow />
-      <mesh geometry={parts.photos} material={photo} receiveShadow />
+      <mesh geometry={parts.posters} material={m.posters} castShadow receiveShadow />
       <group ref={fresh} position={parts.freshAt} scale={0.001}>
-        <mesh geometry={parts.freshCard} material={paper} castShadow receiveShadow />
-        <mesh geometry={parts.freshPhoto} material={photo} />
+        <mesh geometry={parts.freshPoster} material={m.posters} castShadow receiveShadow />
       </group>
     </group>
   );

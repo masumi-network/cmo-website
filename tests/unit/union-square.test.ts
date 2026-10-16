@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { Color, SRGBColorSpace, Vector3, type BufferGeometry } from "three";
 import { groundAt } from "@/scene/grid";
 import { PALETTES, SLOT, SLOTS, type Frame } from "@/scene/house-models";
-import { AD_PANEL, LAMPS, LOBBY, SHOP_BAYS, SHOWCASE, UNION, UNION_CAR, billboardGeometry, buildingGeometry, displayGeometry, glowGeometry } from "@/scene/union-square";
+import { AD_PANEL, FACE_Z, LAMPS, LOBBY, SHOP_BAYS, SHOWCASE, UNION, UNION_CAR, adGeometry, billboardGeometry, buildingGeometry, displayGeometry, glowGeometry } from "@/scene/union-square";
 
 const U = UNION;
 const EPS = 1e-6;
@@ -203,6 +203,35 @@ describe("12:00 Union Square", () => {
       const overFace = Math.abs(p.x - U.board.x) < AD_PANEL[0] / 2 - 0.1 && p.y > face.bottom + 0.1 && p.y < U.board.y + AD_PANEL[1] / 2 - 0.1;
       if (overFace) expect(p.z).toBeLessThanOrEqual(face.z + EPS);
     }
+  });
+
+  it("paints the billboard with the houses' material: satin steel, chamfered trim with its bolts, a printed face", () => {
+    const s = billboardGeometry();
+    expect(Array.from(s.attributes.aSlot.array).every((v) => v === SLOT.steel)).toBe(true);
+    expect(Array.from(s.attributes.aPalette.array).every((v) => v === U.palette)).toBe(true);
+    const ts = tris(s);
+    // the trim's front edges are cut at 45 degrees, round the whole face
+    const cut = ts.filter((f) => f.n.z > 0.5 && f.n.z < 0.9 && Math.abs(mid(f).z - 6.99) < 0.03);
+    expect(cut.some((f) => f.n.y > 0.5)).toBe(true);
+    expect(cut.some((f) => f.n.y < -0.5)).toBe(true);
+    expect(cut.some((f) => f.n.x > 0.5)).toBe(true);
+    expect(cut.some((f) => f.n.x < -0.5)).toBe(true);
+    // bolt heads stand on its front: small squares facing the street, all round the frame
+    const heads = ts.filter((f) => f.n.z > 0.99 && mid(f).z > 7.0 + 1e-4 && mid(f).z < 7.02 && f.b.clone().sub(f.a).cross(f.c.clone().sub(f.a)).length() / 2 < 0.0004);
+    expect(heads.length / 2).toBeGreaterThanOrEqual(30);
+    // the face: one quad of the ad's size at FACE_Z, facing the street, mapped 0..1 for the print
+    const ad = adGeometry();
+    const pane = ad.attributes.aPane;
+    const ps = displayless(ad);
+    expect(Array.from(ad.attributes.aSlot.array).every((v) => v === SLOT.vinyl)).toBe(true);
+    for (const p of ps) expect(p.z).toBeCloseTo(FACE_Z, 5);
+    expect(Math.max(...ps.map((p) => p.x)) - Math.min(...ps.map((p) => p.x))).toBeCloseTo(AD_PANEL[0], 5);
+    expect(Math.max(...ps.map((p) => p.y)) - Math.min(...ps.map((p) => p.y))).toBeCloseTo(AD_PANEL[1], 5);
+    ps.forEach((p, i) => {
+      expect(pane.getX(i)).toBeCloseTo((p.x - (U.board.x - AD_PANEL[0] / 2)) / AD_PANEL[0], 5);
+      expect(pane.getY(i)).toBeCloseTo((p.y - (U.board.y - AD_PANEL[1] / 2)) / AD_PANEL[1], 5);
+    });
+    expect(tris(ad).every((f) => f.n.z > 0.999)).toBe(true);
   });
 
   it("lights the ad with gooseneck lamps over its top edge, aimed at the face", () => {

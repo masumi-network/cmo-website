@@ -4,7 +4,7 @@
 // with the row houses' kit (house-models.ts) and painted by their material:
 // a rusticated stone base with the front door, bays stacked up every wall
 // with recessed sash windows, belt courses, a bracketed cornice, and on the
-// roof a gravel deck, a parapet with coping stones and the stair bulkhead.
+// roof a gravel deck, a parapet with chamfered coping stones and the stair bulkhead.
 // One mesh, one draw call.
 
 import { useMemo } from "react";
@@ -49,6 +49,7 @@ export const APARTMENT = {
 };
 
 const RUST = 0.04; // how far the base courses stand out
+const COPING_CHAMFER = 0.012; // the coping stones' top edges, cut at 45 degrees
 const BASE = SLOT.panel; // the base's stone: the scheme's deeper cream
 const WORLD: Frame = { o: [0, 0, 0], u: [1, 0, 0] };
 
@@ -134,17 +135,20 @@ function roof(k: Builder, r: Box2, id: number) {
   const cap = y + parapet;
   const top = cap - 0.055;
   k.face(WORLD, [[r.x0 + t, y, r.z0 + t], [r.x1 - t, y, r.z0 + t], [r.x1 - t, y, r.z1 - t], [r.x0 + t, y, r.z1 - t]], [0, 1, 0], SLOT.gravel);
-  moulding(k, r, [[0, top], [-t, top]], SLOT.tar);
-  moulding(k, r, [[-t, top], [-t, y + 0.08]], SLOT.stucco);
-  moulding(k, r, [[-t, y + 0.08], [-t, y]], SLOT.tar);
-  // coping stones, about 0.6 long with thin joints, overhanging a little each side
+  // under the coping, and round the inside of the parapet: inside corners, so no bevel
+  moulding(k, r, [[0, top], [-t, top]], SLOT.tar, false);
+  moulding(k, r, [[-t, top], [-t, y + 0.08]], SLOT.stucco, false);
+  moulding(k, r, [[-t, y + 0.08], [-t, y]], SLOT.tar, false);
+  // coping stones, about 0.6 long with thin joints, overhanging a little each side, their top edges chamfered
+  const ch = COPING_CHAMFER;
+  const stone: P2[] = [[-t - 0.01, top], [0.05, top], [0.05, cap - ch], [0.05 - ch, cap], [-t - 0.01 + ch, cap], [-t - 0.01, cap - ch]];
   for (const { f, len, wraps } of sides(r)) {
     const [a0, a1] = wraps ? [-0.05, len + 0.05] : [t + 0.01, len - t - 0.01];
     const n = Math.round((a1 - a0) / 0.6);
     for (let i = 0; i < n; i++) {
       const s0 = a0 + ((a1 - a0) * i) / n;
       const s1 = a0 + ((a1 - a0) * (i + 1)) / n - (i < n - 1 ? 0.012 : 0);
-      k.box(f, s0, s1, top, cap, -t - 0.01, 0.05, SLOT.stone);
+      k.profile(f, s0, s1, stone, SLOT.stone);
     }
   }
 

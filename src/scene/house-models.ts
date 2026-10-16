@@ -12,8 +12,13 @@
 // Two models per house: the front (front wall and everything on it, z out
 // of the wall) and the body behind it (side and back walls, roof), shared by
 // all variants.
+//
+// Every face also carries its distance to each of its (up to four) edges
+// (`aEdge`), so the shader can round its real edges off (a bevel of light,
+// no extra triangles). Seams inside a flat wall and edges against the wall
+// are left out: they are not edges you could see.
 
-import { BufferGeometry, Color, Float32BufferAttribute } from "three";
+import { BufferGeometry, Color, Float32BufferAttribute, Vector3 } from "three";
 
 /** The reference house: body width and height (layout.ts FACADE_ASPECT is 1.5). */
 export const W = 3;
@@ -29,11 +34,62 @@ export const RELIEF_DEPTH = 0.36;
  * Paints. The first seven come from the house's palette, the next five are the same on every house.
  * The last two are for the 06:00 apartment (rooftop.tsx): `stucco` (the body colour without siding)
  * and `gravel` (a tar-and-gravel roof). `copper`: weathered green copper (the Ferry Building's roof and dome).
+ * Printed and bare parts of the landmarks: `poster` (a paper print from the material's second texture,
+ * the 09:00 wall), `vinyl` (the 12:00 billboard's face, the same way), `steel` (its satin steel truss)
+ * and `wood` (the 09:00 ladder).
  */
-export const SLOTS = ["body", "trim", "frieze", "panel", "sash", "door", "scales", "glass", "roof", "tar", "stone", "brick", "stucco", "gravel", "copper"] as const;
+export const SLOTS = ["body", "trim", "frieze", "panel", "sash", "door", "scales", "glass", "roof", "tar", "stone", "brick", "stucco", "gravel", "copper", "poster", "vinyl", "steel", "wood"] as const;
 export type Slot = (typeof SLOTS)[number];
 export const SLOT = Object.fromEntries(SLOTS.map((s, i) => [s, i])) as Record<Slot, number>;
-const FIXED = { glass: "#0c1014", roof: "#8f8a84", tar: "#5b5853", stone: "#c4beb2", brick: "#94695a", gravel: "#8e877c", copper: "#86a194" };
+const FIXED = { glass: "#0c1014", roof: "#8f8a84", tar: "#5b5853", stone: "#c4beb2", brick: "#94695a", gravel: "#8e877c", copper: "#86a194", poster: "#fbf8f2", vinyl: "#ffffff", steel: "#959a9f", wood: "#b9915f" };
+/** Slots whose faces carry where they are on their face (`aPane`, 0..1 across and up): glass, prints. */
+const PANED: number[] = [SLOT.glass, SLOT.poster, SLOT.vinyl];
+
+/** A poster's print (SLOT.poster): the photo's inset from each edge, as a share of the print. */
+export const POSTER = { border: 0.034 };
+/** The billboard's face (SLOT.vinyl): its size in world units and the sheets it is pasted up in (across, up). */
+export const VINYL = { w: 5.58, h: 2.78, sheets: [5, 2] as const };
+
+/**
+ * The shader bevel: within `bevel` of a real edge the normal leans out to 45 degrees at the edge itself.
+ * `aEdge` stores each distance less `off`, so an edge left out is 0: a mesh without the attribute
+ * (WebGL reads 0) has no bevel anywhere.
+ */
+export const EDGE = { bevel: 0.015, off: 4 };
+
+/**
+ * `aEdge` for a flat convex polygon: per corner, its distance to the line of each of the first four
+ * edges (edge k runs from corner k to k + 1), less EDGE.off; 0 where `on[k]` is false or there is no
+ * edge k. Distance to a line is linear across the face, so interpolation is exact everywhere inside.
+ * Polygons of more than four edges stay plain (all 0).
+ */
+export function edgeDistances(pts: L3[], on: boolean[]) {
+  const n = pts.length;
+  const out = new Array<number>(n * 4).fill(0);
+  if (n > 4) return out;
+  // the face normal (Newell), to measure in its plane
+  let [nx, ny, nz] = [0, 0, 0];
+  for (let i = 0; i < n; i++) {
+    const [p, q] = [pts[i], pts[(i + 1) % n]];
+    nx += (p[1] - q[1]) * (p[2] + q[2]);
+    ny += (p[2] - q[2]) * (p[0] + q[0]);
+    nz += (p[0] - q[0]) * (p[1] + q[1]);
+  }
+  for (let k = 0; k < Math.min(n, 4); k++) {
+    if (!on[k]) continue;
+    const [a, b] = [pts[k], pts[(k + 1) % n]];
+    const e = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    // in-plane direction across the edge: normal x edge
+    const c = [ny * e[2] - nz * e[1], nz * e[0] - nx * e[2], nx * e[1] - ny * e[0]];
+    const len = Math.hypot(...c);
+    if (len < 1e-12) continue;
+    for (let v = 0; v < n; v++) {
+      const d = Math.abs(((pts[v][0] - a[0]) * c[0] + (pts[v][1] - a[1]) * c[1] + (pts[v][2] - a[2]) * c[2]) / len);
+      out[v * 4 + k] = d - EDGE.off;
+    }
+  }
+  return out;
+}
 
 /**
  * Painted Lady colour schemes: a muted pastel body, white or cream trim, a
@@ -180,12 +236,16 @@ export function builder() {
   const slots: number[] = [];
   const wins: number[] = [];
   const panes: number[] = [];
+  const edges: number[] = [];
   const idx: number[] = [];
   const world = ({ o, u }: Frame, [a, b, c]: L3): L3 => [o[0] + u[0] * a - u[2] * c, o[1] + b, o[2] + u[2] * a + u[0] * c];
   const dir = ({ u }: Frame, [a, b, c]: L3): L3 => [u[0] * a - u[2] * c, b, u[2] * a + u[0] * c];
 
-  /** A flat convex polygon (or a fan from its first point), facing roughly `out`. */
-  function face(f: Frame, local: L3[], out: L3, slot: number, id = 0) {
+  /**
+   * A flat convex polygon (or a fan from its first point), facing roughly `out`. `on`: which edges
+   * (corner k to k + 1) are real, for the bevel; all of them unless told.
+   */
+  function face(f: Frame, local: L3[], out: L3, slot: number, id = 0, on?: boolean[]) {
     const p = local.map((q) => world(f, q));
     let [nx, ny, nz] = [0, 0, 0];
     for (let i = 0; i < p.length; i++) {
@@ -206,20 +266,23 @@ export function builder() {
     const as = local.map((q) => q[0]);
     const bs = local.map((q) => q[1]);
     const span = (x: number, xs: number[]) => (x - Math.min(...xs)) / Math.max(1e-6, Math.max(...xs) - Math.min(...xs));
+    const paned = PANED.includes(slot);
     p.forEach((q, i) => {
       pos.push(...q);
       nrm.push(nx * k, ny * k, nz * k);
       slots.push(slot);
       wins.push(id);
-      if (slot === SLOT.glass) panes.push(span(as[i], as), span(bs[i], bs));
+      if (paned) panes.push(span(as[i], as), span(bs[i], bs));
       else panes.push(0, 0);
     });
+    edges.push(...edgeDistances(p, on ?? p.map(() => true)));
     for (let i = 1; i < p.length - 1; i++) idx.push(...(flip ? [base, base + i + 1, base + i] : [base, base + i, base + i + 1]));
   }
 
   /**
    * A convex solid between two matching rings. Faces lying on the wall
    * (c = 0, facing in) or under the footing are left out: nobody sees them.
+   * Edges lying on the wall are inside corners: no bevel there.
    */
   function solid(f: Frame, r0: L3[], r1: L3[], slot: number, id = 0) {
     const all = [...r0, ...r1];
@@ -230,7 +293,8 @@ export function builder() {
       const out: L3 = [centre[0] - mid[0], centre[1] - mid[1], centre[2] - mid[2]];
       if (pts.every((q) => Math.abs(q[2]) < 1e-6) && out[2] < 0) continue;
       if (pts.every((q) => q[1] <= -FOOT + 1e-6) && out[1] < 0) continue;
-      face(f, pts, out, slot, id);
+      const flat = (q: L3) => Math.abs(q[2]) < 1e-6;
+      face(f, pts, out, slot, id, pts.map((q, i) => !(flat(q) && flat(pts[(i + 1) % pts.length]))));
     }
   }
   const ring = (a0: number, a1: number, c0: number, c1: number, b: number): L3[] => [[a0, b, c0], [a1, b, c0], [a1, b, c1], [a0, b, c1]];
@@ -245,17 +309,27 @@ export function builder() {
   /** A plan in the (a, c) plane, from b0 up to b1. */
   const prism = (f: Frame, plan: P2[], b0: number, b1: number, slot: number) =>
     solid(f, plan.map(([a, c]) => [a, b0, c]), plan.map(([a, c]) => [a, b1, c]), slot);
-  /** A rectangle facing out of the wall at depth c. */
-  const quad = (f: Frame, a0: number, a1: number, b0: number, b1: number, c: number, slot: number, id = 0, facing = 1) =>
-    face(f, [[a0, b0, c], [a1, b0, c], [a1, b1, c], [a0, b1, c]], [0, 0, facing], slot, id);
+  /** A rectangle facing out of the wall at depth c. `on`: its real edges (bottom, right, top, left). */
+  const quad = (f: Frame, a0: number, a1: number, b0: number, b1: number, c: number, slot: number, id = 0, facing = 1, on?: boolean[]) =>
+    face(f, [[a0, b0, c], [a1, b0, c], [a1, b1, c], [a0, b1, c]], [0, 0, facing], slot, id, on);
 
-  /** A wall from a0 to a1 and b0 to b1 with rectangular holes, as few rectangles as it takes. */
+  /**
+   * A wall from a0 to a1 and b0 to b1 with rectangular holes, as few rectangles as it takes.
+   * Bevelled at its ends and round its holes; not at its top and foot (a cornice or the ground meets
+   * them) nor along the seams between its rectangles.
+   */
   function wall(f: Frame, a0: number, a1: number, b0: number, b1: number, holes: Rect[], slot: number) {
     const cuts = (k: 0 | 2, lo: number, hi: number) =>
       [...new Set([lo, hi, ...holes.flatMap((r) => [r[k], r[k + 1]]).filter((x) => x > lo && x < hi)])].sort((p, q) => p - q);
     const as = cuts(0, a0, a1);
     const bs = cuts(2, b0, b1);
     const open = (a: number, b: number) => holes.some(([h0, h1, v0, v1]) => a > h0 && a < h1 && b > v0 && b < v1);
+    // a run's top or bottom is an edge only where the row beyond is open all along it
+    const clear = (i0: number, i1: number, j: number) => {
+      if (j < 0 || j >= bs.length - 1) return false;
+      for (let i = i0; i < i1; i++) if (!open((as[i] + as[i + 1]) / 2, (bs[j] + bs[j + 1]) / 2)) return false;
+      return true;
+    };
     for (let j = 0; j < bs.length - 1; j++) {
       const bm = (bs[j] + bs[j + 1]) / 2;
       let start = -1;
@@ -263,7 +337,7 @@ export function builder() {
         const solidCell = i < as.length - 1 && !open((as[i] + as[i + 1]) / 2, bm);
         if (solidCell && start < 0) start = i;
         if (!solidCell && start >= 0) {
-          quad(f, as[start], as[i], bs[j], bs[j + 1], 0, slot);
+          quad(f, as[start], as[i], bs[j], bs[j + 1], 0, slot, 0, 1, [clear(start, i, j - 1), true, clear(start, i, j + 1), true]);
           start = -1;
         }
       }
@@ -329,6 +403,7 @@ export function builder() {
     g.setAttribute("aSlot", new Float32BufferAttribute(slots, 1));
     g.setAttribute("aWin", new Float32BufferAttribute(wins, 1));
     g.setAttribute("aPane", new Float32BufferAttribute(panes, 2));
+    g.setAttribute("aEdge", new Float32BufferAttribute(edges, 4));
     g.setIndex(idx);
     return g;
   }
@@ -375,6 +450,39 @@ export function frontGeometry(v: number) {
 
 export type Builder = ReturnType<typeof builder>;
 
+/**
+ * A plain geometry (a box, a cylinder) in the kit's attributes, painted `slot`: non-indexed, no uvs,
+ * no bevel. With a member's `axis`, aPane is where on the member: along it and round it (world units),
+ * for wood grain and rolled steel.
+ */
+export function asKit(g: BufferGeometry, slot: number, axis?: L3) {
+  const out = g.index ? g.toNonIndexed() : g;
+  if (out !== g) g.dispose();
+  out.deleteAttribute("uv");
+  const pos = out.attributes.position;
+  const nrm = out.attributes.normal;
+  const n = pos.count;
+  const pane = new Float32Array(n * 2);
+  if (axis) {
+    const a = new Vector3(...axis).normalize();
+    const [p, q, t] = [new Vector3(), new Vector3(), new Vector3()];
+    for (let i = 0; i < n; i++) {
+      p.fromBufferAttribute(pos, i);
+      q.fromBufferAttribute(nrm, i);
+      // round the member: across this face (on an end cap, any way across it)
+      t.crossVectors(q, a);
+      if (t.lengthSq() < 1e-6) t.set(a.y, a.z, a.x).cross(a);
+      pane[i * 2] = p.dot(a);
+      pane[i * 2 + 1] = p.dot(t.normalize());
+    }
+  }
+  out.setAttribute("aSlot", new Float32BufferAttribute(new Float32Array(n).fill(slot), 1));
+  out.setAttribute("aWin", new Float32BufferAttribute(new Float32Array(n), 1));
+  out.setAttribute("aPane", new Float32BufferAttribute(pane, 2));
+  out.setAttribute("aEdge", new Float32BufferAttribute(new Float32Array(n * 4), 4));
+  return out;
+}
+
 // ---------- Shared by the landmark blocks (rooftop.tsx, union-square.tsx) ----------
 
 /** A rectangle in plan (world x and z). */
@@ -396,8 +504,10 @@ export function sides(r: Box2) {
  * A moulding run round a rectangle and mitred at its corners. `profile` is
  * (out, y) points from the wall out and back, counter-clockwise seen along
  * the wall (out to the right); out < 0 runs round the inside (a parapet).
+ * Its edges against the wall (out 0) are inside corners: no bevel; `bevel` false leaves out every edge
+ * (a parapet's inner face: inside corners all round).
  */
-export function moulding(k: Builder, r: Box2, profile: P2[], slot: number) {
+export function moulding(k: Builder, r: Box2, profile: P2[], slot: number, bevel = true) {
   const ring = (c: number): P2[] => [[r.x0 - c, r.z0 - c], [r.x1 + c, r.z0 - c], [r.x1 + c, r.z1 + c], [r.x0 - c, r.z1 + c]];
   const outs: P2[] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
   for (let i = 0; i < profile.length - 1; i++) {
@@ -406,7 +516,7 @@ export function moulding(k: Builder, r: Box2, profile: P2[], slot: number) {
     for (let s = 0; s < 4; s++) {
       const t = (s + 1) % 4;
       const out: L3 = [outs[s][0] * (y1 - y0), c0 - c1, outs[s][1] * (y1 - y0)];
-      k.face(WORLD, [[p[s][0], y0, p[s][1]], [p[t][0], y0, p[t][1]], [q[t][0], y1, q[t][1]], [q[s][0], y1, q[s][1]]], out, slot);
+      k.face(WORLD, [[p[s][0], y0, p[s][1]], [p[t][0], y0, p[t][1]], [q[t][0], y1, q[t][1]], [q[s][0], y1, q[s][1]]], out, slot, 0, [bevel && c0 !== 0, bevel, bevel && c1 !== 0, bevel]);
     }
   }
 }

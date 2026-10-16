@@ -9,13 +9,14 @@
 // visitor's ad. West of it, a corner of the square with the Dewey Monument.
 // Behind the display windows, lit showcases; behind the corner doors, a
 // lobby. The cable car runs its line below (cable-line.ts). Six draw calls: building, steel, lamp
-// glow, ad, showcases, shop glass.
+// glow, ad, showcases, shop glass. The building, the steel and the ad share one program (the houses'
+// material): satin steel with a chamfered, bolted trim; the ad printed on pasted sheets.
 
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import { AdditiveBlending, BoxGeometry, BufferGeometry, type Group, CircleGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, LatheGeometry, Matrix4, MeshBasicMaterial, MeshStandardMaterial, OctahedronGeometry, PlaneGeometry, Quaternion, SphereGeometry, TorusGeometry, Vector2, Vector3 } from "three";
+import { AdditiveBlending, BoxGeometry, BufferGeometry, type Group, CircleGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, LatheGeometry, Matrix4, MeshBasicMaterial, OctahedronGeometry, PlaneGeometry, Quaternion, SphereGeometry, TorusGeometry, Vector2, Vector3 } from "three";
 import { heightAt } from "@/lib/terrain";
-import { damp, rig, useInterior, useNightGlow } from "./shared";
+import { damp, rig, useInterior } from "./shared";
 import { CarModel, Rails } from "./cable-car";
 import { Foreground } from "./foreground";
 import { LINE, carGround, holdsAtUnion, stepCar, unionCar, type CusoAt } from "./cable-line";
@@ -23,7 +24,7 @@ import { chapters } from "@/content/day";
 import { useCity } from "@/lib/store";
 import { travel } from "@/lib/time";
 import { LEG_START, dayDistance } from "./routes";
-import { PALETTES, SLOT, builder, moulding, palette, sides, type Box2, type Builder, type Frame, type L3, type P2, type Rect, type Span } from "./house-models";
+import { PALETTES, SLOT, VINYL, asKit, builder, moulding, palette, sides, type Box2, type Builder, type Frame, type L3, type P2, type Rect, type Span } from "./house-models";
 import { box, cyl, merged, placed, useLandmarkTextures } from "./landmark-kit";
 import { houseMaterial, glassMaterial } from "./materials";
 import { useBrand, type V3 } from "./parts";
@@ -60,7 +61,7 @@ export const UNION = {
 export const UNION_CAR = { p: [2.1, 0, 14] as V3 };
 
 /** The billboard's ad face in world units [width, height]; its canvas follows the same shape. */
-export const AD_PANEL = [5.58, 2.78] as const;
+export const AD_PANEL = [VINYL.w, VINYL.h] as const;
 /** Where the ad face hangs (z), just in front of its backing. */
 export const FACE_Z = 6.95;
 
@@ -269,22 +270,29 @@ export function buildingGeometry() {
   roof(k, id);
   monument(k);
 
-  const g = k.geometry();
-  g.setAttribute("aPalette", new Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(U.palette), 1));
-  return g;
+  return painted(k.geometry());
 }
 
 // ---------- The billboard ----------
 
 const UP = new Vector3(0, 1, 0);
-/** A square steel member of width w from a to b. */
+/** A square steel member of width w from a to b, rolled along its length. */
 function member(a: V3, b: V3, w: number) {
   const [va, vb] = [new Vector3(...a), new Vector3(...b)];
   const dir = vb.clone().sub(va);
   const g = new BoxGeometry(w, dir.length(), w);
-  g.applyQuaternion(new Quaternion().setFromUnitVectors(UP, dir.normalize()));
-  return g.translate(...(va.add(vb).multiplyScalar(0.5).toArray() as V3));
+  g.applyQuaternion(new Quaternion().setFromUnitVectors(UP, dir.clone().normalize()));
+  return asKit(g.translate(...(va.add(vb).multiplyScalar(0.5).toArray() as V3)), SLOT.steel, dir.toArray() as L3);
 }
+/** A steel box at c of the given size, rolled along its longest side. */
+function bar(c: V3, size: V3) {
+  const axis: L3 = [0, 0, 0];
+  axis[size.indexOf(Math.max(...size))] = 1;
+  return asKit(box(c, size), SLOT.steel, axis);
+}
+/** The trim's front edges are cut at 45 degrees this deep; bolts stand on it about every BOLT_STEP. */
+const TRIM_CHAMFER = 0.01;
+const BOLT_STEP = 0.35;
 
 const UPRIGHTS = [-2.45, -0.95, 0.95, 2.45].map((d) => BOARD.x + d);
 const LAMP_X = [-2.25, -0.8, 0.8, 2.25].map((d) => BOARD.x + d);
@@ -294,7 +302,11 @@ const AIM = new Vector3(0, 8.3 - 9.62, FACE_Z - 7.47).normalize();
 /** The gooseneck lamps: the middle of each lens and where it points. */
 export const LAMPS = LAMP_X.map((x) => ({ p: new Vector3(x, 9.62, 7.47).addScaledVector(AIM, 0.125).toArray() as V3, aim: AIM.toArray() as V3 }));
 
-/** Steel: backing, trim frame, uprights and stringers, braced truss, kickers, catwalk with railing, gooseneck lamps. */
+/**
+ * Steel, in the house material's attributes (SLOT.steel): backing, a trim frame round the face (its
+ * front edges chamfered, bolt heads all round), uprights and stringers, braced truss, kickers, catwalk
+ * with railing, gooseneck lamps.
+ */
 export function billboardGeometry() {
   const { x: bx, y: by } = UNION.board;
   const [w, h] = AD_PANEL;
@@ -306,26 +318,33 @@ export function billboardGeometry() {
   // The truss stands at the back of the box, flat members well behind the face: deep members close behind
   // it, seen edge-on, bleed through the face as dashed lines in software GL (headless Chrome).
   const zt = 6.69;
+  // The trim frame round the face: 6 cm deep, its front 5 cm proud of the face, its front edges chamfered.
+  // Bars across run the full width, the sides fit between them.
+  const k = builder();
+  const [z0, z1, c] = [6.94, 7.0, TRIM_CHAMFER];
+  for (const b0 of [fy1, fy0 - t]) k.profile(WORLD, fx0 - t, fx1 + t, [[z0, b0], [z1 - c, b0], [z1, b0 + c], [z1, b0 + t - c], [z1 - c, b0 + t], [z0, b0 + t]], SLOT.steel);
+  for (const a0 of [fx0 - t, fx1]) k.prism(WORLD, [[a0, z0], [a0 + t, z0], [a0 + t, z1 - c], [a0 + t - c, z1], [a0 + c, z1], [a0, z1 - c]], fy0, fy1, SLOT.steel);
+  // bolt heads down the middle of the trim, evenly from corner to corner
+  const bolt = (x: number, yy: number) => k.box(WORLD, x - 0.008, x + 0.008, yy - 0.008, yy + 0.008, z1, z1 + 0.008, SLOT.steel);
+  const [nx, ny] = [Math.round((w + t) / BOLT_STEP), Math.round((h + t) / BOLT_STEP)];
+  for (let i = 0; i <= nx; i++) for (const yy of [fy1 + t / 2, fy0 - t / 2]) bolt(fx0 - t / 2 + ((w + t) * i) / nx, yy);
+  for (let j = 1; j < ny; j++) for (const x of [fx0 - t / 2, fx1 + t / 2]) bolt(x, fy0 - t / 2 + ((h + t) * j) / ny);
   const parts: BufferGeometry[] = [
-    // backing and the trim frame round the face
-    // (its front 4 cm behind the face: closer, the two fight for depth at a distance and the steel shows through)
-    box([bx, by, FACE_Z - 0.065], [w + 2 * t, h + 2 * t, 0.05]),
-    box([bx, fy1 + t / 2, 6.97], [w + 2 * t, t, 0.06]),
-    box([bx, fy0 - t / 2, 6.97], [w + 2 * t, t, 0.06]),
-    box([fx0 - t / 2, by, 6.97], [t, h, 0.06]),
-    box([fx1 + t / 2, by, 6.97], [t, h, 0.06]),
+    k.geometry(),
+    // the backing, its front 4 cm behind the face (closer, the two fight for depth at a distance and the steel shows through)
+    bar([bx, by, FACE_Z - 0.065], [w + 2 * t, h + 2 * t, 0.05]),
     // stringers behind the face, the truss chords under it
-    ...[6.85, 7.75, 8.65, 9.3].map((sy) => box([bx, sy, 6.8225], [w + 2 * t, 0.06, 0.025])),
-    ...[5.5, deck - 0.05].map((sy) => box([bx, sy, zt], [UPRIGHTS[3] - UPRIGHTS[0] + 0.11, 0.06, 0.04])),
+    ...[6.85, 7.75, 8.65, 9.3].map((sy) => bar([bx, sy, 6.8225], [w + 2 * t, 0.06, 0.025])),
+    ...[5.5, deck - 0.05].map((sy) => bar([bx, sy, zt], [UPRIGHTS[3] - UPRIGHTS[0] + 0.11, 0.06, 0.04])),
   ];
   UPRIGHTS.forEach((x, i) => {
     parts.push(
-      box([x, (y + fy1 + t) / 2, zt], [0.11, fy1 + t - y, 0.04]),
-      box([x, y + 0.015, zt], [0.16, 0.03, 0.07]),
+      bar([x, (y + fy1 + t) / 2, zt], [0.11, fy1 + t - y, 0.04]),
+      bar([x, y + 0.015, zt], [0.16, 0.03, 0.07]),
       // a kicker forward to the roof, the catwalk bracket
       member([x, deck - 0.08, zt + 0.02], [x, y + 0.03, 7.6], 0.06),
-      box([x, y + 0.015, 7.6], [0.14, 0.03, 0.14]),
-      box([x, deck - 0.03, (zt + 7.46) / 2], [0.05, 0.05, 7.46 - zt]),
+      bar([x, y + 0.015, 7.6], [0.14, 0.03, 0.14]),
+      bar([x, deck - 0.03, (zt + 7.46) / 2], [0.05, 0.05, 7.46 - zt]),
     );
     if (i === UPRIGHTS.length - 1) return;
     const n = UPRIGHTS[i + 1];
@@ -335,18 +354,33 @@ export function billboardGeometry() {
   });
   // the catwalk: deck, toe board, railing posts, mid and top rails, end rails
   const [c0, c1] = [bx - w / 2 - 0.08, bx + w / 2 + 0.08];
-  parts.push(box([bx, deck + 0.015, 7.165], [c1 - c0, 0.03, 0.58]), box([bx, deck + 0.06, front], [c1 - c0, 0.06, 0.015]));
-  for (let i = 0; i <= 8; i++) parts.push(box([c0 + 0.0125 + ((c1 - c0 - 0.025) * i) / 8, deck + 0.18, front], [0.025, 0.3, 0.025]));
-  parts.push(box([bx, 6.565, front], [c1 - c0, 0.03, 0.03]), box([bx, 6.4, front], [c1 - c0, 0.02, 0.02]));
-  for (const x of [c0 + 0.0125, c1 - 0.0125]) parts.push(box([x, 6.565, (6.94 + front) / 2], [0.025, 0.03, front - 6.94]));
+  parts.push(bar([bx, deck + 0.015, 7.165], [c1 - c0, 0.03, 0.58]), bar([bx, deck + 0.06, front], [c1 - c0, 0.06, 0.015]));
+  for (let i = 0; i <= 8; i++) parts.push(bar([c0 + 0.0125 + ((c1 - c0 - 0.025) * i) / 8, deck + 0.18, front], [0.025, 0.3, 0.025]));
+  parts.push(bar([bx, 6.565, front], [c1 - c0, 0.03, 0.03]), bar([bx, 6.4, front], [c1 - c0, 0.02, 0.02]));
+  for (const x of [c0 + 0.0125, c1 - 0.0125]) parts.push(bar([x, 6.565, (6.94 + front) / 2], [0.025, 0.03, front - 6.94]));
   // gooseneck lamps: a bent pipe and a shade aimed at the face
   const turn = new Quaternion().setFromUnitVectors(UP, AIM.clone().negate());
   for (const x of LAMP_X) {
     for (let i = 0; i < NECK.length - 1; i++) parts.push(member([x, NECK[i][1], NECK[i][0]], [x, NECK[i + 1][1], NECK[i + 1][0]], 0.025));
     const c = new Vector3(x, 9.62, 7.47).addScaledVector(AIM, 0.06);
-    parts.push(new CylinderGeometry(0.035, 0.085, 0.12, 10).applyQuaternion(turn).translate(c.x, c.y, c.z));
+    parts.push(asKit(new CylinderGeometry(0.035, 0.085, 0.12, 10).applyQuaternion(turn).translate(c.x, c.y, c.z), SLOT.steel, AIM.toArray() as L3));
   }
-  return merged(parts);
+  return painted(merged(parts));
+}
+
+/** The ad's face: one quad at FACE_Z, the print mapped 0..1 across it (SLOT.vinyl, the house material). */
+export function adGeometry() {
+  const [w, h] = AD_PANEL;
+  const k = builder();
+  // its edges sit inside the trim: inside corners, no bevel
+  k.quad(WORLD, BOARD.x - w / 2, BOARD.x + w / 2, BOARD.y - h / 2, BOARD.y + h / 2, FACE_Z, SLOT.vinyl, 0, 1, [false, false, false, false]);
+  return painted(k.geometry());
+}
+
+/** The building's paint scheme on every vertex (the house material's palette). */
+function painted(g: BufferGeometry) {
+  g.setAttribute("aPalette", new Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(UNION.palette), 1));
+  return g;
 }
 
 // ---------- Night glow ----------
@@ -628,22 +662,23 @@ export function UnionSquare() {
   const paint = useMemo(() => houseMaterial(siding, siding, palette()), [siding]);
   const building = useMemo(() => buildingGeometry(), []);
   const steelGeometry = useMemo(() => billboardGeometry(), []);
+  const adFace = useMemo(() => adGeometry(), []);
   const lampGeometry = useMemo(() => glowGeometry(), []);
   const display = useMemo(() => displayGeometry(), []);
   // the shops' own light, baked: readable by day, brighter at night
   const shops = useMemo(() => new MeshBasicMaterial({ vertexColors: true }), []);
   const shopGlass = useMemo(() => glassMaterial(), []);
   // Seen edge-on, thin members behind the ad face get unreliable depth in software GL and dot through it:
-  // a slope-scaled offset pushes exactly those steep faces back.
-  const steel = useMemo(() => new MeshStandardMaterial({ color: "#2c2c31", roughness: 0.55, metalness: 0.45, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 }), []);
+  // a slope-scaled offset pushes exactly those steep faces back. (The house material: same program.)
+  const steel = useMemo(() => Object.assign(houseMaterial(siding, siding, palette()), { polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 }), [siding]);
   const glow = useMemo(() => new MeshBasicMaterial({ vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, fog: false, side: DoubleSide }), []);
   useFrame(() => {
     glow.color.setScalar(rig.night);
     shops.color.setScalar(0.9 + 0.5 * rig.night);
   });
+  // The print is the house material's second texture; it glows a little by day and more at night (the shader).
   // polygonOffset: the face always wins the depth test against the steel just behind it (low-precision depth buffers too)
-  const adMat = useMemo(() => new MeshStandardMaterial({ map: ad, roughness: 0.6, emissive: "#ffffff", emissiveMap: ad, emissiveIntensity: 0.15, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), [ad]);
-  useNightGlow(adMat, 0.75, 0.15);
+  const adMat = useMemo(() => Object.assign(houseMaterial(siding, ad, palette()), { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), [siding, ad]);
   return (
     <>
     <group position-y={heightAt(7, 9)}>
@@ -652,9 +687,7 @@ export function UnionSquare() {
       <mesh geometry={lampGeometry} material={glow} />
       <mesh ref={interior} geometry={display.content} material={shops} />
       <mesh geometry={display.glass} material={shopGlass} />
-      <mesh position={[BOARD.x, BOARD.y, FACE_Z]} material={adMat}>
-        <planeGeometry args={AD_PANEL} />
-      </mesh>
+      <mesh geometry={adFace} material={adMat} />
     </group>
     {/* its cable line runs along the street below, west of the Bay Bridge ramp */}
     <Rails x0={LINE.rails[0]} x1={LINE.rails[1]} z={LINE.z} />

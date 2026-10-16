@@ -5,7 +5,7 @@
 
 import { MeshStandardMaterial, type Texture } from "three";
 import { FACADE_GLSL, facadeNight } from "./facade";
-import { SLOT, SLOTS } from "./house-models";
+import { EDGE, POSTER, SLOT, SLOTS, VINYL } from "./house-models";
 import { LAWN_GLSL, lawnTexture } from "./lawn";
 import { GLASS_ENV_GLSL, glassUniforms } from "./reflections";
 import { GROUND_GLSL, TONE, WEATHER_GLSL, weather, type Weather } from "./weathering";
@@ -32,7 +32,7 @@ const COMMON_FRAG = /* glsl */ `
   // Dark, slightly blue pixels are window glass.
   float fGlass(vec3 c) { return smoothstep(0.34, 0.16, fLuma(c)) * smoothstep(-0.04, 0.03, c.b - c.r); }`;
 
-function patch(material: MeshStandardMaterial, key: string, opts: { uniforms: Record<string, { value: unknown }>; vertHead?: string; vert?: string; fragHead: string; color: string; emissive?: string; roughness?: string; normal?: string; lights?: string; weather?: Weather }) {
+function patch(material: MeshStandardMaterial, key: string, opts: { uniforms: Record<string, { value: unknown }>; vertHead?: string; vert?: string; fragHead: string; color: string; emissive?: string; roughness?: string; metalness?: string; normal?: string; lights?: string; weather?: Weather }) {
   material.customProgramCacheKey = () => key;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, { uNight: facadeNight, ...opts.uniforms }, opts.weather && { uWeather: { value: opts.weather.amount } });
@@ -43,6 +43,7 @@ function patch(material: MeshStandardMaterial, key: string, opts: { uniforms: Re
       .replace("#include <common>", `#include <common>\n${COMMON_FRAG}\n${opts.fragHead}${opts.weather ? `\n${GROUND_GLSL}\n${WEATHER_GLSL}` : ""}`)
       .replace("#include <color_fragment>", `#include <color_fragment>\n${opts.color}\n${opts.weather?.glsl ?? ""}`)
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>\n${opts.roughness ?? ""}`)
+      .replace("#include <metalnessmap_fragment>", `#include <metalnessmap_fragment>\n${opts.metalness ?? ""}`)
       .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>\n${opts.normal ?? ""}`)
       .replace("#include <lights_fragment_maps>", `#include <lights_fragment_maps>\n${opts.lights ?? ""}`)
       .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>\n${opts.emissive ?? ""}`);
@@ -57,6 +58,46 @@ const VALUE_NOISE = /* glsl */ `
     vec2 f = fract(p);
     f = f * f * (3.0 - 2.0 * f);
     return mix(mix(fHash(i), fHash(i + vec2(1.0, 0.0)), f.x), mix(fHash(i + vec2(0.0, 1.0)), fHash(i + 1.0), f.x), f.y);
+  }`;
+
+/**
+ * Surface detail for the house kit (needs VALUE_NOISE, and fPx set to a pixel's size in world units):
+ * value noise with its gradient (x: value, yz: d/dp), and `fNear(k)`, 1 while noise of k cells per unit
+ * is bigger than a couple of pixels and 0 once it would only shimmer.
+ */
+const DETAIL_GLSL = /* glsl */ `
+  float fPx = 0.0;
+  vec3 fVNoiseD(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    vec2 du = 6.0 * f * (1.0 - f);
+    float a = fHash(i);
+    float b = fHash(i + vec2(1.0, 0.0));
+    float c = fHash(i + vec2(0.0, 1.0));
+    float d = fHash(i + 1.0);
+    float k = a - b - c + d;
+    return vec3(a + (b - a) * u.x + (c - a) * u.y + k * u.x * u.y, du * (vec2(b - a, c - a) + k * u.yx));
+  }
+  float fNear(float k) { return 1.0 - smoothstep(0.3, 0.7, fPx * k); }`;
+
+/**
+ * The bevel (EDGE in house-models.ts): vEdge + EDGE.off is the distance to each of the face's edges.
+ * Within the bevel of one, the normal leans toward it, 45 degrees at the edge itself, so every real
+ * edge catches the light like a rounded one; gone once the bevel is under a pixel. The edge's direction
+ * comes from the distances' screen derivatives (exact on a flat face). Adds to fBendW (world space).
+ */
+const BEVEL_GLSL = /* glsl */ `{
+    vec3 fNw = normalize(vFNormal);
+    vec3 fDpx = dFdx(vFPos);
+    vec3 fDpy = dFdy(vFPos);
+    vec3 fR1 = cross(fDpy, fNw);
+    vec3 fR2 = cross(fNw, fDpx);
+    float fDet = dot(fDpx, fR1);
+    vec4 fE = vEdge + ${EDGE.off.toFixed(1)};
+    vec4 fB = max(1.0 - fE / ${EDGE.bevel}, 0.0) * (1.0 - smoothstep(${EDGE.bevel * 0.5}, ${EDGE.bevel * 2}, fPx));
+    vec3 fOut = -(fR1 * dot(dFdx(fE), fB) + fR2 * dot(dFdy(fE), fB)) * fDet / max(fDet * fDet, 1e-24);
+    fBendW += fOut / max(1.0, length(fOut) / 1.4);
   }`;
 
 /**
@@ -78,9 +119,10 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
   const material = new MeshStandardMaterial({ roughness: 0.82 });
   return patch(material, "house", {
     uniforms: { uSiding: { value: siding }, uShingles: { value: shingles }, uPalette: { value: palette }, ...glassUniforms },
-    vertHead: "attribute float aSlot;\nattribute float aWin;\nattribute vec2 aPane;\nattribute float aPalette;\nattribute vec2 aOrigin;\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;",
+    vertHead: "attribute float aSlot;\nattribute float aWin;\nattribute vec2 aPane;\nattribute float aPalette;\nattribute vec2 aOrigin;\nattribute vec4 aEdge;\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;\nvarying vec4 vEdge;",
     vert: /* glsl */ `
       vSlot = aSlot;
+      vEdge = aEdge;
       vWin = aWin;
       vPane = aPane;
       vPalette = aPalette;
@@ -91,16 +133,27 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
       #else
         vSeed = fract(sin(dot(aOrigin, vec2(12.9898, 78.233))) * 43758.5453);
       #endif`,
-    fragHead: `uniform sampler2D uSiding;\nuniform sampler2D uShingles;\nuniform vec3 uPalette[${palette.length / 3}];\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;\nfloat fLit = 0.0;\nfloat fGlassy = 0.0;\nfloat fCloth = 0.0;\n${VALUE_NOISE}\n${GLASS_ENV_GLSL}`,
+    fragHead: `uniform sampler2D uSiding;\nuniform sampler2D uShingles;\nuniform vec3 uPalette[${palette.length / 3}];\nflat varying float vSlot;\nflat varying float vWin;\nflat varying float vPalette;\nflat varying float vSeed;\nvarying vec2 vPane;\nvarying vec4 vEdge;\nfloat fLit = 0.0;\nfloat fGlassy = 0.0;\nfloat fCloth = 0.0;\nfloat fClean = 0.0;\nfloat fRoughK = -1.0;\nfloat fMetalK = 0.0;\nvec3 fGlowK = vec3(0.0);\nvec3 fBendW = vec3(0.0);\n${VALUE_NOISE}\n${DETAIL_GLSL}\n${GLASS_ENV_GLSL}`,
     color: /* glsl */ `
       int fSlot = int(vSlot + 0.5);
       vec3 fC = uPalette[int(vPalette + 0.5) * ${n} + fSlot];
+      fPx = length(fwidth(vFPos));
       // along a wall, horizontally (any wall direction)
       vec2 fT = normalize(vec2(-vFNormal.z, vFNormal.x) + vec2(1e-5, 0.0));
       float fAlong = dot(vFPos.xz, fT);
       bool fUpright = abs(vFNormal.y) < 0.5;
+      // the face's own 2D coordinates (walls: along and up; tops: x and z) and their world directions
+      vec2 fS = fUpright ? vec2(fAlong, vFPos.y) : vFPos.xz;
+      vec3 fAx = fUpright ? vec3(fT.x, 0.0, fT.y) : vec3(1.0, 0.0, 0.0);
+      vec3 fAy = fUpright ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, 1.0);
       if (fSlot == ${SLOT.body} && fUpright) {
         fC *= texture2D(uSiding, vec2(fAlong, vFPos.y) / 1.6).rgb * 1.12;
+        // satin house paint, chalkier in patches
+        fRoughK = 0.66 + 0.16 * fVNoise(fS * 1.3 + vSeed * 40.0);
+      } else if (fSlot >= ${SLOT.trim} && fSlot <= ${SLOT.door}) {
+        // gloss trim paint, dulled where weather and hands wear it
+        float fWear = smoothstep(0.35, 0.85, fVNoise(fS * 2.3 + vSeed * 40.0));
+        fRoughK = 0.42 + 0.3 * fWear;
       } else if (fSlot == ${SLOT.scales}) {
         // fish-scale shingles: rows offset by half, round bottoms, a soft shadow line
         vec2 fP = vec2(fAlong, vFPos.y) * 6.0;
@@ -111,15 +164,58 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
         float fRim = fQ.y < 0.5 ? smoothstep(0.5 - fAa * 2.0, 0.5, fR) : 0.0;
         fC *= 1.0 - 0.22 * fRim - 0.06 * fQ.y;
       } else if (fSlot == ${SLOT.stucco}) {
-        // troweled stucco: a soft mottle, never a pattern
-        vec2 fS = fUpright ? vec2(fAlong, vFPos.y) : vFPos.xz;
-        fC *= 0.95 + 0.07 * fVNoise(fS * 3.0) + 0.04 * fVNoise(fS * 11.0);
+        // troweled stucco: a soft mottle, never a pattern; trowel swirls and sand grain in relief
+        // (they show in a raking sun), rougher where the sand stands out
+        vec3 fTr = fVNoiseD(fS * 7.0 + 3.0);
+        vec3 fSand = fVNoiseD(fS * 90.0);
+        fC *= 0.95 + 0.07 * fVNoise(fS * 3.0) + 0.04 * fVNoise(fS * 11.0) + 0.05 * (fSand.x - 0.5) * fNear(90.0);
+        vec2 fG = fTr.yz * 0.06 * fNear(7.0) + fSand.yz * 0.06 * fNear(90.0);
+        fBendW = -(fG.x * fAx + fG.y * fAy);
+        fRoughK = 0.84 + 0.1 * fTr.x;
+      } else if (fSlot == ${SLOT.stone}) {
+        // cast stone: a soft mottle, pits of the aggregate, edges a little chipped and dirtier
+        // pits: a round hole in about one cell in four (cells turned, so they never line up with the edges)
+        mat2 fRot = mat2(0.8, -0.6, 0.6, 0.8);
+        vec2 fSp = fRot * fS;
+        vec2 fPc = floor(fSp * 140.0);
+        vec2 fPd = fract(fSp * 140.0) - 0.5 - (vec2(fHash(fPc + 3.0), fHash(fPc + 7.0)) - 0.5) * 0.4;
+        float fPr = 0.12 + 0.18 * fHash(fPc + 13.0);
+        float fPits = step(0.74, fHash(fPc)) * (1.0 - smoothstep(fPr * 0.5, fPr, length(fPd))) * fNear(140.0);
+        float fEdge = min(min(vEdge.x, vEdge.y), min(vEdge.z, vEdge.w)) + ${EDGE.off.toFixed(1)};
+        float fChip = (1.0 - smoothstep(0.004, 0.025, fEdge)) * smoothstep(0.6, 0.8, fVNoise(fSp * 24.0)) * fNear(24.0);
+        fC *= (0.95 + 0.06 * fVNoise(fS * 2.2) + 0.04 * fVNoise(fSp * 9.0)) * (1.0 - 0.35 * fPits) * (1.0 - 0.14 * fChip);
+        // each pit's sides lean in toward its middle
+        vec2 fIn2 = -(fPd * fRot) / max(fPr, 1e-3) * fPits;
+        fBendW = (fIn2.x * fAx + fIn2.y * fAy) * 0.6;
+        fRoughK = 0.7 + 0.12 * fVNoise(fSp * 5.0) + 0.12 * fPits;
       } else if (fSlot == ${SLOT.gravel}) {
-        // tar and gravel: stones up close (gone once a pixel covers them), weathered patches
-        vec2 fS = vFPos.xz;
-        float fFine = 1.0 - smoothstep(0.012, 0.04, length(fwidth(fS)));
-        float fStones = 0.6 * fVNoise(fS * 40.0) + 0.4 * fVNoise(fS * 97.0);
-        fC *= (0.86 + 0.26 * fVNoise(fS * 1.3)) * mix(1.0, 0.62 + 0.76 * fStones, fFine);
+        // tar and gravel: rounded stones up close, each its own tone, tar between them (gone once a
+        // pixel covers them), weathered patches
+        vec2 fG2 = vFPos.xz * 55.0;
+        vec2 fCi = floor(fG2);
+        vec2 fF = fract(fG2);
+        float fD1 = 8.0;
+        vec2 fTo = vec2(0.0);
+        vec2 fCell = fCi;
+        for (int j = -1; j <= 1; j++) {
+          for (int i = -1; i <= 1; i++) {
+            vec2 fO = vec2(float(i), float(j));
+            vec2 fR = fO + 0.2 + 0.6 * vec2(fHash(fCi + fO), fHash(fCi + fO + 17.0)) - fF;
+            float fDd = dot(fR, fR);
+            if (fDd < fD1) { fD1 = fDd; fTo = fR; fCell = fCi + fO; }
+          }
+        }
+        float fFine = fNear(55.0);
+        // further off, a speckle until that too is under a pixel
+        float fSpeck = mix(1.0, 0.62 + 0.76 * (0.6 * fVNoise(vFPos.xz * 40.0) + 0.4 * fVNoise(vFPos.xz * 97.0)), 1.0 - smoothstep(0.012, 0.04, fPx));
+        float fH = fHash(fCell + 5.0);
+        float fStone = 1.0 - smoothstep(0.36, 0.52, sqrt(fD1));
+        float fH2 = fHash(fCell + 9.0);
+        // grey, tan and the odd dark stone
+        vec3 fPebble = (fH2 < 0.45 ? vec3(0.86, 0.85, 0.83) : (fH2 < 0.85 ? vec3(1.1, 1.0, 0.86) : vec3(0.55, 0.53, 0.5))) * (0.82 + 0.36 * fH);
+        fC *= (0.86 + 0.26 * fVNoise(vFPos.xz * 1.3)) * mix(vec3(fSpeck), mix(vec3(0.5), fPebble, fStone), fFine);
+        fBendW = -vec3(fTo.x, 0.0, fTo.y) * 1.6 * fStone * fFine;
+        fRoughK = mix(0.92, mix(0.7, 0.88, fH), fStone * fFine);
       } else if (fSlot == ${SLOT.roof}) {
         // rows run along the slope, stacked up it
         vec2 fUv = vec2(fAlong, vFPos.y / max(0.3, length(vFNormal.xz))) / 1.3;
@@ -139,10 +235,61 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
         fC = mix(fC, vec3(0.62, 0.58, 0.5), fBlind);
         fC = mix(fC, mix(vec3(0.55, 0.47, 0.4), vec3(0.6, 0.6, 0.56), step(0.17, fRoom)), fCurt);
         fCloth = max(fBlind, fCurt);
+        fClean = 1.0;
+      } else if (fSlot == ${SLOT.poster}) {
+        // a photo print with a white border (aPane: its column and row on the photo sheet, plus where on
+        // the print), wheatpasted: wrinkles and bubbles, paper fibres, a satin sheen where the paste shows
+        vec2 fCellP = floor(vPane);
+        vec2 fL = (fract(vPane) - 0.05) / 0.9;
+        vec2 fAaP = fwidth(fL) + 1e-4;
+        vec2 fIn = smoothstep(${POSTER.border} - fAaP, ${POSTER.border} + fAaP, fL) * smoothstep(${POSTER.border} - fAaP, ${POSTER.border} + fAaP, 1.0 - fL);
+        vec2 fUv = vec2(fCellP.x * 0.25 + 0.005, fCellP.y / 3.0 + 0.006) + clamp((fL - ${POSTER.border}) / ${1 - 2 * POSTER.border}, 0.0, 1.0) * vec2(0.24, 0.32);
+        fC = mix(fC, texture2D(uShingles, fUv).rgb, fIn.x * fIn.y);
+        vec3 fW = fVNoiseD(fS * 3.0 + 7.0);
+        vec3 fW2 = fVNoiseD(fS * 13.0 + 3.0);
+        fBendW = -((fW.y * fAx + fW.z * fAy) * 0.09 * fNear(3.0) + (fW2.y * fAx + fW2.z * fAy) * 0.05 * fNear(13.0));
+        fC *= 0.98 + 0.04 * mix(fVNoise(fS * 240.0), 0.5, 1.0 - fNear(240.0));
+        fRoughK = 0.68 - 0.18 * smoothstep(0.45, 0.8, fW.x);
+        fGlowK = vec3(1.0, 0.9, 0.77) * 0.35 * uNight;
+        fClean = 0.7;
+      } else if (fSlot == ${SLOT.vinyl}) {
+        // the billboard's printed face (aPane: 0..1 across it), pasted in sheets: hairline seams, each
+        // sheet's overlap a touch lighter, the paper a little wavy, a satin sheen
+        fC = texture2D(uShingles, vPane).rgb;
+        vec2 fM = vPane * vec2(${VINYL.w}, ${VINYL.h});
+        vec2 fQ = vPane * vec2(${VINYL.sheets[0]}.0, ${VINYL.sheets[1]}.0);
+        vec2 fSd = abs(fract(fQ + 0.5) - 0.5) * vec2(${VINYL.w / VINYL.sheets[0]}, ${VINYL.h / VINYL.sheets[1]});
+        float fSeam = max(1.0 - smoothstep(0.0012, 0.0012 + fPx, fSd.x), 1.0 - smoothstep(0.0012, 0.0012 + fPx, fSd.y));
+        float fLap = max(1.0 - smoothstep(0.01, 0.01 + fPx, fSd.x), 1.0 - smoothstep(0.01, 0.01 + fPx, fSd.y)) * step(0.5, fract(fQ.x + 0.5));
+        vec3 fW = fVNoiseD(fM * 4.0);
+        vec3 fW2 = fVNoiseD(fM * vec2(1.5, 9.0) + 4.0); // wrinkles running down each sheet
+        float fNearSeam = 1.0 - smoothstep(0.0, 0.12, min(fSd.x, fSd.y));
+        fBendW = -((fW.y * fAx + fW.z * fAy) * (0.02 + 0.04 * fNearSeam) * fNear(4.0) + (fW2.y * fAx + fW2.z * fAy) * 0.012 * fNear(9.0));
+        fC *= (1.0 - 0.3 * fSeam) * (1.0 + 0.04 * fLap) * (1.0 - 0.06 * (1.0 - smoothstep(0.0, 0.15, fM.y))) * (0.97 + 0.05 * fW.x);
+        fRoughK = 0.5 + 0.08 * fW.x;
+        fGlowK = vec3(0.15 + 0.75 * uNight);
+        fClean = 0.6;
+      } else if (fSlot == ${SLOT.steel}) {
+        // satin steel: rolled streaks along each member (aPane: along it and across, in metres), never a mirror
+        float fSt = fVNoise(vec2(vPane.x * 3.0, vPane.y * 90.0));
+        fC *= 0.9 + 0.18 * fSt + 0.08 * (fVNoise(fS * 1.7) - 0.5);
+        fRoughK = 0.4 + 0.14 * fSt;
+        fMetalK = 0.4;
+        fClean = 0.4;
+      } else if (fSlot == ${SLOT.wood}) {
+        // wood along the member (aPane: along it and across, in metres): fine grain lines, wider bands
+        float fRing = mix(fVNoise(vec2(vPane.x * 2.5, vPane.y * 150.0)), 0.5, 1.0 - fNear(40.0));
+        float fBand = fVNoise(vec2(vPane.x * 0.7, vPane.y * 28.0) + 5.0);
+        float fLine = smoothstep(0.55, 0.85, fVNoise(vec2(vPane.x * 1.2, vPane.y * 60.0) + 9.0)) * fNear(30.0);
+        fC *= (0.8 + 0.3 * fBand + 0.24 * (fRing - 0.5)) * (1.0 - 0.28 * fLine);
+        fRoughK = 0.6 + 0.14 * fBand;
       }
       diffuseColor.rgb = fC;`,
-    weather: weather("vSeed", "fGlassy", TONE.house),
-    roughness: "roughnessFactor = mix(roughnessFactor, 0.1, fGlassy);",
+    weather: weather("vSeed", "fClean", TONE.house),
+    roughness: "if (fRoughK >= 0.0) roughnessFactor = fRoughK;\nroughnessFactor = mix(roughnessFactor, 0.1, fGlassy);",
+    metalness: "metalnessFactor = fMetalK;",
+    // relief and the bevel
+    normal: `${BEVEL_GLSL}\nnormal = normalize(normal + mat3(viewMatrix) * fBendW);`,
     // glass reflects the city (below), not the sky light: neither its reflection nor its diffuse share
     lights: "radiance *= 1.0 - fGlassy * uGlassMix;\nirradiance *= 1.0 - fGlassy * uGlassMix;\niblIrradiance *= 1.0 - fGlassy * uGlassMix;",
     emissive: /* glsl */ `
@@ -162,7 +309,8 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
         float fFres = 0.1 + 0.8 * pow(1.0 - abs(dot(fV, fN)), 1.2);
         totalEmissiveRadiance += glassEnv(vFPos, fRf, fSky) * fFres * (1.0 - 0.6 * fCloth * uNight);
       }
-      totalEmissiveRadiance += vec3(1.0, 0.7, 0.38) * fLit * uNight * (1.1 + 0.5 * fCloth);`,
+      totalEmissiveRadiance += vec3(1.0, 0.7, 0.38) * fLit * uNight * (1.1 + 0.5 * fCloth);
+      totalEmissiveRadiance += diffuseColor.rgb * fGlowK;`,
   });
 }
 

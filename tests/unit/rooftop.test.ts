@@ -148,7 +148,25 @@ describe("the 06:00 apartment", () => {
     }
   });
 
+  it("chamfers the coping stones' top edges: their tops are narrower than the stones", () => {
+    const top = R.roof + R.parapet;
+    const stones = faces(g, SLOT.stone).filter((t) => t.every((p) => p.y > R.roof + 0.2));
+    expect(stones.length).toBeGreaterThan(0);
+    // across the north parapet (z), the flat top (at the cap) spans less than the whole stone
+    const north = stones.flat().filter((p) => p.z < R.z0 + R.wall + 0.05 && p.x > R.x0 + 0.5 && p.x < R.x1 - 0.5);
+    const span = (ps: Vector3[]) => Math.max(...ps.map((p) => p.z)) - Math.min(...ps.map((p) => p.z));
+    const capTop = north.filter((p) => Math.abs(p.y - top) < EPS);
+    expect(capTop.length).toBeGreaterThan(0);
+    expect(span(capTop)).toBeLessThan(span(north) - 0.015);
+    // sloped faces between the top and the sides
+    expect(stones.some(([a, b, c]) => {
+      const n = new Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a)).normalize();
+      return Math.abs(n.y) > 0.4 && Math.abs(n.y) < 0.9;
+    })).toBe(true);
+  });
+
   it("stays within its triangle budget", () => {
-    expect(g.index!.count / 3).toBeLessThan(9000);
+    // (the chamfered coping stones add about 450)
+    expect(g.index!.count / 3).toBeLessThan(9500);
   });
 });

@@ -3,13 +3,13 @@
 // its flat side wall. The posts keep their grid; everything stays in its
 // footprint or on its own sidewalk, off the street and off Cuso's routes.
 
-import { BufferGeometry, PlaneGeometry, Vector3 } from "three";
+import { BufferGeometry, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { heightAt } from "@/lib/terrain";
 import { SLOT, SLOTS } from "@/scene/house-models";
 import { CITY } from "@/scene/layout";
 import { groundAt, streetDrop } from "@/scene/grid";
-import { MENU, MISSION, POSTS, TAQUERIA_MAT, missionParts, postUv } from "@/scene/mission";
+import { MENU, MISSION, POSTS, TAQUERIA_MAT, missionParts, posterGeometry } from "@/scene/mission";
 import { PATHS } from "@/scene/routes";
 
 const parts = missionParts();
@@ -45,16 +45,21 @@ describe("the Mission posts", () => {
     expect(POSTS.filter((p) => p.fresh).map((p) => [p.row, p.col])).toEqual([[1, 2]]);
   });
 
-  it("shows each post's own square of the photo grid", () => {
-    for (const { row, col } of POSTS) {
-      const uv = postUv(new PlaneGeometry(1.1, 1.1), row, col).attributes.uv;
-      for (let i = 0; i < uv.count; i++) {
-        expect(uv.getX(i)).toBeGreaterThan(col / 4);
-        expect(uv.getX(i)).toBeLessThan((col + 1) / 4);
-        expect(uv.getY(i)).toBeGreaterThan(row / 3);
-        expect(uv.getY(i)).toBeLessThan((row + 1) / 3);
-      }
+  it("prints each post on paper pasted flat on the wall, knowing its own square of the photo grid", () => {
+    const g = posterGeometry(POSTS);
+    const pos = g.attributes.position;
+    const pane = g.attributes.aPane;
+    expect(g.attributes.aSlot.array.every((s) => s === SLOT.poster)).toBe(true);
+    for (let i = 0; i < pos.count; i++) {
+      // a few millimetres off the wall, facing the street
+      expect(pos.getX(i)).toBeGreaterThan(M.x1);
+      expect(pos.getX(i)).toBeLessThan(M.x1 + 0.006);
+      // the post under this corner: its column and row are the pane's whole part
+      const post = POSTS.find((p) => Math.abs(pos.getY(i) - p.y) < 0.6 && Math.abs(pos.getZ(i) - p.z) < 0.6)!;
+      expect(Math.floor(pane.getX(i))).toBe(post.col);
+      expect(Math.floor(pane.getY(i))).toBe(post.row);
     }
+    expect(g.attributes.normal.getX(0)).toBeCloseTo(1, 9);
   });
 
   it("pastes them on the building's side wall, facing the street Cuso stands on", () => {
@@ -74,8 +79,8 @@ describe("the Mission building", () => {
       expect(pos.count, name).toBeGreaterThan(0);
       for (let i = 0; i < pos.array.length; i++) expect(Number.isFinite(pos.array[i]), name).toBe(true);
     }
-    expect(Object.keys(parts).length).toBeLessThanOrEqual(5);
-    const outside = tris(parts.shell) + tris(parts.props) + tris(parts.bulbs);
+    expect(Object.keys(parts).length).toBeLessThanOrEqual(6);
+    const outside = tris(parts.shell) + tris(parts.props) + tris(parts.ladder) + tris(parts.bulbs);
     expect(outside).toBeLessThan(12_000);
     // the taqueria inside, with its glass
     expect(tris(parts.interior) + tris(parts.glass)).toBeLessThan(10_000);
@@ -168,7 +173,7 @@ describe("the Mission building", () => {
   });
 
   it("stands the ladder and the paint bucket on the sidewalk in front of the wall", () => {
-    for (const p of points(parts.props)) {
+    for (const p of [...points(parts.props), ...points(parts.ladder)]) {
       if (inFootprint(p)) continue;
       expect(groundAt(p.x, p.z), `${p.x}, ${p.z}`).not.toBe("street");
       expect(streetDrop(p.x, p.z)).toBe(0);
@@ -178,9 +183,12 @@ describe("the Mission building", () => {
     expect(groundAt(bucket.x, bucket.z)).toBe("sidewalk");
     expect(bucket.x - bucket.r).toBeGreaterThan(M.x1);
     // the ladder leans on the wall without going into the posts
-    const props = points(parts.props).filter((p) => p.z > ladder.z - 0.5 && p.z < ladder.z + 0.5 && p.y > 2.5);
+    const props = points(parts.ladder).filter((p) => p.z > ladder.z - 0.5 && p.z < ladder.z + 0.5 && p.y > 2.5);
     expect(Math.min(...props.map((p) => p.x))).toBeGreaterThan(M.x1 + 0.025);
     expect(Math.min(...props.map((p) => p.x))).toBeLessThan(M.x1 + 0.08);
+    // wooden rails and rungs (painted by the houses' material, with the grain along each member), rubber feet
+    const slots = new Set(Array.from(parts.ladder.attributes.aSlot.array));
+    expect([...slots].sort()).toEqual([SLOT.tar, SLOT.wood].sort());
   });
 
   it("hangs the lamps over the posts, inside the box the collision check uses", () => {
@@ -197,7 +205,7 @@ describe("the Mission building", () => {
   });
 
   it("keeps everything at least 1.2 off Cuso's routes", () => {
-    const all = [...points(parts.shell), ...points(parts.props), ...points(parts.bulbs)];
+    const all = [...points(parts.shell), ...points(parts.props), ...points(parts.ladder), ...points(parts.bulbs)];
     const xs = all.map((p) => p.x);
     const zs = all.map((p) => p.z);
     const box = { x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) };
