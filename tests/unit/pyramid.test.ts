@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { chapters } from "@/content/day";
 import { PLAZA, heightAt, surfaceAt } from "@/lib/terrain";
 import { STREET } from "@/scene/grid";
-import { BEACON, CROWN, FACADE, PYRAMID, SPIRE, WINGS, plazaWallGeometry, pyramidGeometry, pyramidHalf } from "@/scene/pyramid";
+import { BEACON, CROWN, FACADE, FLAG, PYRAMID, SPIRE, WINGS, flagGeometry, flagWave, plazaWallGeometry, pyramidGeometry, pyramidHalf } from "@/scene/pyramid";
 import { PART } from "@/scene/towers";
 
 const g = pyramidGeometry();
@@ -137,4 +137,53 @@ describe("the Pyramid's plaza", () => {
     }
     expect(top).toBeGreaterThan(0.3); // the hill rises behind the north-west corner
   });
+});
+
+describe("the 15:00 flag", () => {
+  // A pennant of cloth on the spire: fixed at the hoist, waving more toward the free end.
+  const times = [0, 0.4, 1.3, 2.7, 5.1];
+
+  it("is fixed to the spire at the hoist", () => {
+    for (const t of times) for (const v of [0, 0.5, 1]) expect(flagWave(0, v, t)).toBe(0);
+  });
+
+  it("never waves further than FLAG.wave", () => {
+    for (const t of times) for (let u = 0; u <= 1; u += 0.05) for (const v of [0, 0.5, 1]) expect(Math.abs(flagWave(u, v, t))).toBeLessThanOrEqual(FLAG.wave + 1e-9);
+  });
+
+  it("moves over time", () => {
+    expect(new Set(times.map((t) => flagWave(1, 0.5, t).toFixed(4))).size).toBe(times.length);
+  });
+
+  it("folds smoothly from column to column", () => {
+    const du = 1 / FLAG.cols;
+    for (const t of times) for (let u = 0; u < 1; u += du) expect(Math.abs(flagWave(u + du, 0.5, t) - flagWave(u, 0.5, t))).toBeLessThan(FLAG.wave * 0.5);
+  });
+
+  it("is a grid of cloth, its hoist on the spire's axis, tapering toward the free end", () => {
+    const f = flagGeometry();
+    const p = f.attributes.position;
+    expect(p.count).toBe((FLAG.cols + 1) * (FLAG.rows + 1));
+    let hoistTop = -Infinity, flyTop = -Infinity;
+    for (let i = 0; i < p.count; i++) {
+      expect(p.getX(i)).toBeGreaterThanOrEqual(0);
+      expect(p.getX(i)).toBeLessThanOrEqual(FLAG.w + 1e-6); // float32 positions
+      if (p.getX(i) === 0) hoistTop = Math.max(hoistTop, p.getY(i));
+      if (Math.abs(p.getX(i) - FLAG.w) < 1e-6) flyTop = Math.max(flyTop, p.getY(i));
+    }
+    expect(hoistTop).toBeCloseTo(FLAG.h / 2, 6);
+    expect(flyTop).toBeLessThan(hoistTop);
+  });
+});
+
+it("the flag flies broadside to the 15:00 desktop camera, not edge-on", () => {
+  const seo = chapters.find((c) => c.id === "seo")!;
+  const [cx, , cz] = seo.camera.position;
+  const [tx, , tz] = seo.camera.target;
+  const view = Math.atan2(tx - cx, tz - cz); // the camera's heading in x/z
+  const along = FLAG.heading + Math.PI / 2; // the cloth runs along local +x, turned by heading about y
+  const flagDir = [Math.sin(along), Math.cos(along)];
+  const viewDir = [Math.sin(view), Math.cos(view)];
+  // nearly perpendicular to the view: |cos| small
+  expect(Math.abs(flagDir[0] * viewDir[0] + flagDir[1] * viewDir[1])).toBeLessThan(0.35);
 });

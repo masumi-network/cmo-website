@@ -20,8 +20,51 @@ export { PYRAMID, WINGS, pyramidHalf };
  * and he can turn on the platform without touching it.
  */
 export const SPIRE = { x: 0, z: -0.93, half: 0.12, base: 23, top: 36.5 };
-/** Cuso's flag on the spire: a 1.2 x 0.8 cloth at height y (over his head, even when he hops), swinging +-swing radians. */
-export const FLAG = { y: 31, w: 1.2, h: 0.8, swing: 0.25 };
+/**
+ * Cuso's flag on the spire: a 1.2 x 0.8 cloth pennant at height y (over his head, even when he hops),
+ * swinging +-swing radians at the hoist. A grid of cols x rows cells ripples up to `wave` across,
+ * tapers to `taper` of its height at the free end and droops `droop` there. `heading` turns it about y
+ * so it flies north (-z), broadside to the 15:00 camera that looks east (edge-on it read as a white sliver).
+ */
+export const FLAG = { y: 31, w: 1.2, h: 0.8, swing: 0.12, wave: 0.2, cols: 28, rows: 6, taper: 0.7, droop: 0.05, heading: Math.PI / 2 };
+
+/**
+ * How far the cloth stands out of its plane at (u, v), both 0..1 (u from the spire, v from the bottom),
+ * at time t: still at the hoist, waving more toward the free end, two ripples so it never looks like one sine.
+ */
+export function flagWave(u: number, v: number, t: number) {
+  if (u <= 0) return 0;
+  const ripple = 0.75 * Math.sin(u * 3 * Math.PI - t * 4.2) + 0.25 * Math.sin(u * 5 * Math.PI - t * 6.1 + v * 1.8);
+  return FLAG.wave * Math.pow(u, 1.2) * ripple;
+}
+
+/** The flag's cloth at rest: the hoist on the spire's axis (x 0), tapering toward the free end. uv holds (u, v). */
+export function flagGeometry() {
+  const { cols, rows, w, h, taper } = FLAG;
+  const position: number[] = [];
+  const uv: number[] = [];
+  const index: number[] = [];
+  for (let j = 0; j <= rows; j++)
+    for (let i = 0; i <= cols; i++) {
+      const u = i / cols;
+      const v = j / rows;
+      const height = h * (1 - (1 - taper) * u);
+      position.push(u * w, (v - 0.5) * height, 0);
+      uv.push(u, v);
+    }
+  for (let j = 0; j < rows; j++)
+    for (let i = 0; i < cols; i++) {
+      const a = j * (cols + 1) + i;
+      const b = a + cols + 1;
+      index.push(a, a + 1, b, a + 1, b + 1, b);
+    }
+  const g = new BufferGeometry();
+  g.setAttribute("position", new Float32BufferAttribute(position, 3));
+  g.setAttribute("uv", new Float32BufferAttribute(uv, 2));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  return g;
+}
 /** The red aircraft light on the tip of the spire. */
 export const BEACON: [number, number, number] = [SPIRE.x, SPIRE.top + 0.03, SPIRE.z];
 
@@ -300,6 +343,8 @@ export function plazaWallGeometry() {
 /** 15:00 Transamerica Pyramid. Cuso plants a flag on the spire. */
 export function Pyramid() {
   const flag = useRef<Group>(null);
+  const cloth = useMemo(() => flagGeometry(), []);
+  const rest = useMemo(() => Float32Array.from(cloth.attributes.position.array), [cloth]);
   const ground = heightAt(PYRAMID.x, PYRAMID.z);
   const { stone } = useLandmarkTextures();
   // The towers' material: same shader program, so the windows light up with downtown at night.
@@ -308,7 +353,19 @@ export function Pyramid() {
   const geometry = useMemo(() => merged([pyramidGeometry(ground), plazaWallGeometry()]), [ground]);
   const beacon = useGlow("#ff2414", 3, 0.3);
   useFrame(({ clock }) => {
-    if (flag.current) flag.current.rotation.y = Math.sin(clock.elapsedTime * 2.4) * FLAG.swing;
+    const t = clock.elapsedTime;
+    if (flag.current) flag.current.rotation.y = FLAG.heading + Math.sin(t * 2.4) * FLAG.swing;
+    // The cloth: ~150 vertices moved on the CPU, so it keeps the plain standard material's program.
+    const p = cloth.attributes.position;
+    const uv = cloth.attributes.uv;
+    for (let i = 0; i < p.count; i++) {
+      const u = uv.getX(i);
+      const v = uv.getY(i);
+      // out of plane: the folds; a quarter of it up and down too, so the edges wave and the outline is not a box
+      p.setXYZ(i, rest[i * 3], rest[i * 3 + 1] - FLAG.droop * u * u + 0.25 * flagWave(u, v, t + 0.6), flagWave(u, v, t));
+    }
+    p.needsUpdate = true;
+    cloth.computeVertexNormals();
   });
   return (
     <group position={[PYRAMID.x, ground, PYRAMID.z]}>
@@ -317,9 +374,9 @@ export function Pyramid() {
         <sphereGeometry args={[0.05, 8, 6]} />
       </mesh>
       <group ref={flag} position={[SPIRE.x, FLAG.y, SPIRE.z]}>
-        <mesh position={[FLAG.w / 2, 0, 0]}>
-          <planeGeometry args={[FLAG.w, FLAG.h]} />
-          <meshStandardMaterial color="#ffffff" side={DoubleSide} roughness={0.8} />
+        <mesh geometry={cloth} castShadow>
+          {/* thin cloth: some light comes through, so the shaded side never goes grey-brown (emissive is a uniform: same program) */}
+          <meshStandardMaterial color="#f2eee6" emissive="#7d776c" side={DoubleSide} roughness={0.85} />
         </mesh>
       </group>
     </group>

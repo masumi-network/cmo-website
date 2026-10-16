@@ -128,8 +128,9 @@ function landmarkSolids(): Solid[] {
     const sx = x + SPIRE.x;
     const sz = z + SPIRE.z;
     out.push(around("pyramid spire", sx, sz, SPIRE.half, SPIRE.half, g + SPIRE.base, g + SPIRE.top));
-    const reach = FLAG.w * Math.sin(FLAG.swing);
-    out.push(solid("pyramid flag", sx, sx + FLAG.w, g + FLAG.y - FLAG.h / 2, g + FLAG.y + FLAG.h / 2, sz - reach, sz + reach));
+    const reach = FLAG.w * Math.sin(FLAG.swing) + FLAG.wave; // the swing at the free end, plus the cloth's ripple
+    // the flag flies north from the spire (-z), broadside to the 15:00 camera
+    out.push(solid("pyramid flag", sx - reach, sx + reach, g + FLAG.y - FLAG.h / 2, g + FLAG.y + FLAG.h / 2, sz - FLAG.w, sz));
   }
 
   // 18:00 cable car in front of the Ferry Building, and the Ferry Building itself.
