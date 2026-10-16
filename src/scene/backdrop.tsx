@@ -280,9 +280,9 @@ function Ridges({ lite }: { lite: boolean }) {
       ))}
       {lightsGeometry && (
         <points
+          // on the default layer: the water mirror streaks them under the far shore at night
           ref={(p) => {
             points.current = p;
-            p?.layers.set(DETAIL);
           }}
           geometry={lightsGeometry}
           material={lightMat}
