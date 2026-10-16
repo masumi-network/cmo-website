@@ -69,6 +69,9 @@ export function overhead(distance: number) {
   return k * k * (3 - 2 * k);
 }
 
+/** The hemisphere light, times the hour's ambient (time.ts). The sky light (reflections.ts) does most of the fill now. */
+const HEMI = 0.5;
+
 export function Atmosphere({ lite }: { lite: boolean }) {
   const sun = useRef<DirectionalLight>(null);
   const hemi = useRef<HemisphereLight>(null);
@@ -115,7 +118,8 @@ export function Atmosphere({ lite }: { lite: boolean }) {
       drawn.frames = 0;
     }
     if (hemi.current) {
-      hemi.current.intensity = L.ambient;
+      // a base fill under the sky light (the probe's own picture of the city gets only this)
+      hemi.current.intensity = L.ambient * HEMI;
       hemi.current.color.set(L.skyTop);
       hemi.current.groundColor.set(L.night > 0.5 ? "#1a1a2a" : "#b49a7c");
     }

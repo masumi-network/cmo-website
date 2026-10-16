@@ -1,9 +1,10 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { MeshStandardMaterial, type WebGLProgramParametersWithUniforms } from "three";
 import { chapters } from "@/content/day";
 import { heightAt } from "@/lib/terrain";
 import { downtownMaterial, houseMaterial } from "@/scene/materials";
-import { glassUniforms, PROBE_SIZE, probeDue, probeSpot, type ProbeKey } from "@/scene/reflections";
+import { glassUniforms, PROBE_SIZE, probeDue, probeSpot, SKY_SIZE, type ProbeKey } from "@/scene/reflections";
 
 const key = (o: Partial<ProbeKey> = {}): ProbeKey => ({ index: 1, hour: 7, explore: false, time: 10, settled: true, ...o });
 
@@ -82,5 +83,29 @@ describe("glass samples the probe", () => {
       // the studio light no longer shows in glass; the city does
       expect(s.fragmentShader).toMatch(/radiance \*=/);
     }
+  });
+});
+
+describe("the sky light (the probe as scene.environment)", () => {
+  it("replaces the studio light: no drei Environment or Lightformers in the scene", () => {
+    const scene = readFileSync("src/scene/scene.tsx", "utf8");
+    expect(scene).not.toMatch(/Lightformer|<Environment/);
+  });
+
+  it("is in place before Ready compiles the shaders (its texture and size are part of every shader)", () => {
+    const scene = readFileSync("src/scene/scene.tsx", "utf8");
+    expect(scene.indexOf("<Reflections")).toBeGreaterThan(0);
+    expect(scene.indexOf("<Reflections")).toBeLessThan(scene.indexOf("<Ready"));
+    // set in a layout effect: before the first frame, when Ready starts
+    expect(readFileSync("src/scene/reflections.ts", "utf8")).toMatch(/useLayoutEffect\(\(\) => \{\s*probe\.init\(gl, scene\)/);
+  });
+
+  it("blurs a small copy: a power of two, a fraction of the probe, smaller on phones", () => {
+    for (const k of ["full", "lite"] as const) {
+      expect(Math.log2(SKY_SIZE[k]) % 1).toBe(0);
+      expect(SKY_SIZE[k]).toBeLessThanOrEqual(PROBE_SIZE[k] / 4);
+      expect(SKY_SIZE[k]).toBeGreaterThanOrEqual(16); // three's PMREM minimum
+    }
+    expect(SKY_SIZE.lite).toBeLessThan(SKY_SIZE.full);
   });
 });

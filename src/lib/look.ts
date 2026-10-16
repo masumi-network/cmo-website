@@ -18,7 +18,10 @@ export type Look = {
   contrast: number;
   /** Film grain in the mid-tones. */
   grain: number;
-  /** Studio fill (scene.environmentIntensity). Lower = deeper shadows. */
+  /**
+   * Sky light (scene.environmentIntensity): the hour's real sky and city from the glass probe (reflections.ts),
+   * blurred, lights the shade and gives soft reflections. Lower = deeper shadows; a bright hazy sky needs less.
+   */
   env: number;
   /** Bloom strength, times this (1 = full). */
   bloom: number;
@@ -36,13 +39,13 @@ export const TODAY: Look = {
   lift: [0, 0, 0],
   contrast: 0,
   grain: 0,
-  env: 0.5,
+  env: 1,
   bloom: 1,
   cusoFill: 0,
 };
 
 // One look per chapter hour (F13). Each moves toward its concept (public/concepts): depth of field on Cuso,
-// a warm grade, light grain, less studio fill so the shadows read. Hours run 6..30 like lightingAt (time.ts).
+// a warm grade, light grain, and sky light tuned per hour. Hours run 6..30 like lightingAt (time.ts).
 
 /** 06:00, Russian Hill: a low sun behind the Golden Gate's south pylons, warm light, cool shadows. */
 const SUNRISE: Look = {
@@ -54,7 +57,7 @@ const SUNRISE: Look = {
   lift: [0.012, 0.016, 0.03],
   contrast: 0.2,
   grain: 0.035,
-  env: 0.32,
+  env: 0.6,
   // the sun glints off the bay in frame: a softer bloom keeps it from blowing out
   bloom: 0.8,
   // the sun is behind him: without it his face goes grey
@@ -71,7 +74,7 @@ const MORNING: Look = {
   lift: [0.012, 0.016, 0.028],
   contrast: 0.16,
   grain: 0.035,
-  env: 0.45,
+  env: 0.75,
   bloom: 1,
   cusoFill: 0,
 };
@@ -86,7 +89,7 @@ const LATE_MORNING: Look = {
   lift: [0.02, 0.015, 0.01],
   contrast: 0.18,
   grain: 0.035,
-  env: 0.38,
+  env: 0.6,
   bloom: 1,
   cusoFill: 0,
 };
@@ -101,7 +104,7 @@ export const NOON: Look = {
   lift: [0.02, 0.015, 0.01],
   contrast: 0.18,
   grain: 0.035,
-  env: 0.38,
+  env: 0.42,
   bloom: 1,
   cusoFill: 0,
 };
@@ -131,7 +134,7 @@ const SUNSET: Look = {
   lift: [0.035, 0.022, 0.014],
   contrast: 0.2,
   grain: 0.04,
-  env: 0.38,
+  env: 0.6,
   bloom: 1,
   cusoFill: 0,
 };
@@ -142,11 +145,11 @@ const NIGHT: Look = {
   focusRange: 14,
   tilt: 0,
   saturation: 0.06,
-  gain: [1.03, 1, 0.98],
+  gain: [1.17, 1.1, 1.0],
   lift: [0.008, 0.01, 0.022],
   contrast: 0.14,
   grain: 0.045,
-  env: 0.45,
+  env: 2.9,
   bloom: 1,
   cusoFill: 0,
 };

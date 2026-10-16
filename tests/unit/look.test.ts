@@ -23,7 +23,7 @@ describe("look per hour", () => {
     expect(readFileSync("src/scene/post.tsx", "utf8")).not.toMatch(/N8AO/);
   });
 
-  it("is tuned at every chapter: depth of field, a light grain, no tilt-shift, deeper shadows than today", () => {
+  it("is tuned at every chapter: depth of field, a light grain, no tilt-shift", () => {
     for (const c of chapters) {
       const L = lookFor(c.hour);
       expect(L, c.id).not.toEqual(TODAY);
@@ -31,8 +31,19 @@ describe("look per hour", () => {
       expect(L.tilt, c.id).toBe(0);
       expect(L.grain, c.id).toBeGreaterThan(0);
       expect(L.grain, c.id).toBeLessThan(0.1);
-      expect(L.env, c.id).toBeLessThanOrEqual(TODAY.env);
     }
+  });
+
+  it("lights the shade with the hour's own sky: less at midday, when a bright hazy sky washes the city out; more at night, when it is dark", () => {
+    const env = (h: number) => lookFor(h).env;
+    for (const c of chapters) {
+      expect(env(c.hour), c.id).toBeGreaterThan(0.2);
+      expect(env(c.hour), c.id).toBeLessThanOrEqual(3);
+    }
+    expect(env(12)).toBeLessThan(env(7));
+    expect(env(15)).toBeLessThan(env(18));
+    expect(env(22)).toBeGreaterThan(env(7));
+    expect(TODAY.env).toBe(1); // `?look=off`: the sky as it is
   });
 
   it("is warm by day (more red than blue) and never crushes the shadows", () => {
@@ -105,7 +116,6 @@ describe("look per hour", () => {
     expect(L.gain[0]).toBeGreaterThan(L.gain[2]); // warm: more red than blue
     expect(L.grain).toBeGreaterThan(0);
     expect(L.grain).toBeLessThan(0.1); // light
-    expect(L.env).toBeLessThan(TODAY.env); // less flat studio fill
   });
 
   it("on phones keeps the grade and the grain, never depth of field", () => {

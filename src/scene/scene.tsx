@@ -3,7 +3,7 @@
 // The 3D city. Loaded only in the browser, only when WebGL is available and
 // the visitor has not asked for reduced motion (see Experience).
 
-import { Environment, Lightformer, PerformanceMonitor } from "@react-three/drei";
+import { PerformanceMonitor } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Suspense, lazy, memo, useEffect, useRef, useState } from "react";
 import { WebGLRenderTarget, type Camera, type Material, type Mesh, type Object3D, type Scene as ThreeScene, type Texture, type WebGLRenderer } from "three";
@@ -40,8 +40,9 @@ type Props = { onReady: () => void; onGo: (index: number) => void; lite: boolean
 /**
  * Ready once every shader is compiled and every texture uploaded, so the
  * first scroll through a chapter never stalls. Starts after the first frame,
- * when the lights, shadows and environment are in place (they are part of
- * each shader), and compiles in parallel where the browser can.
+ * when the lights, shadows and the sky light (`Reflections` puts it in place
+ * first, at its final size) are there (they are part of each shader), and
+ * compiles in parallel where the browser can.
  */
 function Ready({ onReady }: { onReady: () => void }) {
   const started = useRef(false);
@@ -93,16 +94,6 @@ function warmUp(gl: WebGLRenderer, scene: ThreeScene, camera: Camera, target: We
   for (const o of hidden) o.visible = false;
 }
 
-/** Studio light for everything but glass. Memoised: a re-render would redraw its cube and re-filter it (a 200 ms stall). */
-const Studio = memo(function Studio() {
-  return (
-    <Environment resolution={128} frames={1} environmentIntensity={0.5}>
-      <Lightformer intensity={1.6} position={[0, 12, 12]} scale={[40, 12, 1]} />
-      <Lightformer intensity={0.8} position={[-20, 6, -10]} rotation-y={Math.PI / 2} scale={[30, 8, 1]} />
-    </Environment>
-  );
-});
-
 function Scene({ onReady, onGo, lite }: Props) {
   // Sharp on retina screens, until the GPU can't keep up: then one pixel per pixel.
   const [dpr, setDpr] = useState<[number, number]>(lite ? [1, 1.5] : [1, 2]);
@@ -130,7 +121,6 @@ function Scene({ onReady, onGo, lite }: Props) {
       <PerformanceMonitor onDecline={() => setDpr([1, 1])} />
       <Suspense fallback={null}>
         <Atmosphere lite={lite} />
-        <Studio />
         <City lite={lite} />
         <Parked lite={lite} />
         <RoofClutter lite={lite} />

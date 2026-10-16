@@ -1,15 +1,30 @@
-// What glass reflects: the real city, not a painted sky. One cube probe
-// renders the scene (sky dome, fog, buildings, bay, bridges) around the
-// chapter's subject into a cube map. Glass samples it by the reflected view
-// ray, corrected for parallax inside a box (houses opposite line up on flat
-// facades). It re-renders only when the chapter or the hour changes, one cube
-// face per frame into a back buffer, so a scroll never hitches and glass never
-// reads the texture being drawn. Only glass uses it: the rest of the lighting
-// keeps the studio environment (scene.tsx).
+// The hour's real sky and city, for glass and for the light in the shade.
+// One cube probe renders the scene (sky dome, fog, buildings, bay, bridges)
+// around the chapter's subject into a cube map. Glass samples it by the
+// reflected view ray, corrected for parallax inside a box (houses opposite
+// line up on flat facades). Blurred (PMREM) it is also `scene.environment`:
+// every other material takes its sky light and soft reflections from it, so
+// shade is blue under a blue sky and warm at sunset. It re-renders only when
+// the chapter or the hour changes, one cube face per frame into a back
+// buffer, so a scroll never hitches and glass never reads the texture being
+// drawn; the blur runs once per swap.
 
-import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo } from "react";
-import { CubeCamera, HalfFloatType, LinearMipmapLinearFilter, Vector3, type PerspectiveCamera, WebGLCubeRenderTarget, type Scene, type Texture, type WebGLRenderer } from "three";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useLayoutEffect, useMemo } from "react";
+import {
+  CubeCamera,
+  type CubeTexture,
+  HalfFloatType,
+  LinearMipmapLinearFilter,
+  PMREMGenerator,
+  Vector3,
+  WebGLCubeRenderTarget,
+  type PerspectiveCamera,
+  type Scene,
+  type Texture,
+  type WebGLRenderTarget,
+  type WebGLRenderer,
+} from "three";
 import { chapters, type Vec3 } from "@/content/day";
 import { activeIndex } from "@/lib/time";
 import { heightAt } from "@/lib/terrain";
@@ -18,6 +33,11 @@ import { dayNow } from "./shared";
 
 /** Cube face size: a window never shows more detail than this at chapter distances. */
 export const PROBE_SIZE = { full: 256, lite: 128 };
+/**
+ * The sky light's cube face size. Glass reads the full probe; everything else is rough enough for a
+ * small sky, and a smaller one blurs faster.
+ */
+export const SKY_SIZE = { full: 64, lite: 32 };
 /**
  * The probe sees nothing nearer than this: not Cuso, nor the roof he stands
  * on, nor a billboard beside him. Near things would fill half the cube and
@@ -95,7 +115,24 @@ export function probeSpot(index: number, explore: boolean): { position: Vec3; mi
   return { position: [x, py, z], min: [x - 12, floor, z - 12], max: [x + 12, py + 40, z + 12] };
 }
 
-function createProbe(size: number) {
+function createProbe(size: number, skySize: number) {
+  /** Kept for the page's life: a new one would compile its two shaders again (React mounts effects twice in dev). */
+  let pmrem: PMREMGenerator | null = null;
+  /** The blurred probe: `scene.environment`. One target for good: its size is part of every shader. */
+  let sky: WebGLRenderTarget | null = null;
+  /**
+   * Blurs `cube` into the sky light. PMREM sizes its work by the cube's face width: told it is `skySize`,
+   * it reads the probe through its mipmaps, already shrunk.
+   */
+  function blur(gl: WebGLRenderer, cube: CubeTexture) {
+    const face = (cube.images as { width: number }[])[0];
+    const width = face.width;
+    face.width = skySize;
+    pmrem ??= new PMREMGenerator(gl);
+    sky = pmrem.fromCubemap(cube, sky);
+    face.width = width;
+    return sky;
+  }
   const make = () => new WebGLCubeRenderTarget(size, { type: HalfFloatType, generateMipmaps: true, minFilter: LinearMipmapLinearFilter });
   const targets = [make(), make()];
   const camera = new CubeCamera(PROBE_NEAR, 1200, targets[0]); // for its six face cameras
@@ -114,10 +151,30 @@ function createProbe(size: number) {
     target.texture.generateMipmaps = i === 5;
     gl.setRenderTarget(target, i);
     gl.clear();
+    // The probe sees the city by sun and hemisphere light only, never by an older probe:
+    // the same picture whatever chapter came before (a day probe would light the night).
+    const env = scene.environmentIntensity;
+    scene.environmentIntensity = 0;
     gl.render(scene, camera.children[i] as PerspectiveCamera);
+    scene.environmentIntensity = env;
   }
 
   return {
+    /**
+     * Before `Ready` compiles: the sky light's texture exists at its final size (black until the
+     * first probe, right after the compile), so the shaders are built with it and never again.
+     */
+    init(gl: WebGLRenderer, scene: Scene) {
+      const previous = gl.getRenderTarget();
+      for (let i = 0; i < 6; i++) {
+        gl.setRenderTarget(targets[0], i);
+        gl.clear();
+      }
+      gl.setRenderTarget(previous);
+      // also compiles the blur's two shaders now, before Ready
+      scene.environment = blur(gl, targets[0].texture).texture;
+    },
+
     /** Call every frame; renders at most one face (all six for the first render, behind the poster). */
     step(gl: WebGLRenderer, scene: Scene, key: ProbeKey, lite: boolean) {
       if (face < 0) {
@@ -136,8 +193,9 @@ function createProbe(size: number) {
       gl.shadowMap.autoUpdate = shadows;
       gl.setRenderTarget(previous);
       if (face < 6 || !pending) return;
-      // swap: glass now reads what was just drawn
+      // swap: glass now reads what was just drawn, the sky light its blur
       const { spot } = pending;
+      blur(gl, targets[back].texture);
       glassUniforms.uGlassEnv.value = targets[back].texture;
       glassUniforms.uProbePos.value.set(...spot.position);
       glassUniforms.uProbeMin.value.set(...spot.min);
@@ -148,7 +206,10 @@ function createProbe(size: number) {
       face = -1;
       back = 1 - back;
     },
-    dispose() {
+    dispose(scene: Scene) {
+      if (sky && scene.environment === sky.texture) scene.environment = null;
+      sky?.dispose();
+      sky = null;
       for (const t of targets) t.dispose();
       last = pending = null;
       face = -1;
@@ -158,11 +219,16 @@ function createProbe(size: number) {
   };
 }
 
-/** The city probe for glass. Renders nothing itself. */
+/** The city probe: glass and the sky light. Renders nothing itself. */
 export function Reflections({ lite }: { lite: boolean }) {
-  const probe = useMemo(() => createProbe(lite ? PROBE_SIZE.lite : PROBE_SIZE.full), [lite]);
+  const probe = useMemo(() => (lite ? createProbe(PROBE_SIZE.lite, SKY_SIZE.lite) : createProbe(PROBE_SIZE.full, SKY_SIZE.full)), [lite]);
   const still = useMemo(() => ({ hour: -1, since: 0 }), []);
-  useEffect(() => () => probe.dispose(), [probe]);
+  const { gl, scene } = useThree();
+  // a layout effect: in place before the first frame, when `Ready` starts compiling
+  useLayoutEffect(() => {
+    probe.init(gl, scene);
+    return () => probe.dispose(scene);
+  }, [probe, gl, scene]);
   useFrame(({ gl, scene, clock }) => {
     // `Ready` (scene.tsx) sets this once every shader is compiled: the probe must not trigger compiles
     if (!scene.userData.shadersReady) return;
