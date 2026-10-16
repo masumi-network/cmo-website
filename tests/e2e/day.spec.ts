@@ -11,7 +11,8 @@ const heavy = { tag: "@heavy" };
 const shot = (page: Page, name: string) =>
   page.screenshot({ path: `screenshots/${test.info().project.name}-${name}.png` });
 
-async function open(page: Page, query = "") {
+/** `?v=3d` keeps phones out of the posters-only half of the A/B test (track.ts), so 3D tests get the 3D. */
+async function open(page: Page, query = "?v=3d") {
   await page.goto(`/${query}`);
   await expect(page.getByRole("heading", { name: "Marketing, on autopilot." })).toBeVisible();
 }
@@ -141,17 +142,48 @@ test("explore mode shows the map and a pin takes you there", heavy, async ({ pag
   await expect(page.getByRole("heading", { name: "Runs your ads" })).toBeInViewport();
 });
 
-test("joining the waitlist works", async ({ page }) => {
+test("joining the waitlist works, then the website as an extra step", async ({ page }) => {
   // E2E runs a production build with no Sokosumi key, where the real route answers 503.
   // Stand in for a successful save; the route itself is covered in tests/unit/waitlist-route.test.ts.
-  await page.route("**/api/waitlist", (route) => route.fulfill({ json: { ok: true } }));
+  const posts: unknown[] = [];
+  await page.route("**/api/waitlist", (route) => {
+    posts.push(route.request().postDataJSON());
+    return route.fulfill({ json: { ok: true } });
+  });
   await open(page, "?static");
   await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" }));
   const finale = page.locator("#chapter-join");
   await finale.getByLabel("Email").fill("founder@example.com");
-  await finale.getByLabel("Website (optional)").fill("example.com");
   await finale.getByRole("button", { name: "Join the waitlist" }).click();
   await expect(finale.getByRole("status")).toContainText("You're on the list");
+  await finale.getByLabel("Website").fill("example.com");
+  await finale.getByRole("button", { name: "Add my site" }).click();
+  await expect(finale.getByRole("status")).toContainText("Cuso starts with example.com");
+  expect(posts).toEqual([{ email: "founder@example.com" }, { email: "founder@example.com", website: "example.com" }]);
+});
+
+test("Join the waitlist in the top bar: the hero's field on the hero, the finale's anywhere else", async ({ page }) => {
+  await open(page, "?static");
+  const join = page.getByRole("banner").getByRole("button", { name: "Join the waitlist" });
+  await join.click();
+  await expect(page.locator("#waitlist-hero-email")).toBeFocused();
+  expect(await page.evaluate(() => scrollY)).toBe(0); // no flight
+  await goToChapter(page, chapterIndex("ads"));
+  await expect(page.getByRole("heading", { name: "Runs your ads" })).toBeInViewport();
+  await join.click();
+  await expect(page.getByRole("heading", { name: "Your city. Your CMO." })).toBeInViewport();
+  await expect(page.locator("#waitlist-finale-email")).toBeFocused();
+});
+
+test("the phone test: ?v=posters shows posters rendered from the 3D, no canvas", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "phones only");
+  await open(page, "?v=posters");
+  await waitForCity(page);
+  await expect(page.locator("[data-scene]")).toHaveAttribute("data-scene", "static");
+  await expect(page.locator("canvas")).toHaveCount(0);
+  await expect(page.locator("[data-scene] img").first()).toHaveJSProperty("complete", true);
+  expect(await page.locator("[data-scene] img").first().evaluate((img: HTMLImageElement) => img.currentSrc)).toMatch(/\/posters\/arrive-phone\.jpg$/);
+  await shot(page, "12-posters-variant");
 });
 
 test("without 3D the page still works (posters)", async ({ page }) => {

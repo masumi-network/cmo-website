@@ -54,7 +54,7 @@ export type Chapter = {
   place: string;
   /** What Cuso says when he arrives. */
   bubble: string;
-  /** Concept render, used as poster and as the no-WebGL fallback. */
+  /** Rendered from this chapter's 3D shot (scripts/posters.mjs): the loading cover and the no-3D fallback. A `-phone` twin sits beside it. */
   poster: string;
   /** Where Cuso stands. */
   spot: Vec3;
@@ -76,10 +76,10 @@ export const chapters: readonly Chapter[] = [
     time: "06:00",
     label: "Hello",
     title: "Marketing, on autopilot.",
-    body: "Meet Cuso, your AI CMO. Spend one day with him in the city and watch him do the work.",
+    body: "Cuso is an AI CMO for founders. He runs your social, ads, SEO and email. Nothing goes out without your OK.",
     place: "Russian Hill",
     bubble: "Morning! I'm Cuso.",
-    poster: "/concepts/01-hero-rooftop.jpg",
+    poster: "/posters/arrive.jpg",
     spot: [-14, RUSSIAN_HILL_ROOF, -12.9],
     camera: frame([-14, RUSSIAN_HILL_ROOF, -12.9], { yaw: 37, distance: 7.5, height: 2.0, look: 2.2 }),
     phone: frame([-14, RUSSIAN_HILL_ROOF, -12.9], { yaw: 37, distance: 9.5, height: 2.2, look: 1, side: 0 }),
@@ -94,7 +94,7 @@ export const chapters: readonly Chapter[] = [
     body: "Give Cuso your website. He reads every page and learns how you talk, who you sell to and who you compete with.",
     place: "Hayes Valley",
     bubble: "Reading your About page. I like your tone.",
-    poster: "/concepts/02-brand-brain.jpg",
+    poster: "/posters/learn.jpg",
     spot: at(-9.6, 0, 14.6),
     camera: frame(at(-9.6, 0, 14.6), { yaw: 18, distance: 7, height: 1.3, look: 1.8 }),
     phone: frame(at(-9.6, 0, 14.6), { yaw: 18, distance: 10, height: 5, look: 1.8, side: 0 }),
@@ -109,7 +109,7 @@ export const chapters: readonly Chapter[] = [
     body: "Cuso picks what to post and when, and writes it in your voice. Nothing goes out without your OK.",
     place: "Mission",
     bubble: "This one for Tuesday morning?",
-    poster: "/concepts/03-social.jpg",
+    poster: "/posters/social.jpg",
     spot: at(-2.8, 0, 29.6),
     // low, along the sidewalk: the mural wall runs away on the right, the street on the left (concept 03, F13)
     camera: frame(at(-2.8, 0, 29.6), { yaw: 135, distance: 7.5, height: 0.9, look: 1.5, side: 0.28 }),
@@ -125,7 +125,7 @@ export const chapters: readonly Chapter[] = [
     body: "Cuso builds your Google and Meta ads, then moves money to the ones that sell.",
     place: "Union Square",
     bubble: "Out with the old one. This one sells.",
-    poster: "/concepts/04-ads.jpg",
+    poster: "/posters/ads.jpg",
     spot: [5.6, UNION_SQUARE_ROOF, 10.4],
     // south-east, just over the roof: past Cuso and the billboard to the Golden Gate in the haze (F13)
     camera: frame([5.6, UNION_SQUARE_ROOF, 10.4], { yaw: 36, distance: 17.5, height: 1.5, look: 1.1, side: 0.3 }),
@@ -142,7 +142,7 @@ export const chapters: readonly Chapter[] = [
     body: "Cuso finds what people search for, then updates your pages to match. You climb.",
     place: "Transamerica Pyramid",
     bubble: "Number one. Nice view up here.",
-    poster: "/concepts/05-seo.jpg",
+    poster: "/posters/seo.jpg",
     spot: [6.5, PYRAMID_TIP, -11],
     camera: frame([6.5, PYRAMID_TIP, -11], { yaw: 265, distance: 14, height: 4, look: 0.5, side: 0.25 }),
     phone: frame([6.5, PYRAMID_TIP, -11], { yaw: 285, distance: 11.5, height: 4.2, look: 0.2, side: 0 }),
@@ -157,7 +157,7 @@ export const chapters: readonly Chapter[] = [
     body: "Cuso turns your news into an email people want to read. Then he sends it and tracks who opens it.",
     place: "Ferry Building",
     bubble: "Special delivery!",
-    poster: "/concepts/06-newsletter.jpg",
+    poster: "/posters/newsletter.jpg",
     // He waits on the sidewalk beside the cable car's step (at(19.95, 0.34, 5.1)), which both shots frame:
     // on the step itself the car's roof is in the way of turning to the lens.
     spot: at(19.95, 0, 5.7),
@@ -174,7 +174,7 @@ export const chapters: readonly Chapter[] = [
     body: "Every night Cuso checks what worked. Every week he tells you what he'll change.",
     place: "Embarcadero",
     bubble: "Night shift. Got a minute?",
-    poster: "/concepts/07-night.jpg",
+    poster: "/posters/night.jpg",
     spot: [33.6, 0.55, 24.2],
     camera: frame([33.6, 0.55, 24.2], { yaw: 315, distance: 6.5, height: 1.1, look: 1.3, side: -0.3 }),
     phone: frame([33.6, 0.55, 24.2], { yaw: 315, distance: 5, height: 5.5, look: 0.6, side: 0 }),
@@ -189,7 +189,7 @@ export const chapters: readonly Chapter[] = [
     body: "Cuso is almost ready. Join the waitlist and he starts with your brand first.",
     place: "Russian Hill",
     bubble: "Same time tomorrow?",
-    poster: "/concepts/09-finale.jpg",
+    poster: "/posters/join.jpg",
     spot: [-14, RUSSIAN_HILL_ROOF, -12.9],
     camera: frame([-14, RUSSIAN_HILL_ROOF, -12.9], { yaw: 322, distance: 30, height: 13, look: 2, side: 0.2 }),
     phone: frame([-14, RUSSIAN_HILL_ROOF, -12.9], { yaw: 332, distance: 34, height: 15, look: 2, side: 0 }),

@@ -61,7 +61,7 @@ test("the costliest views stay within their draw call and triangle budget", { ta
   const views = [chapterIndex("arrive"), chapterIndex("social"), chapterIndex("newsletter"), "explore" as const];
   for (const view of views) {
     // Load already scrolled to the chapter, so Cuso starts there (the walk takes minutes in software WebGL).
-    await page.goto("/");
+    await page.goto("/?v=3d"); // phones: never the posters-only half of the A/B test
     if (view !== "explore") await page.evaluate((i) => window.scrollTo({ top: i * innerHeight * 1.6, behavior: "instant" }), view);
     await expect(page.locator("[data-scene]")).toHaveAttribute("data-scene", "ready", { timeout: 90_000 });
     if (view === "explore") await page.getByRole("button", { name: "Explore", exact: true }).click();

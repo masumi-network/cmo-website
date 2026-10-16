@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { chapterIndex } from "@/content/day";
 import { askCuso, type IntentId } from "@/lib/ask";
 import { useCity } from "@/lib/store";
+import { track } from "@/lib/track";
 
 export function AskBar({ onGo, className }: { onGo: (index: number) => void; className?: string }) {
   const [question, setQuestion] = useState("");
@@ -21,6 +22,7 @@ export function AskBar({ onGo, className }: { onGo: (index: number) => void; cla
     const answer = askCuso(text, asked.current);
     if (!answer.reply) return;
     if (answer.intent) asked.current.push(answer.intent);
+    track("ask_cuso", { intent: answer.intent ?? "none" });
     say(answer.reply);
     setSuggest(answer.suggest ?? []);
     if (answer.chapter) onGo(chapterIndex(answer.chapter));

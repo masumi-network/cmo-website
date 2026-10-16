@@ -6,6 +6,7 @@ import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { chapterIndex, chapters } from "@/content/day";
 import { saveWalk } from "@/lib/fly";
+import { track } from "@/lib/track";
 import { activeIndex } from "@/lib/time";
 import { isMoved, usePan } from "@/lib/pan";
 import { useCity } from "@/lib/store";
@@ -21,6 +22,17 @@ export function Hud({ onGo }: { onGo: (index: number) => void }) {
   const recenter = usePan((s) => s.reset);
   const chapter = chapters[active];
   const dark = mode === "story" && chapter.dark;
+
+  // On the hero its own form is right there: go to it. Anywhere else, fly to the finale's.
+  const join = () => {
+    track("cta_click", { source: "topbar", chapter: chapter.id });
+    const hero = active === 0;
+    const field = () => document.getElementById(hero ? "waitlist-hero-email" : "waitlist-finale-email")?.focus({ preventScroll: true });
+    setMode("story");
+    if (!hero) onGo(chapterIndex("join"));
+    field();
+    if (mode === "explore") requestAnimationFrame(field); // the story is inert until Explore has closed
+  };
 
   const segment = (on: boolean) =>
     cn("flex h-11 items-center rounded-full px-4 text-sm font-medium transition-colors", on ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted");
@@ -79,7 +91,7 @@ export function Hud({ onGo }: { onGo: (index: number) => void }) {
             </button>
           </div>
           <Settings />
-          <Button className="rounded-full" size="sm" onClick={() => { setMode("story"); onGo(chapterIndex("join")); }}>
+          <Button className="rounded-full" size="sm" onClick={join}>
             Join the waitlist
           </Button>
         </div>
@@ -124,6 +136,7 @@ function Settings() {
               onCheckedChange={(on) => {
                 setWalk(on);
                 saveWalk(on);
+                track("walk_mode", { on });
               }}
               aria-label="Walk mode"
               className="relative h-6 w-10 shrink-0 cursor-pointer rounded-full bg-muted transition-colors data-[state=checked]:bg-primary"

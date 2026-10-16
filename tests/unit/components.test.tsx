@@ -44,42 +44,79 @@ describe("WeeklyNote", () => {
 });
 
 describe("WaitlistForm", () => {
+  const ok = () => vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
   it("shows the email error without calling the API", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    render(<WaitlistForm />);
+    render(<WaitlistForm source="hero" />);
     await userEvent.type(screen.getByLabelText("Email"), "nope");
     await userEvent.click(screen.getByRole("button", { name: "Join the waitlist" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Please enter a valid email.");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("posts a valid signup and confirms", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-    render(<WaitlistForm withWebsite />);
-    await userEvent.type(screen.getByLabelText("Email"), "a@b.co");
-    await userEvent.type(screen.getByLabelText("Website (optional)"), "b.co");
-    await userEvent.click(screen.getByRole("button", { name: "Join the waitlist" }));
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("You're on the list"));
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "a@b.co", website: "b.co" });
+  it("asks only for an email, and says what happens to it", () => {
+    render(<WaitlistForm source="finale" />);
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getByLabelText("Email")).toHaveAttribute("id", "waitlist-finale-email");
+    expect(screen.getByText("No spam. We only write when Cuso is ready.")).toBeInTheDocument();
   });
 
-  it("tells analytics about the signup when GA is loaded", async () => {
-    const gtag = vi.fn();
-    vi.stubGlobal("gtag", gtag);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 })));
-    render(<WaitlistForm />);
+  it("posts the email, confirms, then asks for the website as an extra step", async () => {
+    const fetchMock = ok();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<WaitlistForm source="hero" />);
     await userEvent.type(screen.getByLabelText("Email"), "a@b.co");
     await userEvent.click(screen.getByRole("button", { name: "Join the waitlist" }));
-    await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
-    expect(gtag).toHaveBeenCalledWith("event", "sign_up", { method: "waitlist" });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("You're on the list"));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "a@b.co" });
+
+    await userEvent.type(screen.getByLabelText("Website"), "b.co");
+    await userEvent.click(screen.getByRole("button", { name: "Add my site" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Got it. Cuso starts with b.co."));
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ email: "a@b.co", website: "b.co" });
+  });
+
+  it("rejects a website that is not one, without calling the API again", async () => {
+    const fetchMock = ok();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<WaitlistForm source="hero" />);
+    await userEvent.type(screen.getByLabelText("Email"), "a@b.co");
+    await userEvent.click(screen.getByRole("button", { name: "Join the waitlist" }));
+    await waitFor(() => expect(screen.getByLabelText("Website")).toBeInTheDocument());
+    await userEvent.type(screen.getByLabelText("Website"), "hello");
+    await userEvent.click(screen.getByRole("button", { name: "Add my site" }));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells analytics where the funnel goes: start, error, signup, website", async () => {
+    const gtag = vi.fn();
+    vi.stubGlobal("gtag", gtag);
+    vi.stubGlobal("fetch", ok());
+    render(<WaitlistForm source="finale" />);
+    const email = screen.getByLabelText("Email");
+    await userEvent.click(email);
+    await userEvent.click(document.body);
+    await userEvent.click(email);
+    expect(gtag.mock.calls.filter((c) => c[1] === "form_start")).toEqual([["event", "form_start", { source: "finale" }]]);
+    await userEvent.type(email, "nope");
+    await userEvent.click(screen.getByRole("button", { name: "Join the waitlist" }));
+    expect(gtag).toHaveBeenCalledWith("event", "form_error", { source: "finale", kind: "invalid" });
+    await userEvent.clear(email);
+    await userEvent.type(email, "a@b.co");
+    await userEvent.click(screen.getByRole("button", { name: "Join the waitlist" }));
+    await waitFor(() => expect(gtag).toHaveBeenCalledWith("event", "sign_up", { method: "waitlist", source: "finale" }));
+    await userEvent.type(screen.getByLabelText("Website"), "b.co");
+    await userEvent.click(screen.getByRole("button", { name: "Add my site" }));
+    await waitFor(() => expect(gtag).toHaveBeenCalledWith("event", "website_added", { source: "finale" }));
   });
 
   it("has a honeypot people cannot see or reach, and sends it only when filled", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const fetchMock = ok();
     vi.stubGlobal("fetch", fetchMock);
-    const { container } = render(<WaitlistForm />);
+    const { container } = render(<WaitlistForm source="hero" />);
     const trap = container.querySelector<HTMLInputElement>('input[name="nickname"]')!;
     expect(trap).toHaveAttribute("tabindex", "-1");
     expect(trap.closest("[aria-hidden]")).not.toBeNull();
@@ -92,12 +129,15 @@ describe("WaitlistForm", () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "a@b.co", nickname: "bot" });
   });
 
-  it("shows the server's error", async () => {
+  it("shows the server's error and tells analytics", async () => {
+    const gtag = vi.fn();
+    vi.stubGlobal("gtag", gtag);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "Server says no." }), { status: 400 })));
-    render(<WaitlistForm />);
+    render(<WaitlistForm source="hero" />);
     await userEvent.type(screen.getByLabelText("Email"), "a@b.co");
     await userEvent.click(screen.getByRole("button", { name: "Join the waitlist" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Server says no."));
+    expect(gtag).toHaveBeenCalledWith("event", "form_error", { source: "hero", kind: "server" });
   });
 });
 
@@ -176,5 +216,35 @@ describe("Hud", () => {
     await userEvent.click(walk);
     expect(useCity.getState().walk).toBe(false);
     expect(localStorage.getItem("cmo.walk")).toBeNull();
+  });
+
+  it("Join the waitlist on the hero goes to the hero's email field, without a flight", async () => {
+    const onGo = vi.fn();
+    const gtag = vi.fn();
+    vi.stubGlobal("gtag", gtag);
+    render(
+      <>
+        <Hud onGo={onGo} />
+        <WaitlistForm source="hero" />
+      </>,
+    );
+    await userEvent.click(screen.getAllByRole("button", { name: "Join the waitlist" })[0]); // the top bar's, first on the page
+    expect(onGo).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Email")).toHaveFocus();
+    expect(gtag).toHaveBeenCalledWith("event", "cta_click", { source: "topbar", chapter: "arrive" });
+  });
+
+  it("Join the waitlist from a later chapter flies to the finale and focuses its email field", async () => {
+    const onGo = vi.fn();
+    useCity.setState({ progress: chapterIndex("ads") });
+    render(
+      <>
+        <Hud onGo={onGo} />
+        <WaitlistForm source="finale" />
+      </>,
+    );
+    await userEvent.click(screen.getAllByRole("button", { name: "Join the waitlist" })[0]);
+    expect(onGo).toHaveBeenCalledWith(chapterIndex("join"));
+    expect(screen.getByLabelText("Email")).toHaveFocus();
   });
 });

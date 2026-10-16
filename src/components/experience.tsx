@@ -13,21 +13,28 @@ import { attachFly, loadWalk } from "@/lib/fly";
 import { goToChapter, sectionHeight } from "@/lib/navigate";
 import { useCity } from "@/lib/store";
 import { activeIndex } from "@/lib/time";
+import { phoneVariant, setTrackContext, track } from "@/lib/track";
 
 const Scene = dynamic(() => import("@/scene/scene"), { ssr: false });
 
-type Support = { webgl: boolean; lite: boolean } | null;
+/** Why there is no 3D: no WebGL, reduced motion, `?static`, or the posters half of the phone test. */
+type Flat = "nowebgl" | "reduced" | "param" | "posters" | null;
+type Support = { webgl: boolean; lite: boolean; flat: Flat } | null;
 
 let support: Support = null;
 function detect(): Support {
   if (support) return support;
   const params = new URLSearchParams(window.location.search);
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const phone = window.matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 768;
+  const variant = phone ? phoneVariant(window.location.search) : null;
+  setTrackContext(variant ? { phone_test: variant } : {});
   let gl: WebGL2RenderingContext | null = null;
   try {
     gl = document.createElement("canvas").getContext("webgl2");
   } catch {}
-  support = { webgl: !!gl && !reduced && !params.has("static"), lite: params.has("lite") || weak(gl) };
+  const flat: Flat = !gl ? "nowebgl" : reduced ? "reduced" : params.has("static") ? "param" : variant === "posters" ? "posters" : null;
+  support = { webgl: !flat, lite: params.has("lite") || weak(gl), flat };
   gl?.getExtension("WEBGL_lose_context")?.loseContext(); // only asked; the scene makes its own
   return support;
 }
@@ -48,7 +55,7 @@ function weak(gl: WebGL2RenderingContext | null) {
 const noop = () => () => {};
 
 /**
- * Concept renders behind everything: loading state and no-WebGL fallback.
+ * Posters behind everything, rendered from the 3D shots: loading state, no-WebGL fallback, the phone test's posters half.
  * Only this chapter's poster and its neighbours load (they all stack in view,
  * so `loading="lazy"` would fetch every one).
  */
@@ -59,13 +66,15 @@ function Posters({ visible }: { visible: boolean }) {
       {chapters.map(
         (c, i) =>
           Math.abs(i - active) <= 1 && (
-            // eslint-disable-next-line @next/next/no-img-element -- full-bleed art, swapped by CSS
-            <img
-              key={c.id}
-              src={c.poster}
-              alt=""
-              className={cn("absolute inset-0 size-full object-cover transition-opacity duration-700", i === active ? "opacity-100" : "opacity-0")}
-            />
+            // Phones in portrait get the phone shot, framed for their cards (isPhone in shared.ts).
+            <picture key={c.id}>
+              <source media="(orientation: portrait) and (max-width: 767px)" srcSet={c.poster.replace(/\.jpg$/, "-phone.jpg")} />
+              <img
+                src={c.poster}
+                alt=""
+                className={cn("absolute inset-0 size-full object-cover transition-opacity duration-700", i === active ? "opacity-100" : "opacity-0")}
+              />
+            </picture>
           ),
       )}
     </div>
@@ -120,7 +129,10 @@ export function Experience() {
   const mode = useCity((s) => s.mode);
   const walk = useCity((s) => s.walk);
   const active = useCity((s) => activeIndex(s.progress, chapters.length));
-  const onReady = useCallback(() => setReady(true), []);
+  const onReady = useCallback(() => {
+    setReady(true);
+    track("scene_ready", { ms: Math.round(performance.now()), lite: !!support?.lite });
+  }, []);
   const onGo = useCallback((index: number) => goToChapter(index), []);
 
   // The walk setting, as this visitor left it.
@@ -147,7 +159,14 @@ export function Experience() {
 
   useEffect(() => {
     document.documentElement.style.overflow = mode === "explore" ? "hidden" : "";
+    if (mode === "explore") track("explore_open");
   }, [mode]);
+
+  // The funnel: how far into the day people get, and whether they saw the 3D.
+  useEffect(() => {
+    if (env?.flat) track("scene_static", { reason: env.flat });
+  }, [env]);
+  useEffect(() => track("chapter_view", { chapter: chapters[active].id, index: active, walk: useCity.getState().walk }), [active]);
 
   const id = chapters[active].id;
   const showAsk = mode === "story" && id !== "arrive" && id !== "join";

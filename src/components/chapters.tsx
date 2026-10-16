@@ -31,7 +31,7 @@ function Hero({ chapter, onGo }: { chapter: Chapter; onGo: (index: number) => vo
         <h1 className="text-[44px] leading-none font-semibold tracking-[-0.04em] md:text-[76px] md:leading-[0.98] short:text-[44px]">{chapter.title}</h1>
         <p className="max-w-[440px] text-base leading-relaxed md:text-xl short:text-base">{chapter.body}</p>
         <Card className="max-w-[440px] p-4">
-          <WaitlistForm />
+          <WaitlistForm source="hero" />
         </Card>
       </div>
       <button
@@ -56,7 +56,7 @@ function Finale({ chapter }: { chapter: Chapter }) {
         <h2 className="text-[34px] leading-none font-semibold tracking-[-0.04em] md:text-6xl md:leading-[0.98] short:text-[40px]">{chapter.title}</h2>
         <p className="text-[15px] leading-relaxed text-muted-foreground md:text-lg short:text-[15px]">{chapter.body}</p>
       </div>
-      <WaitlistForm withWebsite className="short:flex-1" />
+      <WaitlistForm source="finale" className="short:flex-1" />
     </Card>
   );
 }

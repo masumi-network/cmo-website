@@ -2,7 +2,7 @@
 
 - Canvas (approved 2026-10-12): https://claude.ai/artifact/KCZCH6RDZW8L3BTgPYHwxT
 - `prompts/`: one Codex image-gen prompt per concept shot. `_style.txt` is appended to every prompt.
-- Rendered concepts live in `public/concepts/`. The site uses them as posters and as the no-WebGL fallback.
+- Rendered concepts live in `public/concepts/`. They are the look target (F13). Since 2026-10-16 the site's posters are rendered from the 3D instead (`public/posters/`, `scripts/posters.mjs`).
 
 Regenerate a shot (run from a folder that holds `prompts/`, `_style.txt` and the two reference images):
 

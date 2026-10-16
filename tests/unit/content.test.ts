@@ -18,6 +18,8 @@ describe("day content", () => {
   it("has a poster image for every chapter (fallback when 3D is off)", () => {
     for (const c of chapters) {
       expect(existsSync(join(process.cwd(), "public", c.poster)), c.poster).toBe(true);
+      const phone = c.poster.replace(/\.jpg$/, "-phone.jpg");
+      expect(existsSync(join(process.cwd(), "public", phone)), phone).toBe(true);
     }
   });
 
