@@ -21,6 +21,7 @@ One key per chapter hour in four tables: `lightingAt` (time.ts), `lookFor` (look
 | 22:00 | night | moon 60, 0.6, 0.22 | `NIGHT`: gain 1.17 / 1.1 / 1, a blue lift, grain 0.045, sky light 2.9 | 0.4, 0.35, 0.85 | A calmer blue-violet sky; windows and bridge lights still read; cloud hides about half the stars. |
 | 30 (06:00) | join | as 06:00 but azimuth 240, the sun at 3.6, ambient 0.42 (tested) | `FINALE`: sunrise, depth of field 1 over 24, contrast 0.24, full bloom, no Cuso fill | 0.3, 0.4, 0.85 | Side light and long shadows over Russian Hill (was flat sepia). |
 
+- **Water** (`water.ts`, `WATER_HOURS`, blended the same way): the mirror's streak length (`smear`) 0.012 at 06:00, 0.01 at 07:00, 0.009 at 09:00 and 12:00, 0.01 at 15:00, 0.015 at 18:00, 0.045 at 22:00; how much grazing waves show the sky (`sky`) 1 at 06:00 and 18:00, 0.7 at 07:00, 0.5 at 09:00 and 12:00, 0.6 at 15:00 and 22:00. See [city-scene](city-scene.md).
 - **Sun path:** azimuth keys 237.5, 60, 90, 50, 0, -30, -40 (20:00), 60 (22:00 moon), 230 (26), 240. `lightingAt` blends azimuth as a plain number, so each step stays under 180 numerically (18:00 is -30, not 330). 06:00 to 07:00 turns 178 degrees during the flight; checked mid-scroll, it reads.
 - **Sunset and sunrise without a pop:** the scene puts the moon at 38 degrees as soon as elevation drops below 0. The 20 and 26 keys now sit at elevation 0 with almost no light (0.08, 0.05), so the switch happens in the dark. Before, it crossed 0 at about 19.1 h and 29 h with the sun near full strength and the shadows jumped.
 - **Shadows:** every day chapter keeps ambient at most 0.14 of the sun (tested).
@@ -148,7 +149,7 @@ Code: `src/scene/skyline.ts` (ridges, towers, mast, lights, per-hour table; pure
 | 30 | as 06:00 | | | | | The finale's shots look down: the horizon is above both frames. |
 
 - **Dev:** `?backdrop=off` hides it (compiled out in production), for before and after screenshots.
-- **Cost:** 4.6k to 6.2k triangles and 2 to 4 draw calls where it is in frame (+1 at night on desktop), nothing in the shadow map, the water mirror or the glass probe (DETAIL layer). Back to back with `?backdrop=off` (1440x900, 3 runs each, GPU median): 06:00 24.55 off, 24.5 to 24.9 on; 22:00 21.7 off, 21.4 to 21.8 on: inside run noise.
+- **Cost:** 4.6k to 6.2k triangles and 2 to 4 draw calls where it is in frame (+1 at night on desktop), nothing in the shadow map, the water mirror or the glass probe (DETAIL layer), except the town lights: since the water pass (2026-10-16) they are on the default layer, so at night the mirror streaks them under the far shore (+1 draw in the mirror and the probe, only when lit). Back to back with `?backdrop=off` (1440x900, 3 runs each, GPU median): 06:00 24.55 off, 24.5 to 24.9 on; 22:00 21.7 off, 21.4 to 21.8 on: inside run noise.
 - **Tried and dropped:** a thin mast (legs 0.36) vanished in the depth of field; the mast behind the 09:00 trees did not read; Gaussian peaks read as smooth domes (now roughened, Tam with a shoulder); haze 0.46 at 06:00 left the far ridges clearer than the headland crest in front.
 
 ## Camera
