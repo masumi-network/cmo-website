@@ -184,7 +184,8 @@ const WOOD_COLOR = /* glsl */ `
   vec3 wdLateCol = mix(vec3(1.0), vec3(0.55, 0.42, 0.32), uWdGrain.y);
   diffuseColor.rgb *= mix(vec3(1.0), wdLateCol, wdMark) * (1.0 + wdFib * uWdGrain.z) * mix(1.0, 0.4, wdKnot);
   float wdRough = mix(uWdRough.x, uWdRough.y, clamp(0.6 * wdBlotch + 0.25 * wdMark + 0.3 * wdKnot - 0.1, 0.0, 1.0));
-  float wdH = (wdFib * 0.8 - wdMark * 0.4 - wdKnot * 0.4) * uWdRough.z;`;
+  float wdH = (wdFib * 0.8 - wdMark * 0.4 - wdKnot * 0.4) * uWdRough.z;
+  float wdSky = 1.0;`;
 
 /** Bends the normal by the relief (three's bump formula without the per-pixel normalisation, so wdH is in units). */
 const WOOD_NORMAL = /* glsl */ `
@@ -201,7 +202,8 @@ const WOOD_NORMAL = /* glsl */ `
 /**
  * Extra GLSL run after the pattern (its own program key). It may read vWdW
  * (world position), vWdP, vWood, wdSeed, wdA, wdKnot and change diffuseColor,
- * wdRough and wdH. The pier uses it for wet edges and the worn path.
+ * wdRough, wdH and wdSky (how much of the sky's reflection shows, 1 = all).
+ * The pier uses it for wet edges and the worn path.
  */
 export type WoodSurface = { key: string; glsl: string };
 
@@ -225,7 +227,8 @@ export function woodMaterial(color: ColorRepresentation, look: WoodLook, lite = 
       .replace("#include <common>", `#include <common>\n${WOOD_HEAD}`)
       .replace("#include <color_fragment>", `#include <color_fragment>\n${WOOD_COLOR}\n${surface?.glsl ?? ""}`)
       .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nroughnessFactor = wdRough;")
-      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>\n${WOOD_NORMAL}`);
+      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>\n${WOOD_NORMAL}`)
+      .replace("#include <lights_fragment_maps>", "#include <lights_fragment_maps>\nradiance *= wdSky;");
   };
   return m;
 }

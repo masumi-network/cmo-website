@@ -1,12 +1,18 @@
 "use client";
 
-// 22:00 on an Embarcadero pier: a plank deck on pilings, a railing, an old
-// lamp post, and Cuso's laptop and mug. Planks, beams and pilings are instanced.
+// 22:00 on an Embarcadero pier: a plank deck on pilings, a timber railing
+// with steel rods, an old lamp post, and Cuso's laptop and mug. The deck and
+// railing are one merged mesh of weathered wood (wood.ts: grain and knots per
+// plank; wet glossy edges and patches, a worn path; cut plank edges, nail
+// heads, AO baked into the joints). Beams and pilings are instanced.
 
 import { useFrame } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useContext, useLayoutEffect, useMemo, useRef } from "react";
 import {
+  BoxGeometry,
+  BufferGeometry,
   CanvasTexture,
+  CircleGeometry,
   Color,
   CylinderGeometry,
   DoubleSide,
@@ -15,6 +21,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
+  PlaneGeometry,
   RepeatWrapping,
   SRGBColorSpace,
   Vector2,
@@ -22,8 +29,11 @@ import {
   type PointLight,
 } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { vertexAO, type Box } from "./ao";
 import type { V3 } from "./parts";
-import { rig, useNightGlow } from "./shared";
+import { Lite, rig, useNightGlow } from "./shared";
+import { WOOD_LOOKS, chamferBox, tagBoard, woodBoard, woodMaterial, type WoodSurface } from "./wood";
 
 /** The deck in world units. Cuso stands on `top` at [33.6, 24.2]. */
 export const DECK = { x0: 31, x1: 41, z0: 21.8, z1: 26.2, top: 0.55 };
@@ -98,7 +108,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.fill();
 }
 
-/** Light grey wood grain along v. Tinted per board by instance colour. */
+/** Light grey wood grain along v. Tinted per board by instance or vertex colour (beams, pilings; the deck on phones). */
 function grainTexture() {
   const rand = seeded(7);
   return canvasTexture(128, 1024, (ctx) => {
@@ -112,14 +122,6 @@ function grainTexture() {
       ctx.beginPath();
       for (let y = 0; y <= 1024; y += 32) ctx.lineTo(x0 + Math.sin(y / (90 + i * 3) + i) * 3, y);
       ctx.stroke();
-    }
-    for (let i = 0; i < 3; i++) {
-      const x = 20 + rand() * 88;
-      const y = rand() * 1024;
-      ctx.fillStyle = "rgba(150,150,150,0.35)";
-      ctx.beginPath();
-      ctx.ellipse(x, y, 6 + rand() * 4, 18 + rand() * 10, 0, 0, Math.PI * 2);
-      ctx.fill();
     }
   });
 }
@@ -238,16 +240,11 @@ function useInstances(items: Item[]) {
 
 // ---------- the pier ----------
 
-const WOOD = new Color("#a08a70");
-const WEATHERED = new Color("#9a958c");
+const WOOD = new Color("#6e5e4e");
+const WEATHERED = new Color("#737069");
 const UNDER = new Color("#6e5d4b");
 
 function deckItems() {
-  const planks: Item[] = plankLayout().map((b) => ({
-    p: [b.x, DECK.top - PLANK.thick / 2 + b.lift, b.z],
-    s: [b.width, PLANK.thick, b.length],
-    color: WOOD.clone().lerp(WEATHERED, b.grey * 0.7).multiplyScalar(b.shade),
-  }));
   const beamTop = DECK.top - PLANK.thick;
   const beams: Item[] = [
     ...STRINGERS.map((z): Item => ({ p: [(DECK.x0 + DECK.x1) / 2, beamTop - 0.07, z], s: [DECK.x1 - DECK.x0, 0.14, 0.07], color: UNDER })),
@@ -268,30 +265,136 @@ function deckItems() {
   const piles: Item[] = BENTS.flatMap((x) =>
     PILE_Z.map((z): Item => ({ p: [x, pileTop, z], rx: (rand() - 0.5) * 0.03, rz: (rand() - 0.5) * 0.03, color: new Color().setScalar(0.9 + rand() * 0.2) })),
   );
-  return { planks, beams, piles, pileTop };
+  return { beams, piles, pileTop };
 }
 
-/** The railing along the north side (z) and the far end (x), from x0 / to z1; `top` above the deck, `half` its thickness. */
-export const RAIL = { z: DECK.z0 + 0.08, x: DECK.x1 - 0.08, x0: DECK.x0 + 0.25, z1: DECK.z1 - 0.1, top: 0.64, half: 0.033 };
+/** The railing along the north side (z) and the far end (x), from x0 / to z1; `top` above the deck, `half` the cap rail's half-width. */
+export const RAIL = { z: DECK.z0 + 0.08, x: DECK.x1 - 0.08, x0: DECK.x0 + 0.25, z1: DECK.z1 - 0.1, top: 0.64, half: 0.05 };
+/** Timber railing: posts every 0.8, a cap rail, two steel rods between. */
+const POST = 0.07;
+const CAP = { w: RAIL.half * 2, h: 0.045 };
+const RODS = [0.2, 0.4];
+const railPosts = () => {
+  const posts: [number, number][] = [];
+  for (let x = RAIL.x0; x < RAIL.x; x += 0.8) posts.push([x, RAIL.z]);
+  for (let z = RAIL.z; z < RAIL.z1; z += 0.8) posts.push([RAIL.x, z]);
+  return posts;
+};
 
-/** Painted steel railing: north side and the far end. */
-function railItems() {
-  const y = DECK.top;
-  const items: Item[] = [];
-  const zN = RAIL.z;
-  const xE = RAIL.x;
-  for (let x = DECK.x0 + 0.25; x < xE; x += 0.8) items.push({ p: [x, y + 0.3, zN], s: [0.045, 0.6, 0.045] });
-  for (let z = zN; z < DECK.z1 - 0.1; z += 0.8) items.push({ p: [xE, y + 0.3, z], s: [0.045, 0.6, 0.045] });
-  const lenX = xE - (DECK.x0 + 0.25);
-  const midX = (xE + DECK.x0 + 0.25) / 2;
-  const lenZ = DECK.z1 - 0.1 - zN;
-  const midZ = (DECK.z1 - 0.1 + zN) / 2;
-  for (const [h, t] of [[0.62, 0.05], [0.33, 0.026]]) {
-    items.push({ p: [midX, y + h, zN], s: [lenX + 0.05, t * 0.8, t * 1.3] });
-    items.push({ p: [xE, y + h, midZ], s: [t * 1.3, t * 0.8, lenZ] });
+/** Where Cuso's lamp, bollards and laptop stand: they shade the deck around them. */
+const DECK_PROPS: Box[] = [
+  { min: [LAMP[0] - 0.14, DECK.top, LAMP[2] - 0.14], max: [LAMP[0] + 0.14, DECK.top + 0.3, LAMP[2] + 0.14] },
+  ...[38.6, 40.3].map((x): Box => ({ min: [x - 0.1, DECK.top, DECK.z1 - 0.32], max: [x + 0.1, DECK.top + 0.25, DECK.z1 - 0.12] })),
+];
+
+/** Sets every vertex colour to `c` (keeps the board's aWood). */
+function paint(g: BufferGeometry, c: Color) {
+  const col = g.attributes.color;
+  for (let i = 0; i < col.count; i++) col.setXYZ(i, c.r, c.g, c.b);
+  return g;
+}
+
+/**
+ * The deck and railing timber as one geometry: planks with cut edges and
+ * ends, two nail heads wherever a plank crosses a stringer, a dark floor
+ * under the gaps, the railing's posts and cap. Vertex colours: each plank's
+ * weathering times baked AO (dark joints, shade round the lamp and posts).
+ */
+export function deckGeometry() {
+  const parts: BufferGeometry[] = [];
+  const blockers: Box[] = [...DECK_PROPS];
+  const tint = new Color();
+  plankLayout().forEach((b, i) => {
+    const y = DECK.top - PLANK.thick / 2 + b.lift;
+    const g = chamferBox(b.width, PLANK.thick, b.length, 0.007).translate(b.x, y, b.z);
+    parts.push(paint(tagBoard(g, [b.x, y, b.z], 2, woodBoard(i, 11)), tint.copy(WOOD).lerp(WEATHERED, 0.3 + b.grey * 0.6).multiplyScalar(b.shade)));
+    blockers.push({ min: [b.x - b.width / 2, y - PLANK.thick / 2, b.z - b.length / 2], max: [b.x + b.width / 2, y + PLANK.thick / 2, b.z + b.length / 2] });
+    // Nails: a pair over every stringer under the plank, set in from its ends.
+    const [z0, z1] = [b.z - b.length / 2 + 0.035, b.z + b.length / 2 - 0.035];
+    for (const s of STRINGERS) {
+      const z = Math.min(z1, Math.max(z0, s));
+      if (Math.abs(z - s) > 0.06) continue;
+      for (const dx of [-0.05, 0.05]) {
+        const nail = new CircleGeometry(0.0075, 6).toNonIndexed().rotateX(-Math.PI / 2).translate(b.x + dx, DECK.top + b.lift + 0.0008, z);
+        parts.push(paint(tagBoard(nail, [b.x, y, b.z], 2, woodBoard(i, 11)), tint.setRGB(0.09, 0.075, 0.065)));
+      }
+    }
+  });
+  // Under the gaps: dark, as the deck's own shadow is.
+  const under = new PlaneGeometry(DECK.x1 - DECK.x0, DECK.z1 - DECK.z0).toNonIndexed().rotateX(-Math.PI / 2).translate((DECK.x0 + DECK.x1) / 2, DECK.top - PLANK.thick - 0.004, (DECK.z0 + DECK.z1) / 2);
+  parts.push(paint(tagBoard(under, [0, 0, 0], 0, { seed: 0.5, tone: 1 }), tint.setRGB(0.04, 0.035, 0.03)));
+  // Railing: posts and the cap rail along the north side and the far end.
+  const capY = DECK.top + RAIL.top - CAP.h / 2;
+  railPosts().forEach(([x, z], i) => {
+    const h = RAIL.top - CAP.h;
+    const y = DECK.top + h / 2;
+    parts.push(paint(tagBoard(chamferBox(POST, h, POST, 0.008).translate(x, y, z), [x, y, z], 1, woodBoard(i, 12)), tint.copy(WEATHERED).multiplyScalar(0.8 + woodBoard(i, 12).tone * 0.15)));
+    blockers.push({ min: [x - POST / 2, DECK.top, z - POST / 2], max: [x + POST / 2, DECK.top + h, z + POST / 2] });
+  });
+  const caps: [number, number, number, number, 0 | 2][] = [
+    [RAIL.x0 - 0.05, RAIL.x + CAP.w / 2, RAIL.z, RAIL.z, 0],
+    [RAIL.x, RAIL.x, RAIL.z + CAP.w / 2, RAIL.z1 + 0.05, 2],
+  ];
+  caps.forEach(([x0, x1, z0, z1, axis], i) => {
+    const [sx, sz] = axis === 0 ? [x1 - x0, CAP.w] : [CAP.w, z1 - z0];
+    const c: [number, number, number] = [(x0 + x1) / 2, capY, (z0 + z1) / 2];
+    parts.push(paint(tagBoard(chamferBox(sx, CAP.h, sz, 0.01).translate(...c), c, axis, woodBoard(i, 13)), tint.copy(WOOD).lerp(WEATHERED, 0.5).multiplyScalar(0.85)));
+    blockers.push({ min: [c[0] - sx / 2, capY - CAP.h / 2, c[2] - sz / 2], max: [c[0] + sx / 2, capY + CAP.h / 2, c[2] + sz / 2] });
+  });
+  const g = mergeGeometries(parts);
+  for (const p of parts) p.dispose();
+  const ao = vertexAO(g.attributes.position.array, g.attributes.normal.array, blockers, 12, 0.14);
+  const col = g.attributes.color;
+  for (let i = 0; i < col.count; i++) {
+    const k = 0.18 + 0.82 * ao[i];
+    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
   }
-  return items;
+  return g;
 }
+
+/** The railing's steel: two rods through the posts on each run, and a bolted plate at each post's head. */
+function railSteel() {
+  const parts: BufferGeometry[] = [];
+  for (const h of RODS) {
+    const y = DECK.top + h;
+    parts.push(new CylinderGeometry(0.009, 0.009, RAIL.x - RAIL.x0 + 0.1, 8).rotateZ(Math.PI / 2).translate((RAIL.x0 + RAIL.x) / 2, y, RAIL.z));
+    parts.push(new CylinderGeometry(0.009, 0.009, RAIL.z1 - RAIL.z + 0.1, 8).rotateX(Math.PI / 2).translate(RAIL.x, y, (RAIL.z + RAIL.z1) / 2));
+  }
+  for (const [x, z] of railPosts()) {
+    // on the deck side of the post: +z on the north run, -x at the far end
+    const [nx, nz] = x === RAIL.x ? [-1, 0] : [0, 1];
+    const y = DECK.top + RAIL.top - CAP.h - 0.06;
+    const face = POST / 2 + 0.003;
+    parts.push(new BoxGeometry(nz ? POST + 0.006 : 0.006, 0.11, nx ? POST + 0.006 : 0.006).translate(x + nx * face, y, z + nz * face));
+    for (const dy of [-0.03, 0.03]) {
+      const bolt = new CylinderGeometry(0.009, 0.009, 0.008, 6).rotateX(Math.PI / 2);
+      if (nx) bolt.rotateY(Math.PI / 2);
+      parts.push(bolt.translate(x + nx * (face + 0.004), y + dy, z + nz * (face + 0.004)));
+    }
+  }
+  const g = mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)));
+  for (const p of parts) p.dispose();
+  return g;
+}
+
+/**
+ * Wet and worn (wood.ts surface): the deck edges and soft patches are damp,
+ * darker and glossy (the lamp glints in them); the path down the middle is
+ * worn paler and smoother. World units.
+ */
+const PIER_SURFACE: WoodSurface = {
+  key: "pier",
+  glsl: /* glsl */ `
+    float pwEdge = min(min(vWdW.z - ${DECK.z0.toFixed(2)}, ${DECK.z1.toFixed(2)} - vWdW.z), ${DECK.x1.toFixed(2)} - vWdW.x);
+    float pwPatch = wdNoise(vWdW.xz * 1.4 + 7.0) * 0.65 + wdNoise(vWdW.xz * 4.7 + 3.1) * 0.35;
+    float pwWet = clamp(smoothstep(1.3, 0.2, pwEdge) * (0.6 + 0.6 * pwPatch) + smoothstep(0.55, 0.72, pwPatch), 0.0, 1.0);
+    float pwPath = smoothstep(0.75, 0.2, abs(vWdW.z - 24.1)) * (0.55 + 0.45 * wdNoise(vWdW.xz * 2.3));
+    diffuseColor.rgb *= mix(1.0, 1.1, pwPath) * mix(vec3(1.0), vec3(0.6, 0.57, 0.55), pwWet);
+    wdRough = mix(wdRough, 0.62, pwPath * 0.6);
+    wdRough = mix(wdRough, 0.3, pwWet);
+    wdH *= 1.0 - 0.6 * pwWet;
+    wdSky = 1.0 - 0.6 * pwWet; // dark wet wood: the lamp glints, the night sky's soft glow mostly does not`,
+};
 
 /** Piling: a round log, dark and wet near the water line. */
 function pileGeometry(top: number) {
@@ -326,7 +429,6 @@ const MUG_PROFILE: [number, number][] = [
 const lathe = (profile: [number, number][], segments: number) => new LatheGeometry(profile.map(([r, y]) => new Vector2(r, y)), segments);
 
 const DECK_ITEMS = deckItems();
-const RAILS = railItems();
 const GEO = {
   pile: pileGeometry(DECK_ITEMS.pileTop),
   post: lathe(LAMP_PROFILE, 20),
@@ -340,16 +442,20 @@ export function Pier() {
   const lamp = useRef<PointLight>(null);
   const glow = useRef<PointLight>(null);
 
-  const plankRef = useInstances(DECK_ITEMS.planks);
+  const lite = useContext(Lite);
   const beamRef = useInstances(DECK_ITEMS.beams);
   const pileRef = useInstances(DECK_ITEMS.piles);
-  const railRef = useInstances(RAILS);
+  const geo = useMemo(() => ({ deck: deckGeometry(), steel: railSteel() }), []);
   const m = useMemo(() => {
     const grain = grainTexture();
     const screen = screenTexture();
     const steam = steamTexture();
+    // Phones: a plain standard material with the grain map and vertex colours (a program the city already has).
+    const deck = woodMaterial("#ffffff", WOOD_LOOKS.deck, lite, lite ? undefined : PIER_SURFACE);
+    if (lite) deck.map = grain;
     return {
       steamMap: steam,
+      deck,
       wood: new MeshStandardMaterial({ map: grain, roughness: 0.92 }),
       pileWood: new MeshStandardMaterial({ map: grain, vertexColors: true, roughness: 0.95 }),
       iron: new MeshStandardMaterial({ color: "#232a28", roughness: 0.55, metalness: 0.35 }),
@@ -360,7 +466,7 @@ export function Pier() {
       ceramic: new MeshStandardMaterial({ color: "#f3f0ea", roughness: 0.35 }),
       steam: new MeshStandardMaterial({ color: "#ffffff", map: steam, alphaMap: fadeTexture(), transparent: true, opacity: 0.55, depthWrite: false, side: DoubleSide, roughness: 1 }),
     };
-  }, []);
+  }, [lite]);
   useNightGlow(m.globe, 4.5, 0);
 
   useFrame(({ clock }) => {
@@ -373,17 +479,13 @@ export function Pier() {
 
   return (
     <group>
-      {/* deck, beams, pilings */}
-      <instancedMesh ref={plankRef} args={[undefined, m.wood, DECK_ITEMS.planks.length]} castShadow receiveShadow>
-        <boxGeometry />
-      </instancedMesh>
+      {/* deck and railing, beams, pilings */}
+      <mesh geometry={geo.deck} material={m.deck} castShadow receiveShadow />
+      <mesh geometry={geo.steel} material={m.iron} castShadow receiveShadow />
       <instancedMesh ref={beamRef} args={[undefined, m.wood, DECK_ITEMS.beams.length]} receiveShadow>
         <boxGeometry />
       </instancedMesh>
       <instancedMesh ref={pileRef} args={[GEO.pile, m.pileWood, DECK_ITEMS.piles.length]} receiveShadow />
-      <instancedMesh ref={railRef} args={[undefined, m.iron, RAILS.length]} castShadow receiveShadow>
-        <boxGeometry />
-      </instancedMesh>
       {[38.6, 40.3].map((x) => (
         <mesh key={x} geometry={GEO.bollard} material={m.iron} position={[x, DECK.top, DECK.z1 - 0.22]} castShadow receiveShadow />
       ))}
@@ -397,7 +499,7 @@ export function Pier() {
         <mesh position-y={GLOBE_Y + 0.19} material={m.iron}>
           <coneGeometry args={[0.035, 0.08, 12]} />
         </mesh>
-        <pointLight ref={lamp} position-y={GLOBE_Y - 0.05} color="#ffcf8a" distance={8} decay={2} intensity={0} />
+        <pointLight ref={lamp} position-y={GLOBE_Y - 0.05} color="#ffcf8a" distance={14} decay={2} intensity={0} />
       </group>
 
       {/* laptop, turned a little toward Cuso and the camera */}
