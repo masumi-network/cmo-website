@@ -22,7 +22,7 @@ import { glassMaterial, houseMaterial } from "./materials";
 import { Instances, useBrand, type V3 } from "./parts";
 import { useInterior, useNightGlow } from "./shared";
 import { Lamps } from "./street";
-import { useSign } from "./textures";
+import { signSize, useSign } from "./textures";
 import { GROUND_GLSL, TONE, WEATHER_GLSL, weather } from "./weathering";
 
 /** The sign face in world units [width, height]; its canvas follows the same shape. */
@@ -161,7 +161,8 @@ const C = {
   chalk: "#212725",
   chalkLine: "#d8d4c8",
   // the cafe
-  oak: "#86552f",
+  oak: "#80573a",
+  counter: "#6e4a31",
   floor: "#7a4f30",
   plaster: "#ead9bc",
   ceiling: "#ebe3d0",
@@ -417,6 +418,18 @@ function frontGeometry(glass: BufferGeometry[]) {
 // Turned and bent parts (lathe, tube), one small canvas for the pictures,
 // light baked in the shader. All of it is one draw call.
 
+/**
+ * The cafe's baked light by day, as a share of its light at night. By day the
+ * room is about half as bright as the street outside, as in a photo of a
+ * real cafe, so the glass shows the street and the sky over it; the room's
+ * own light (ambient, daylight) drops more than the pendants and shelf
+ * strips, so their warm pools stand out.
+ */
+export const CAFE_DAY = { room: 0.25, pendants: 0.6 };
+
+/** Which material draws each part: three programs (the sign is on the painted one). */
+export const PART_MATERIAL = { shell: "house", front: "painted", interior: "painted", glass: "glass", sign: "painted" } as const;
+
 /** The room inside: a0..a1 across, c0 (the back wall) to the shopfront, h the ceiling. */
 export const ROOM = { a0: -3.95, a1: 3.95, c0: -3.6, h: 3.3 };
 /** Where the pendant lamps hang (a, shade height, c) and the cafe tables stand (a, c): the shader lights and shades round them. */
@@ -631,7 +644,7 @@ function plant(t: Kit, at: V3, radius: number, height: number, cards: number, si
         v.normalize();
         nrm.setXYZ(j, v.x, v.y, v.z);
       }
-      out.push(t(g, i % 3 ? "#ffffff" : "#dfe8d2", CAFE_MAT.leaf));
+      out.push(t(g, ["#ffffff", "#dfe3cf", "#e9e2c6"][i % 3], CAFE_MAT.leaf));
     }
   }
   return out;
@@ -694,8 +707,8 @@ function interiorGeometry() {
   for (const a of [k0 + 0.02, k0 + kl / 3, k0 + (2 * kl) / 3, k1 - 0.02]) bx([a, (0.1 + kh) / 2, kc1 + 0.012], [0.07, kh - 0.1, 0.025], C.green, M.plain);
   bx([km, kh - 0.04, kc1 + 0.012], [kl, 0.06, 0.03], C.green, M.plain);
   bx([km, 0.05, kc1 - 0.03], [kl, 0.1, kc1 - kc0 - 0.06], C.beam, M.wood);
-  bx([km, kh + 0.03, (kc0 + kc1) / 2 - 0.02], [kl + 0.1, 0.06, kc1 - kc0 + 0.08], C.oak, M.wood);
-  add(cyl([km, kh + 0.03, kc1 + 0.06], 0.03, 0.03, kl + 0.1, 8, [0, 0, Math.PI / 2]), C.oak, M.wood);
+  bx([km, kh + 0.03, (kc0 + kc1) / 2 - 0.02], [kl + 0.1, 0.06, kc1 - kc0 + 0.08], C.counter, M.varnish);
+  add(cyl([km, kh + 0.03, kc1 + 0.06], 0.03, 0.03, kl + 0.1, 12, [0, 0, Math.PI / 2]), C.counter, M.varnish);
   add(cyl([km, 0.2, kc1 + 0.1], 0.018, 0.018, kl - 0.1, 8, [0, 0, Math.PI / 2]), C.brass, M.chrome);
   for (const a of [k0 + 0.15, km, k1 - 0.15]) add(cyl([a, 0.2, kc1 + 0.05], 0.012, 0.012, 0.1, 6, [Math.PI / 2, 0, 0]), C.brass, M.chrome);
   // on it: the espresso machine, grinder, pastry case, a till, cups
@@ -760,7 +773,8 @@ function interiorGeometry() {
 export function shopParts() {
   const glass: BufferGeometry[] = [];
   const front = frontGeometry(glass);
-  return { shell: shellGeometry(), front, interior: interiorGeometry(), glass: merged(glass) };
+  const sign = tint(placed(new PlaneGeometry(...SHOP_SIGN), [...SHOP.sign]), "#ffffff", 0, CAFE_MAT.sign);
+  return { shell: shellGeometry(), front, interior: interiorGeometry(), glass: merged(glass), sign };
 }
 
 // ---------------------------------------------------------------------------
@@ -776,6 +790,9 @@ function within(ctx: Ctx, [x, y, w, h]: Region, draw: (w: number, h: number) => 
   draw(w, h);
   ctx.restore();
 }
+
+/** The leaves' saturation range, in percent: muted, like real foliage indoors. */
+export const LEAF_SAT: [number, number] = [18, 30];
 
 /** Glossy leaves on a transparent ground: small ovals (pothos), or a few big fiddle leaves. */
 function leafSprite(ctx: Ctx, r: Region, fig: boolean, seed: number) {
@@ -804,7 +821,7 @@ function leafSprite(ctx: Ctx, r: Region, fig: boolean, seed: number) {
         ctx.quadraticCurveTo(wide, 0, 0, -len * 0.5);
         ctx.quadraticCurveTo(-wide, 0, 0, len * 0.5);
       }
-      ctx.fillStyle = `hsl(${(fig ? 95 : 100) + rnd() * 25}, ${38 + rnd() * 16}%, ${18 + t * 18 + rnd() * 8}%)`;
+      ctx.fillStyle = `hsl(${(fig ? 84 : 90) + rnd() * 22}, ${LEAF_SAT[0] + rnd() * (LEAF_SAT[1] - LEAF_SAT[0])}%, ${16 + t * 17 + rnd() * 8}%)`;
       ctx.fill();
       const g = ctx.createLinearGradient(-wide / 2, 0, wide / 2, 0);
       g.addColorStop(0, "rgba(255,255,230,0.2)");
@@ -999,13 +1016,14 @@ const glslList = (list: number[][]) => list.map((v) => `vec${v.length}(${v.map((
  * real-time lights or shadows inside. Outside (glow 0), the shopfront weathers
  * like the buildings (weathering.ts): grime up from the sidewalk.
  */
-function paintedMaterial(atlas: { value: Texture | null }) {
+function paintedMaterial(atlas: { value: Texture | null }, sign: { value: Texture | null }) {
   const M = CAFE_MAT;
   const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.7, emissive: "#ffc98c", emissiveIntensity: 0 });
   m.customProgramCacheKey = () => "shop-painted";
   m.onBeforeCompile = (s) => {
     s.uniforms.uNight = facadeNight;
     s.uniforms.uAtlas = atlas;
+    s.uniforms.uSign = sign;
     s.uniforms.uWeather = { value: TONE.house };
     s.vertexShader = s.vertexShader
       .replace("#include <common>", "#include <common>\nattribute float aGlow;\nattribute float aMat;\nvarying float vGlow;\nvarying float vMat;\nvarying vec3 vLocal;\nvarying vec3 vObjN;\nvarying vec2 vAtlasUv;\nvarying vec3 vFPos;\nvarying vec3 vFNormal;")
@@ -1019,6 +1037,7 @@ function paintedMaterial(atlas: { value: Texture | null }) {
         /* glsl */ `#include <common>
         uniform float uNight;
         uniform sampler2D uAtlas;
+        uniform sampler2D uSign;
         varying float vGlow;
         varying float vMat;
         varying vec3 vLocal;
@@ -1038,6 +1057,10 @@ function paintedMaterial(atlas: { value: Texture | null }) {
         vec3 sAlbedo = vec3(0.0);
         vec3 sLight = vec3(0.0);
         float sSpec = 0.0;
+        vec2 sUv = vec2(0.0);
+        // the day's share of the cafe's light (CAFE_DAY): the room, the lamps
+        float sRoom = 1.0;
+        float sLamps = 1.0;
         const vec3 PENDANTS[${PENDANTS.length}] = vec3[](${glslList(PENDANTS)});
         const float SHELVES_Y[${SHELVES.length}] = float[](${SHELVES.map((y) => y.toFixed(3)).join(", ")});
         const vec2 TABLES[${TABLES.length}] = vec2[](${glslList(TABLES)});
@@ -1073,12 +1096,22 @@ function paintedMaterial(atlas: { value: Texture | null }) {
           float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
           return 1.0 - smoothstep(-0.02, soft, d);
         }
+        // wood: q = (along the grain, across it) in metres; growth rings wander, late wood darker, plank tone drifts
+        float sGrain(vec2 q) {
+          float w = q.y * 70.0 + 3.0 * sNoise(vec2(q.x * 0.8, q.y * 9.0)) + 0.6 * sNoise(q * vec2(4.0, 50.0));
+          float late = smoothstep(0.2, 1.0, sin(w)) * (1.0 - smoothstep(0.5, 1.6, fwidth(w)));
+          float tone = 0.84 + 0.26 * sNoise(vec2(q.x * 0.6, q.y * 4.0) + 9.0);
+          return tone * (1.0 - 0.24 * late);
+        }
+        // the sign's letters: 1 on a letter, 0 on the board
+        float sLetter(vec2 uv) { return 1.0 - smoothstep(0.1, 0.7, texture2D(uSign, uv).r); }
+        const vec2 SIGN_TEXEL = vec2(${(1 / signSize(SHOP_SIGN)[0]).toFixed(6)}, ${(1 / signSize(SHOP_SIGN)[1]).toFixed(6)});
         // relief heights: a bevelled subway tile (0.15 x 0.075), a pressed-tin square (0.3) with a raised boss and border
         float sTile(vec2 q) {
           float row = floor(q.y / 0.075);
           vec2 f = vec2(fract((q.x + 0.075 * mod(row, 2.0)) / 0.15) * 0.15, fract(q.y / 0.075) * 0.075);
           float d = min(min(f.x, 0.15 - f.x), min(f.y, 0.075 - f.y));
-          return smoothstep(0.0015, 0.008, d);
+          return smoothstep(0.002, 0.007, d);
         }
         float sTin(vec2 q) {
           vec2 f = fract(q / 0.3) - 0.5;
@@ -1111,12 +1144,13 @@ function paintedMaterial(atlas: { value: Texture | null }) {
               diffuseColor.rgb *= l.rgb;
               sRough = 0.85;
             }
-          } else if (mat == ${M.wood}) {
-            vec2 q = abs(n.y) > 0.5 ? vec2(p.x * 2.0, p.z * 46.0) : vec2(along * 2.0, p.y * 46.0);
-            float g = 0.6 * sNoise(q) + 0.4 * sNoise(q * vec2(3.0, 0.35) + 7.0);
-            diffuseColor.rgb *= 0.8 + 0.38 * g;
-            sRough = 0.38;
-            sGloss = 0.35;
+          } else if (mat == ${M.wood} || mat == ${M.varnish}) {
+            // grain along x (or along the wall); varnish: a glossy coat over it, a little uneven
+            vec2 q = abs(n.y) > 0.5 ? p.xz : vec2(along, p.y);
+            diffuseColor.rgb *= sGrain(q);
+            bool coat = mat == ${M.varnish};
+            sRough = coat ? 0.16 + 0.1 * sNoise(q * vec2(3.0, 9.0)) : 0.42;
+            sGloss = coat ? 0.85 : 0.3;
           } else if (mat == ${M.floor}) {
             // oak boards 0.16 wide running across, butt joints staggered
             float row = floor(p.z / 0.16);
@@ -1130,7 +1164,8 @@ function paintedMaterial(atlas: { value: Texture | null }) {
             sGloss = 0.3;
           } else if (mat == ${M.tile}) {
             float h = sTile(vec2(along, p.y));
-            diffuseColor.rgb *= mix(0.72, 0.97 + 0.05 * sHash(floor(vec2(along / 0.15, p.y / 0.075))), h);
+            // sunk grout, grey; glazed faces, each a touch different
+            diffuseColor.rgb *= mix(vec3(0.58, 0.56, 0.53), vec3(0.95 + 0.06 * sHash(floor(vec2(along / 0.15, p.y / 0.075)))), h);
             sRough = mix(0.7, 0.12, h);
             sGloss = 0.7 * h;
           } else if (mat == ${M.tin}) {
@@ -1177,10 +1212,26 @@ function paintedMaterial(atlas: { value: Texture | null }) {
             diffuseColor.rgb *= 1.0 - 0.35 * sLine(along, 0.09, 0.004);
             sRough = 0.5;
             sGloss = 0.15;
+          } else if (mat == ${M.paint}) {
+            // satin enamel on timber: soft patches and a fine orange peel in its sheen
+            vec2 q = abs(n.y) > 0.5 ? p.xz : vec2(along, p.y);
+            float blotch = sNoise(q * 2.7 + 5.0);
+            diffuseColor.rgb *= 0.95 + 0.08 * blotch;
+            sRough = 0.3 + 0.16 * blotch + 0.08 * sNoise(q * 31.0);
+          } else if (mat == ${M.sign}) {
+            // a painted board, the letters standing 6 mm proud of it, shading it a little round them (more below: the sky's light comes from above)
+            sUv = vAtlasUv;
+            vec3 face = texture2D(uSign, sUv).rgb;
+            float letter = 1.0 - smoothstep(0.1, 0.7, face.r);
+            float shade = sLetter(sUv + vec2(0.0, 1.7) * SIGN_TEXEL) + sLetter(sUv + vec2(1.2, 2.4) * SIGN_TEXEL);
+            diffuseColor.rgb *= face * (1.0 - 0.45 * (1.0 - letter) * shade / 2.0);
+            sRough = mix(0.55, 0.32, letter);
           }
 
           if (vGlow > 0.5 && vGlow < 1.5) {
             float day = 1.0 - uNight;
+            sRoom = mix(${CAFE_DAY.room.toFixed(3)}, 1.0, uNight);
+            sLamps = mix(${CAFE_DAY.pendants.toFixed(3)}, 1.0, uNight);
             float depth = clamp(-p.z / 3.6, 0.0, 1.0);
             // occlusion where surfaces meet: floor, ceiling, back and side walls, shelves, and under things
             float ao = 1.0;
@@ -1189,7 +1240,7 @@ function paintedMaterial(atlas: { value: Texture | null }) {
             ao *= mix(1.0, smoothstep(-0.05, 0.9, p.z - (${ROOM.c0.toFixed(2)})), 0.6 * (1.0 - abs(n.z)));
             ao *= mix(1.0, smoothstep(-0.05, 1.0, ${ROOM.a1.toFixed(2)} - abs(p.x)), 0.6 * (1.0 - abs(n.x)));
             // the back corners
-            ao *= mix(0.55, 1.0, smoothstep(0.0, 1.4, length(vec2(${ROOM.a1.toFixed(2)} - abs(p.x), p.z - (${ROOM.c0.toFixed(2)})))));
+            ao *= mix(0.4, 1.0, smoothstep(0.0, 1.8, length(vec2(${ROOM.a1.toFixed(2)} - abs(p.x), p.z - (${ROOM.c0.toFixed(2)})))));
             // shelves against the wall, and the counter's overhang
             if (n.z > 0.5 && p.z < ${(ROOM.c0 + 0.02).toFixed(3)}) for (int i = 0; i < ${SHELVES.length}; i++) ao *= 1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.06, abs(p.y - SHELVES_Y[i]))) * step(-0.2, p.x) * step(p.x, 3.6);
             if (n.z > 0.5 && abs(p.z - (${COUNTER.c1.toFixed(3)})) < 0.05 && p.y < ${COUNTER.h.toFixed(2)}) ao *= mix(0.5, 1.0, smoothstep(0.0, 0.3, ${COUNTER.h.toFixed(2)} - p.y)) * mix(0.55, 1.0, smoothstep(0.0, 0.5, p.y));
@@ -1205,8 +1256,8 @@ function paintedMaterial(atlas: { value: Texture | null }) {
 
             // light: a little ambient, daylight from the glass, the pendants, the shelf strips, a shaft of low sun
             vec3 V = normalize(sCam() - p);
-            vec3 L = vec3(1.0, 0.86, 0.68) * mix(0.17, 0.05, uNight) * ao;
-            L += vec3(1.0, 0.93, 0.82) * day * 0.42 * exp(-depth * 2.4) * (0.5 + 0.5 * max(n.z, 0.0)) * ao;
+            vec3 L = vec3(1.0, 0.86, 0.68) * mix(0.17, 0.05, uNight) * ao * sRoom;
+            L += vec3(1.0, 0.93, 0.82) * day * 0.42 * exp(-depth * 2.4) * (0.5 + 0.5 * max(n.z, 0.0)) * ao * sRoom;
             for (int i = 0; i < ${PENDANTS.length}; i++) {
               vec3 d = PENDANTS[i] - vec3(0.0, 0.03, 0.0) - p;
               float r2 = dot(d, d);
@@ -1218,7 +1269,7 @@ function paintedMaterial(atlas: { value: Texture | null }) {
               for (int j = 0; j < ${TABLES.length}; j++) under *= p.y < 0.72 ? mix(1.0, 0.3, 1.0 - smoothstep(0.22, 0.32, length(p.xz - TABLES[j]))) : 1.0;
               float lamp = wrap * cone * under / (0.18 + r2 * 2.0);
               sPool += lamp;
-              L += WARM * lamp * mix(1.15, 1.5, uNight) * mix(0.55, 1.0, ao);
+              L += WARM * lamp * mix(1.15, 1.5, uNight) * mix(0.55, 1.0, ao) * sLamps;
               // a highlight of the bulb on glossy things
               vec3 h = normalize(l + V);
               sSpec += pow(max(dot(n, h), 0.0), mix(18.0, 140.0, sGloss)) * sGloss * cone / (0.4 + r2);
@@ -1228,24 +1279,32 @@ function paintedMaterial(atlas: { value: Texture | null }) {
               float dz = p.z - (${(ROOM.c0 + 0.235).toFixed(3)});
               float along = step(-0.15, p.x) * step(p.x, 3.55);
               float strip = along * step(0.0, dy) * exp(-dy * 4.0) * exp(-max(dz, 0.0) * 6.0) * (0.4 + 0.6 * max(n.z, max(n.y, 0.0)));
-              L += WARM * strip * mix(0.55, 0.8, uNight);
+              L += WARM * strip * mix(0.55, 0.8, uNight) * sLamps;
             }
             if (day > 0.01) {
               // trace back to the shopfront along the sun, and let it through the glass
               float t = -p.z / -SUN.z;
               vec2 q = p.xy - SUN.xy * t;
               float lit = sWindow(q) * max(dot(n, -SUN), 0.0) * smoothstep(0.0, 0.3, t) * mix(1.0, 0.45, clamp(t / 4.0, 0.0, 1.0)) * (1.0 - 0.8 * sMetal);
-              L += vec3(1.0, 0.78, 0.5) * 1.6 * lit * day;
+              L += vec3(1.0, 0.78, 0.5) * 1.6 * lit * day * mix(sRoom, 1.0, 0.5);
             }
             sLight = L;
             sAlbedo = diffuseColor.rgb;
             // what the real scene lights add on top (environment, the sun through the glass) stays small
-            diffuseColor.rgb *= mix(0.2, 0.12, uNight) * ao;
+            diffuseColor.rgb *= mix(0.2, 0.12, uNight) * ao * sRoom;
           }
         }
-        ${weather("0.37", "step(0.5, vGlow)", TONE.house).glsl}`,
+        ${weather("0.37", `max(step(0.5, vGlow), float(sMat == ${M.sign}))`, TONE.house).glsl}`,
       )
       .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nif (sRough >= 0.0) roughnessFactor = sRough;")
+      .replace(
+        "#include <lights_fragment_maps>",
+        /* glsl */ `#include <lights_fragment_maps>
+        #if defined( RE_IndirectSpecular )
+          // indoors, gloss mirrors the room (below), hardly the sky
+          if (vGlow > 0.5 && vGlow < 1.5) radiance *= 0.3 * sRoom;
+        #endif`,
+      )
       .replace("#include <metalnessmap_fragment>", "#include <metalnessmap_fragment>\nmetalnessFactor = max(metalnessFactor, sMetal);")
       .replace(
         "#include <normal_fragment_maps>",
@@ -1261,6 +1320,14 @@ function paintedMaterial(atlas: { value: Texture | null }) {
           vec2 g = vec2(hx - h0, hy - h0) / e * (tin ? 0.004 : 0.006);
           vec3 d = tin ? vec3(-g.x, 0.0, -g.y) : (abs(sN.z) > abs(sN.x) ? vec3(-g.x, -g.y, 0.0) : vec3(0.0, -g.y, -g.x));
           normal = normalize(normal + (viewMatrix * vec4(d, 0.0)).xyz);
+        }
+        if (sMat == ${M.sign}) {
+          // the letters' edges: 6 mm of rise over a texel and a half
+          float h0 = sLetter(sUv);
+          float hx = sLetter(sUv + vec2(1.5 * SIGN_TEXEL.x, 0.0)) - h0;
+          float hy = sLetter(sUv + vec2(0.0, 1.5 * SIGN_TEXEL.y)) - h0;
+          vec2 g = vec2(hx, hy) * 0.006 / (1.5 * ${(SHOP_SIGN[0] / signSize(SHOP_SIGN)[0]).toFixed(5)});
+          normal = normalize(normal + (viewMatrix * vec4(-g.x, -g.y, 0.0, 0.0)).xyz);
         }`,
       )
       .replace(
@@ -1268,19 +1335,37 @@ function paintedMaterial(atlas: { value: Texture | null }) {
         /* glsl */ `if (vGlow > 0.5 && vGlow < 1.5) {
           // inside the cafe: its own baked light
           totalEmissiveRadiance = sAlbedo * sLight * (1.0 - 0.9 * sMetal);
-          totalEmissiveRadiance += WARM * sSpec * 0.9;
-          vec3 V = normalize(sCam() - sP);
-          if (sMetal > 0.9) {
-            // chrome mirrors the room: dark floor, a bright streak of the shop window, the warm ceiling
+          totalEmissiveRadiance += WARM * sSpec * 0.9 * sLamps;
+          vec3 ray = sCam() - sP;
+          vec3 V = normalize(ray);
+          // what gloss mirrors: the room. Where the reflected ray meets it: floor below, the lit window band, the warm ceiling (parallax by height)
+          if (sMetal > 0.9 || sGloss > 0.5) {
             vec3 r = reflect(-V, sN);
-            // where the reflected ray meets the room: floor below, the lit window band, the warm ceiling (parallax by height)
             float e = r.y + (sP.y - 1.25) * 0.9;
-            vec3 room = mix(vec3(0.06, 0.045, 0.035), vec3(0.9, 0.72, 0.5), smoothstep(-0.25, 0.45, e));
+            vec3 room = mix(vec3(0.06, 0.045, 0.035), vec3(0.9, 0.72, 0.5) * sLamps, smoothstep(-0.25, 0.45, e));
             float streak = exp(-pow((e - 0.06) / 0.035, 2.0)) * smoothstep(0.0, 0.3, r.z);
-            totalEmissiveRadiance += mix(vec3(1.0), sAlbedo, 0.4) * (room * 0.55 + vec3(1.0, 0.97, 0.92) * streak * mix(1.3, 0.6, uNight));
+            vec3 mirror = room * 0.55 + vec3(1.0, 0.97, 0.92) * streak * mix(1.3, 0.6, uNight);
+            // chrome mirrors it all; glaze, varnish, marble and tile faces by fresnel
+            if (sMetal > 0.9) totalEmissiveRadiance += mix(vec3(1.0), sAlbedo, 0.4) * mirror;
+            else totalEmissiveRadiance += mirror * sGloss * (0.04 + 0.96 * pow(1.0 - abs(dot(V, sN)), 5.0));
           }
           if (sMat == ${M.leather}) totalEmissiveRadiance += sAlbedo * WARM * pow(1.0 - abs(dot(V, sN)), 2.5) * 0.9;
-          totalEmissiveRadiance += vec3(1.0, 0.95, 0.86) * sGloss * pow(1.0 - abs(dot(V, sN)), 4.0) * 0.12;
+          // the glass between: a film of dust, heavier low on the pane, and wiped smears, catching the daylight
+          float tf = ray.z > 1e-4 ? (-0.03 - sP.z) / ray.z : 1e9;
+          float te = ray.x > 1e-4 ? (${(W / 2 - 0.03).toFixed(3)} - sP.x) / ray.x : 1e9;
+          float t = min(tf, te);
+          if (t < 1e8 && uNight < 0.99) {
+            vec3 g = sP + ray * t;
+            vec2 q = tf < te ? g.xy : vec2(-g.z, g.y);
+            float dust = 0.4 + 0.6 * (1.0 - smoothstep(0.62, 1.2, q.y));
+            // smears: cheap wavy blots (a few sines, no noise)
+            float smear = smoothstep(0.3, 0.9, sin(q.x * 7.3 + 2.0 * sin(q.y * 4.1 + q.x * 1.7)) * sin(q.y * 5.3 - 1.5 * sin(q.x * 3.7)));
+            float slant = 1.0 + 2.0 * (1.0 - abs(tf < te ? V.z : V.x));
+            totalEmissiveRadiance += vec3(0.8, 0.83, 0.86) * (dust * 0.5 + smear * 0.5) * slant * 0.03 * (1.0 - uNight);
+          }
+        } else if (sMat == ${M.sign}) {
+          // the gooseneck lamps light the sign at night
+          totalEmissiveRadiance = diffuseColor.rgb * vec3(1.0, 0.945, 0.847) * 0.55 * uNight;
         } else {
           totalEmissiveRadiance *= diffuseColor.rgb * vGlow;
         }`,
@@ -1304,12 +1389,14 @@ export function Shopfront() {
   const { siding } = useLandmarkTextures();
   const brand = useBrand();
   const sign = useSign(brand, { bg: "#efe6d0", fg: "#1f3b2f", panel: SHOP_SIGN });
-  // the gooseneck lamps light the sign at night
-  const signMat = useMemo(() => new MeshStandardMaterial({ map: sign, roughness: 0.7, emissive: "#fff1d8", emissiveMap: sign, emissiveIntensity: 0 }), [sign]);
-  useNightGlow(signMat, 0.55, 0);
   // (no shingled roof here: the siding stands in for the shingles)
   const atlas = useMemo(() => ({ value: null as Texture | null }), []);
-  const m = useMemo(() => ({ house: houseMaterial(siding, siding, palette()), painted: paintedMaterial(atlas), glass: glassMaterial() }), [siding, atlas]);
+  const signMap = useMemo(() => ({ value: null as Texture | null }), []);
+  const m = useMemo(() => ({ house: houseMaterial(siding, siding, palette()), painted: paintedMaterial(atlas, signMap), glass: glassMaterial() }), [siding, atlas, signMap]);
+  // the sign is drawn by the painted material, raised letters and all
+  useLayoutEffect(() => {
+    signMap.value = sign;
+  }, [signMap, sign]);
   // the cafe's canvas carries the brand (menu, coffee bags)
   const cafe = useMemo(() => cafeAtlas(brand), [brand]);
   useLayoutEffect(() => {
@@ -1318,10 +1405,7 @@ export function Shopfront() {
   }, [atlas, cafe]);
   // the cafe has its lights on in the morning, and glows at night
   useNightGlow(m.painted, 1.0, 0.45);
-  const parts = useMemo(() => {
-    const p = shopParts();
-    return p;
-  }, []);
+  const parts = useMemo(() => shopParts(), []);
   return (
     <>
       <Instances items={ONE} geometry={parts.shell} material={m.house} attributes={paintAttribute} place={placeShell} />
@@ -1329,11 +1413,9 @@ export function Shopfront() {
         <mesh geometry={parts.front} material={m.painted} castShadow receiveShadow />
         {/* the cafe: its light is baked in the shader, so it casts no shadows (its leaf cards would cast squares) */}
         <mesh ref={interior} geometry={parts.interior} material={m.painted} receiveShadow />
-        <mesh geometry={parts.glass} material={m.glass} />
+        <mesh geometry={parts.glass} material={m[PART_MATERIAL.glass]} />
         {/* the visitor's brand on the fascia */}
-        <mesh position={[...SHOP.sign]} material={signMat}>
-          <planeGeometry args={SHOP_SIGN} />
-        </mesh>
+        <mesh geometry={parts.sign} material={m[PART_MATERIAL.sign]} />
       </group>
       <Lamps lamps={LAMP} />
     </>

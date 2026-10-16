@@ -9,7 +9,7 @@ import { heightAt } from "@/lib/terrain";
 import { SLOT, SLOTS } from "@/scene/house-models";
 import { groundAt, streetDrop } from "@/scene/grid";
 import { PATHS } from "@/scene/routes";
-import { ATLAS, CAFE_MAT, GLASS_GAP, PENDANTS, ROOM, SHOP, SHOP_SIGN, TABLES, cafeText, chamfered, shopParts } from "@/scene/shop";
+import { ATLAS, CAFE_DAY, CAFE_MAT, GLASS_GAP, LEAF_SAT, PART_MATERIAL, PENDANTS, ROOM, SHOP, SHOP_SIGN, TABLES, cafeText, chamfered, shopParts } from "@/scene/shop";
 import { LAMP } from "@/scene/street";
 
 const parts = shopParts();
@@ -99,6 +99,41 @@ describe("the Hayes Valley shop", () => {
     }
   });
 
+  it("keeps the cafe darker than the street by day, its pendants less dimmed than the room", () => {
+    expect(CAFE_DAY.room).toBeGreaterThanOrEqual(0.2);
+    expect(CAFE_DAY.room).toBeLessThanOrEqual(0.6);
+    expect(CAFE_DAY.pendants).toBeGreaterThan(CAFE_DAY.room);
+    expect(CAFE_DAY.pendants).toBeLessThanOrEqual(1);
+  });
+
+  it("paints the plants in muted greens", () => {
+    expect(LEAF_SAT[0]).toBeLessThan(LEAF_SAT[1]);
+    expect(LEAF_SAT[1]).toBeLessThanOrEqual(34);
+  });
+
+  it("draws the shop with three programs: the house kit, the painted shopfront and cafe (the sign too), the glass", () => {
+    expect(Object.keys(PART_MATERIAL).sort()).toEqual(Object.keys(parts).sort());
+    expect(new Set(Object.values(PART_MATERIAL))).toEqual(new Set(["house", "painted", "glass"]));
+    expect(PART_MATERIAL.sign).toBe("painted");
+  });
+
+  it("raises the brand on a sign panel in front of the fascia, drawn by the painted material", () => {
+    const { sign } = parts;
+    expect(Array.from(sign.attributes.aMat.array).every((m) => m === CAFE_MAT.sign)).toBe(true);
+    expect(Math.max(...sign.attributes.aGlow.array)).toBe(0);
+    sign.computeBoundingBox();
+    const b = sign.boundingBox!;
+    const [x, y, z] = SHOP.sign;
+    expect(b.min.x).toBeCloseTo(x - SHOP_SIGN[0] / 2, 6);
+    expect(b.max.x).toBeCloseTo(x + SHOP_SIGN[0] / 2, 6);
+    expect(b.min.y).toBeCloseTo(y - SHOP_SIGN[1] / 2, 6);
+    expect(b.max.y).toBeCloseTo(y + SHOP_SIGN[1] / 2, 6);
+    expect(b.min.z).toBeCloseTo(z, 6);
+    expect(b.max.z).toBeCloseTo(z, 6);
+    const uv = Array.from(sign.attributes.uv.array);
+    expect([Math.min(...uv), Math.max(...uv)]).toEqual([0, 1]);
+  });
+
   it("paints the building with the row houses' material: known paints, every pane a window", () => {
     const { shell } = parts;
     const slot = shell.attributes.aSlot;
@@ -123,7 +158,7 @@ describe("the Hayes Valley shop", () => {
   it("dresses the cafe: floorboards, subway tile, wood, marble, glaze, beadboard, a chalk menu and leafy plants", () => {
     for (const g of [parts.front, parts.interior]) expect(g.attributes.aMat.count).toBe(g.attributes.position.count);
     const used = new Set(Array.from(parts.interior.attributes.aMat.array));
-    for (const m of ["floor", "tile", "wood", "marble", "glaze", "boards", "leaf", "plaster", "chrome", "leather", "tin", "art"] as const) expect(used.has(CAFE_MAT[m]), m).toBe(true);
+    for (const m of ["floor", "tile", "wood", "varnish", "marble", "glaze", "boards", "leaf", "plaster", "chrome", "leather", "tin", "art"] as const) expect(used.has(CAFE_MAT[m]), m).toBe(true);
     // plants are many leaf cards, not a few blobs
     const leafTris = Array.from(parts.interior.attributes.aMat.array).filter((m) => m === CAFE_MAT.leaf).length / 3;
     expect(leafTris).toBeGreaterThanOrEqual(100);
