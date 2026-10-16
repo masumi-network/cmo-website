@@ -143,8 +143,8 @@ export function houseMaterial(siding: Texture, shingles: Texture, palette: Float
       diffuseColor.rgb = fC;`,
     weather: weather("vSeed", "fGlassy", TONE.house),
     roughness: "roughnessFactor = mix(roughnessFactor, 0.1, fGlassy);",
-    // glass reflects the city (below), not the studio environment
-    lights: "radiance *= 1.0 - fGlassy * uGlassMix;",
+    // glass reflects the city (below), not the sky light: neither its reflection nor its diffuse share
+    lights: "radiance *= 1.0 - fGlassy * uGlassMix;\nirradiance *= 1.0 - fGlassy * uGlassMix;\niblIrradiance *= 1.0 - fGlassy * uGlassMix;",
     emissive: /* glsl */ `
       if (fGlassy > 0.5) {
         vec3 fV = normalize(vFPos - cameraPosition);
@@ -322,8 +322,9 @@ export function downtownMaterial(stone: Texture, curtain = true) {
       totalEmissiveRadiance += (fLitC * fLit * 1.4 + diffuseColor.rgb * vec3(1.0, 0.8, 0.58) * fFl * 0.85) * uNight;`,
     // pane bow and joint grooves (facade.ts)
     normal: "normal = normalize(normal + mat3(viewMatrix) * facBend);",
-    // once the probe is ready, glass reflects the city instead of the studio environment
-    lights: "radiance *= 1.0 - fGl * uGlassMix;",
+    // once the probe is ready, glass reflects the city instead of the sky light, and takes none of its diffuse
+    // light either (a pane lit by the whole sky read as a grey haze over the curtain walls)
+    lights: "radiance *= 1.0 - fGl * uGlassMix;\nirradiance *= 1.0 - fGl * uGlassMix;\niblIrradiance *= 1.0 - fGl * uGlassMix;",
   });
 }
 
