@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { PerspectiveCamera, Vector3 } from "three";
 import { chapters, type Chapter } from "@/content/day";
 import { PORTRAIT_FOV, fitBand, largestGap } from "@/scene/camera-rig";
+import { CAR } from "@/scene/cable-car";
+import { FERRY_CAR, envelope } from "@/scene/ferry";
 import { FERRY, insideBuilding, sightClear } from "@/scene/layout";
 import { BAY_TOWERS, GG } from "@/scene/landmarks";
 import { RIDGES, ridgeColumns } from "@/scene/skyline";
@@ -26,7 +28,7 @@ const PHONES: { name: string; size: Size; band: [number, number] }[] = [
 const BUBBLE = { width: 330, height: 56, anchor: [-0.6, 2.15] as const };
 
 /** The phone rig at rest on a chapter (camera-rig.tsx): pull back and slide so Cuso fits the band. */
-function phoneShot(ch: Chapter, size: Size, band: [number, number]) {
+function phoneShot(ch: Chapter, size: Size, band: [number, number], bubbleWidth = BUBBLE.width) {
   const pos = new Vector3(...ch.phone.position);
   const tgt = new Vector3(...ch.phone.target);
   rig.cuso.set(...ch.spot);
@@ -48,7 +50,7 @@ function phoneShot(ch: Chapter, size: Size, band: [number, number]) {
   const heading = Math.atan2(pos.x - spot.x, pos.z - spot.z);
   const [ax, ay] = BUBBLE.anchor;
   const anchor = px(new Vector3(spot.x + ax * Math.cos(heading), spot.y + ay, spot.z - ax * Math.sin(heading)));
-  const w = Math.min(BUBBLE.width, size.width - 32);
+  const w = Math.min(bubbleWidth, size.width - 32);
   const left = Math.min(Math.max(anchor.x - w / 2, 16), size.width - w - 16);
   const y = Math.max(anchor.y, band[0] + 12 + BUBBLE.height);
   const bubble: Box = { left, top: y - BUBBLE.height, right: left + w, bottom: y };
@@ -176,5 +178,99 @@ describe("the 18:00 desktop shot", () => {
     const feet = onDesktop("newsletter", new Vector3(...ch.spot));
     const head = onDesktop("newsletter", new Vector3(ch.spot[0], ch.spot[1] + 1.9, ch.spot[2]));
     expect(rightOfCards(feet) && rightOfCards(head), JSON.stringify({ feet, head })).toBe(true);
+  });
+});
+
+describe("the 18:00 envelopes", () => {
+  // Francis (2026-10-16): they flew up at the lens and hung over Cuso's head. Like concept 06 they leave his
+  // raised hand and fly away into the scene, smaller and smaller, clear of his face, the bubble and the card.
+  const ch = chapters.find((c) => c.id === "newsletter")!;
+  const cuso = new Vector3(...ch.spot);
+  /** "Special delivery!" on one line, as measured (170 x 52 px). */
+  const LINE = 170;
+  /** His face: the middle half of his box, its top 45% (the eyes sit there; his raised hand is beside it). */
+  const faceOf = (b: Box): Box => {
+    const quarter = (b.right - b.left) / 4;
+    return { left: b.left + quarter, right: b.right - quarter, top: b.top, bottom: b.top + (b.bottom - b.top) * 0.45 };
+  };
+  const flights = (shot: Chapter["camera"], phone: boolean) =>
+    [0, 1, 2, 3, 4, 5].map((i) => {
+      const from = new Vector3(...shot.position);
+      const look = new Vector3(...shot.target).sub(from);
+      const steps: { p: Vector3; scale: number; depth: number }[] = [];
+      for (let u = 0; u <= 1.0001; u += 0.02) {
+        const p = new Vector3();
+        const scale = envelope(u, i, cuso, look, phone, p);
+        steps.push({ p, scale, depth: p.clone().sub(from).dot(look.clone().normalize()) });
+      }
+      return steps;
+    });
+  /** The bubble on a wide screen hangs left of its anchor (cuso.tsx Bubble), bottom at the anchor. */
+  const desktopBubble = (): Box => {
+    const camPos = new Vector3(...ch.camera.position);
+    const heading = Math.atan2(camPos.x - cuso.x, camPos.z - cuso.z);
+    const [ax, ay] = BUBBLE.anchor;
+    const a = onDesktop("newsletter", new Vector3(cuso.x + ax * Math.cos(heading), cuso.y + ay, cuso.z - ax * Math.sin(heading)));
+    return { left: a.x - LINE, top: a.y - BUBBLE.height, right: a.x, bottom: a.y };
+  };
+  const inBox = (b: Box, x: number, y: number, margin = 0) => x > b.left - margin && x < b.right + margin && y > b.top - margin && y < b.bottom + margin;
+
+  for (const [name, phone] of [["desktop", false], ["phone", true]] as const) {
+    it(`on the ${name} shot they fly away from the lens, shrinking, and never through the cable car or a building`, () => {
+      const shot = phone ? ch.phone : ch.camera;
+      for (const steps of flights(shot, phone)) {
+        const seen = steps.filter((s) => s.scale > 0.05);
+        expect(seen.length).toBeGreaterThan(30);
+        for (let k = 1; k < seen.length; k++) expect(seen[k].depth).toBeGreaterThan(seen[k - 1].depth);
+        // farther by a good stretch, so perspective shrinks them too
+        expect(seen.at(-1)!.depth - seen[0].depth).toBeGreaterThan(phone ? 2.5 : 8);
+        // they leave his hand at full size and fade (shrink) out at the end
+        expect(Math.max(...steps.slice(0, 10).map((s) => s.scale))).toBeGreaterThan(0.9);
+        expect(steps.at(-1)!.scale).toBeLessThan(0.05);
+        for (const { p } of seen) {
+          expect(insideBuilding(p.x, p.y, p.z), `in a building at ${p.toArray()}`).toBe(false);
+          const [cx, , cz] = FERRY_CAR.p;
+          const inCar = Math.abs(p.x - cx) < CAR.roof.x + 0.1 && Math.abs(p.z - cz) < CAR.roof.z + 0.1 && p.y < cuso.y + CAR.height + 0.15;
+          expect(inCar, `through the cable car at ${p.toArray()}`).toBe(false);
+        }
+      }
+    });
+  }
+
+  it("on a 1440 x 900 desktop they stay right of the card column, in frame, clear of the bubble and of Cuso's face", () => {
+    const bubble = desktopBubble();
+    const head = onDesktop("newsletter", cuso.clone().setY(cuso.y + 1.9));
+    const feet = onDesktop("newsletter", cuso);
+    const half = (feet.y - head.y) / 3;
+    const body: Box = { left: feet.x - half, top: head.y, right: feet.x + half, bottom: feet.y };
+    const face = faceOf(body);
+    for (const steps of flights(ch.camera, false)) {
+      const seen = steps.filter((s) => s.scale > 0.05);
+      const shown = seen.map(({ p }) => onDesktop("newsletter", p));
+      for (const [k, at] of shown.entries()) {
+        expect(rightOfCards(at), `step ${k} ${JSON.stringify(at)}`).toBe(true);
+        expect(inBox(bubble, at.x, at.y, 16), `step ${k} over the bubble`).toBe(false);
+        expect(inBox(face, at.x, at.y, 10), `step ${k} over his face`).toBe(false);
+      }
+      // past the first few steps out of his hand, they are clear of him altogether
+      const out = shown.filter((at) => !inBox(body, at.x, at.y));
+      expect(out.length / shown.length).toBeGreaterThan(0.85);
+    }
+  });
+
+  it.each(PHONES)("on a $name phone they stay in the band, in frame, clear of the bubble and of Cuso's face", ({ size, band }) => {
+    const { boxOf, bubble, cuso: body } = phoneShot(ch, size, band, LINE);
+    const face = faceOf(body);
+    for (const steps of flights(ch.phone, true)) {
+      const shown = steps.filter((s) => s.scale > 0.05).map(({ p }) => boxOf([p]));
+      for (const [k, at] of shown.entries()) {
+        expect(inBox(bubble, at.left, at.top, 16), `step ${k} over the bubble ${JSON.stringify({ at, bubble })}`).toBe(false);
+        expect(inBox(face, at.left, at.top, 10), `step ${k} over his face`).toBe(false);
+      }
+      const inside = shown.filter((at) => at.left > 0 && at.left < size.width && at.top > band[0] && at.top < band[1]);
+      expect(inside.length / shown.length).toBeGreaterThan(0.85);
+      const out = shown.filter((at) => !inBox(body, at.left, at.top));
+      expect(out.length / shown.length).toBeGreaterThan(0.85);
+    }
   });
 });

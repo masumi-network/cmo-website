@@ -31,7 +31,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { CapsuleGeometry, CircleGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, Matrix4, MeshStandardMaterial, PlaneGeometry, Quaternion, SphereGeometry, TorusGeometry, Vector3, type BufferGeometry, type InstancedMesh, type Texture } from "three";
-import { dayNow, rig, useInterior, useNightGlow } from "./shared";
+import { dayNow, isPhone, rig, useInterior, useNightGlow } from "./shared";
 import { CableCar, Rails } from "./cable-car";
 import { type V3 } from "./parts";
 import { PALETTES, SLOT, builder, palette, type Builder, type Frame, type L3, type P2 } from "./house-models";
@@ -1053,10 +1053,48 @@ export function FerryBuilding() {
   );
 }
 
+const view = new Vector3();
+const ahead = new Vector3();
+const right = new Vector3();
+
+/**
+ * The flight out of his raised hand (on the right of the picture: his bubble
+ * hangs on the left): away from the lens and turned a little right, up first
+ * and then out. Wide screens look down the street to the Ferry Building, so
+ * they fly far. The phone shot looks across the street at a wall, behind the
+ * cable car: a shorter, steeper flight over the car's roof.
+ */
+const FLIGHT = {
+  wide: { turn: 0.4, reach: 15, rise: 2.4 },
+  phone: { turn: 0.45, reach: 3.6, rise: 3.4 },
+};
+const HAND = { side: 0.62, up: 1.25 };
+
+/**
+ * Where envelope `i` is at `u` (0..1) of its flight, into `out`, for a camera
+ * looking along `look`; returns its scale (it pops out of his hand, then
+ * shrinks away).
+ */
+export function envelope(u: number, i: number, cuso: Vector3, look: Vector3, phone: boolean, out: Vector3) {
+  const f = phone ? FLIGHT.phone : FLIGHT.wide;
+  ahead.set(look.x, 0, look.z).normalize();
+  right.set(-ahead.z, 0, ahead.x);
+  const turn = f.turn + (((i * 0.37) % 1) - 0.5) * 0.12; // a little spread between them
+  // out to the side at once (clear of his face and bubble), away from the lens a little later
+  const away = f.reach * Math.cos(turn) * u ** 1.5;
+  const aside = HAND.side + f.reach * Math.sin(turn) * u;
+  const x = ahead.x * away + right.x * aside;
+  const z = ahead.z * away + right.z * aside;
+  const y = HAND.up + f.rise * (1 - (1 - u) ** 3) + Math.sin(u * 7 + i) * 0.06 * u;
+  out.set(cuso.x + x, cuso.y + y, cuso.z + z);
+  // a little smaller as they go (the phone shot has no room to send them far), then gone
+  return Math.min(1, u / 0.06, (1 - u) / 0.3) * (1 - 0.4 * u);
+}
+
 /** Envelopes fly off Cuso while he delivers the newsletter. */
 function Envelopes() {
   const mesh = useRef<InstancedMesh>(null);
-  const COUNT = 7;
+  const COUNT = 6;
   const material = useMemo(() => {
     const map = drawn(128, 86, (ctx) => {
       ctx.fillStyle = "#fbfaf6";
@@ -1073,22 +1111,27 @@ function Envelopes() {
     });
     return new MeshStandardMaterial({ map, side: DoubleSide, roughness: 0.7 });
   }, []);
-  useFrame(({ clock }) => {
+  useFrame(({ camera, clock, size }) => {
     const m = mesh.current;
     if (!m) return;
     const day = dayNow();
     const here = day.a.id === "newsletter" && day.t === 0 && day.mode === "story";
     m.visible = here;
     if (!here) return;
+    const phone = isPhone(size);
     for (let i = 0; i < COUNT; i++) {
-      const phase = (clock.elapsedTime * 0.22 + i / COUNT) % 1;
-      placer.position.set(rig.cuso.x - 0.6 - phase * 5, rig.cuso.y + 1.1 + phase * 3.2 + Math.sin(phase * 9 + i) * 0.3, rig.cuso.z + phase * 2.4);
-      placer.rotation.set(phase * 4 + i, phase * 6, Math.sin(phase * 7) * 0.6);
-      placer.scale.setScalar(Math.max(0.001, Math.sin(phase * Math.PI)));
+      const phase = (clock.elapsedTime * 0.2 + i / COUNT) % 1;
+      const scale = envelope(phase, i, rig.cuso, camera.getWorldDirection(view), phone, placer.position);
+      // face the lens, tipped along the flight, with a gentle flutter
+      placer.quaternion.copy(camera.quaternion);
+      placer.rotateZ(-0.3 + Math.sin(phase * 8 + i) * 0.15);
+      placer.rotateY(Math.sin(phase * 5 + i * 2) * 0.4);
+      placer.scale.setScalar(Math.max(0.001, scale));
       placer.updateMatrix();
       m.setMatrixAt(i, placer.matrix);
     }
     placer.scale.setScalar(1);
+    placer.rotation.set(0, 0, 0);
     m.instanceMatrix.needsUpdate = true;
   });
   return (

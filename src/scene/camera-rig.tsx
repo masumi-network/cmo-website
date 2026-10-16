@@ -13,7 +13,7 @@ import { usePan } from "@/lib/pan";
 import { useCity } from "@/lib/store";
 import { type Plan, crossing, flightPlan, flightPoint, flightTime } from "./flight";
 import { insideBuilding, sightClear, sightHit } from "./layout";
-import { damp, dayNow, overlays, rig, setLerp } from "./shared";
+import { damp, dayNow, isPhone, overlays, rig, setLerp } from "./shared";
 
 const pos = new Vector3();
 const tgt = new Vector3();
@@ -433,7 +433,7 @@ export function CameraRig() {
     const { jump, progress } = useCity.getState();
     const now = performance.now() / 1000;
     const portrait = size.width < size.height;
-    const phone = portrait && size.width < 768;
+    const phone = isPhone(size);
     let slideTo = 0;
     let chase = 0;
     const cam = camera as PerspectiveCamera;

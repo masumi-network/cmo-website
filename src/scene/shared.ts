@@ -89,6 +89,9 @@ export function dayNow() {
 export const setLerp = (out: Vector3, a: Vec3, b: Vec3, t: number) =>
   out.set(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t);
 
+/** Phones (upright, under 768 px wide) take each chapter's `phone` shot. */
+export const isPhone = (size: { width: number; height: number }) => size.width < size.height && size.width < 768;
+
 /** Frame-rate independent smoothing factor. */
 export const damp = (lambda: number, dt: number) => 1 - Math.exp(-lambda * dt);
 
