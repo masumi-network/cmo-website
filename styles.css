@@ -306,11 +306,11 @@ h3 { font-size: var(--text-h3); }
 .step__text > p:last-child { color: var(--text-soft); font-size: var(--text-lead); }
 .step__when { display: flex; align-items: center; gap: var(--s-3); font-weight: 700; font-size: var(--text-small); text-transform: uppercase; letter-spacing: 0.04em; }
 .step__num {
-  font-size: clamp(44px, 4.6vw, 68px);
-  letter-spacing: -0.03em;
+  font-size: clamp(52px, 5.4vw, 80px);
+  letter-spacing: 0.1em;
+  margin: 0 -0.1em 0 4px;
   color: var(--iris);
-  -webkit-text-stroke: 2px var(--ink);
-  paint-order: stroke fill;
+  text-shadow: 4px 0px 0 var(--ink), 3.9px 1px 0 var(--ink), 3.5px 2px 0 var(--ink), 2.8px 2.8px 0 var(--ink), 2px 3.5px 0 var(--ink), 1px 3.9px 0 var(--ink), 0px 4px 0 var(--ink), -1px 3.9px 0 var(--ink), -2px 3.5px 0 var(--ink), -2.8px 2.8px 0 var(--ink), -3.5px 2px 0 var(--ink), -3.9px 1px 0 var(--ink), -4px 0px 0 var(--ink), -3.9px -1px 0 var(--ink), -3.5px -2px 0 var(--ink), -2.8px -2.8px 0 var(--ink), -2px -3.5px 0 var(--ink), -1px -3.9px 0 var(--ink), 0px -4px 0 var(--ink), 1px -3.9px 0 var(--ink), 2px -3.5px 0 var(--ink), 2.8px -2.8px 0 var(--ink), 3.5px -2px 0 var(--ink), 3.9px -1px 0 var(--ink);
 }
 
 .step__show { position: relative; padding-bottom: clamp(40px, 6vw, 88px); }
