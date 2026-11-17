@@ -26,21 +26,6 @@ function revealOnScroll() {
   items.forEach((item) => seen.observe(item));
 }
 
-function dockOnPhone() {
-  const dock = document.querySelector("[data-dock]");
-  const mainCta = document.querySelector("[data-main-cta]");
-  const final = document.querySelector("[data-final]");
-  if (!dock || !mainCta || !final || !("IntersectionObserver" in window)) return;
-  const visible = new Map();
-  const watch = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => visible.set(entry.target, entry.isIntersecting));
-    const pastHero = !visible.get(mainCta) && mainCta.getBoundingClientRect().bottom < 0;
-    dock.classList.toggle("is-on", pastHero && !visible.get(final));
-  });
-  watch.observe(mainCta);
-  watch.observe(final);
-}
-
 const SPRING = "cubic-bezier(0.3, 1.4, 0.5, 1)";
 const MOVES = {
   hop: [
@@ -96,5 +81,4 @@ function bringCusoToLife() {
 
 trackCtas();
 revealOnScroll();
-dockOnPhone();
 bringCusoToLife();

@@ -40,19 +40,23 @@
 <body>
   <a class="skip" href="#main">Skip to content</a>
 
-  <header class="nav" id="top">
-    <a class="brand" href="#top" aria-label="CMO.XYZ home">
-      <img src="/assets/logo-mark.svg" alt="" width="1020" height="1390" />
-      <span>CMO.XYZ</span>
-    </a>
-    <nav class="nav__links" aria-label="Main">
-      <a href="#month">How it works</a>
-      <a href="#channels">Channels</a>
-      <a href="#pricing">Pricing</a>
-      <a href="#faq">FAQ</a>
-      <a href="https://app.cmo.xyz/login">Log in</a>
-    </nav>
-    <a class="btn btn--accent" href="https://app.cmo.xyz/signup" data-cta="nav">Start free</a>
+  <header class="nav">
+    <div class="nav__bar">
+      <a class="brand" href="#top" aria-label="CMO.XYZ home">
+        <img src="/assets/logo-mark.svg" alt="" width="1020" height="1390" />
+        <span>CMO.XYZ</span>
+      </a>
+      <nav class="nav__links" aria-label="Main">
+        <a href="#month">How it works</a>
+        <a href="#channels">Channels</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div class="nav__actions">
+        <a class="nav__login" href="https://app.cmo.xyz/login">Log in</a>
+        <a class="btn btn--accent" href="https://app.cmo.xyz/signup" data-cta="nav">Start free</a>
+      </div>
+    </div>
   </header>
 
   <main id="main">
@@ -65,7 +69,7 @@
           social media, ads, SEO and newsletter. You approve the plan. Cuso
           does the rest.
         </p>
-        <a class="btn btn--accent btn--xl" href="https://app.cmo.xyz/signup" data-cta="hero" data-main-cta>Meet your CMO</a>
+        <a class="btn btn--accent btn--xl" href="https://app.cmo.xyz/signup" data-cta="hero">Meet your CMO</a>
         <p class="hero__note">See your plan first. Pay nothing until you subscribe.</p>
       </div>
       <div class="hero__art">
@@ -314,7 +318,7 @@
       </div>
     </section>
 
-    <section class="final" data-final>
+    <section class="final">
       <div class="final__card reveal">
         <div class="brand brand--xl">
           <img src="/assets/logo-mark.svg" alt="" width="1020" height="1390" />
@@ -356,9 +360,6 @@
     </address>
   </footer>
 
-  <div class="dock" data-dock>
-    <a class="btn btn--accent" href="https://app.cmo.xyz/signup" data-cta="dock">Start free</a>
-  </div>
 
   <script src="/script.js" defer></script>
 </body>
