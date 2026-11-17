@@ -59,10 +59,16 @@ weekly -> improves. Forever.
    brand in the logo and nav. This supersedes the DESIGN.md "never hardcode
    an agent name" rule, since Cuso is the brand's agent name, not a
    per-user instance name.
-2. **Pre-launch / waitlist.** The product is NOT launched yet. The site's
-   primary action is to **collect the user's email for the waitlist**, not
-   "Get started" into an app. CTAs = join the waitlist. (This is a
-   pre-launch waitlist, separate from the product's Newsletter capability.)
+2. **The app is live (updated 2026-11-17).** The product is launched at
+   https://app.cmo.xyz. The site's primary action is **sign up**: main CTAs
+   ("Start free", "Meet your CMO") go to https://app.cmo.xyz/signup and
+   "Log in" goes to https://app.cmo.xyz/login. The pre-launch waitlist
+   (decided 2026-10-01) is retired and its form and API route are removed.
 3. **Newsletter.** Per the brief, Cuso manages Newsletter as a capability.
    DESIGN.md's "roadmap only" note predates this brief; show Newsletter as
    a real capability on the site.
+4. **Approval and prices on the site (2026-11-17).** The site follows the
+   app: the user approves the plan, not each post ("Nothing goes out until
+   you approve the plan"), and can change, pause or undo any piece by
+   telling Cuso. Prices shown are the app's Polar plans: Starter $200,
+   Growth $500, Scale $1,000 a month; yearly costs ten months; no trial.

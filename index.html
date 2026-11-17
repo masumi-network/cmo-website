@@ -15,6 +15,8 @@
   <title>CMO.XYZ | AI CMO & Autonomous Marketing Agent</title>
   <meta name="description" content="Meet Cuso, your AI Chief Marketing Officer. Put your social media, paid ads, SEO, and newsletters on autopilot with autonomous marketing execution." />
   <meta name="theme-color" content="#ffffff" />
+  <meta name="color-scheme" content="light" />
+  <link rel="canonical" href="https://www.cmo.xyz/" />
   <link rel="icon" href="/assets/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/assets/icon.svg" />
   <link rel="apple-touch-icon" href="/assets/apple-icon.png" />
@@ -23,432 +25,332 @@
   <meta property="og:site_name" content="CMO.XYZ" />
   <meta property="og:title" content="CMO.XYZ | AI CMO & Autonomous Marketing Agent" />
   <meta property="og:description" content="Meet Cuso, your AI Chief Marketing Officer. Put your social media, paid ads, SEO, and newsletters on autopilot with autonomous marketing execution." />
-  <meta property="og:url" content="https://cmo-xyz.vercel.app/" />
-  <meta property="og:image" content="https://cmo-xyz.vercel.app/assets/og-image.png" />
+  <meta property="og:url" content="https://www.cmo.xyz/" />
+  <meta property="og:image" content="https://www.cmo.xyz/assets/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="CMO.XYZ | AI CMO & Autonomous Marketing Agent" />
   <meta name="twitter:description" content="Meet Cuso, your AI Chief Marketing Officer. Put your social media, paid ads, SEO, and newsletters on autopilot with autonomous marketing execution." />
-  <meta name="twitter:image" content="https://cmo-xyz.vercel.app/assets/og-image.png" />
+  <meta name="twitter:image" content="https://www.cmo.xyz/assets/og-image.png" />
+  <link rel="preload" href="/assets/fonts/mori-semibold.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/assets/fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/styles.css" />
-  <link rel="modulepreload" href="/vendor/model-viewer.min.js" />
-  <link rel="preload" href="/assets/3d/mascot.glb" as="fetch" type="model/gltf-binary" crossorigin="anonymous" />
-  <link rel="stylesheet" href="/skin.css" />
-  <link rel="stylesheet" href="/gradient.css" />
-  <link rel="stylesheet" href="/atlas.css" />
-  <script>
-    (function () {
-      var root = document.documentElement;
-      root.setAttribute("data-theme", "light");
-      root.classList.add("has-anim");
-      if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)
-        root.classList.add("reduced");
-    })();
-  </script>
 </head>
-<body class="v3x">
-  <!-- ============================================================
-       CMO.XYZ marketing site — v2 (work in progress layout).
-       Separate page; existing pages are untouched. Shares styles.css
-       and script.js. All visual choices are a neutral PLACEHOLDER
-       direction per DESIGN.md (colors/shapes still open).
-       ============================================================ -->
+<body>
+  <a class="skip" href="#main">Skip to content</a>
 
-  <div class="bg-glow" aria-hidden="true"></div>
-
-  <header class="nav nav--minimal" id="top">
-    <a class="nav__brand" href="#top" aria-label="CMO.XYZ home">
-      <span>CMO.XYZ</span>
-    </a>
+  <header class="nav">
+    <div class="nav__bar">
+      <a class="brand" href="#top" aria-label="CMO.XYZ home">
+        <img src="/assets/logo-mark.svg" alt="" width="1020" height="1390" />
+        <span>CMO.XYZ</span>
+      </a>
+      <nav class="nav__links" aria-label="Main">
+        <a href="#month">How it works</a>
+        <a href="#channels">Channels</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div class="nav__actions">
+        <a class="nav__login" href="https://app.cmo.xyz/login">Log in</a>
+        <a class="btn btn--accent" href="https://app.cmo.xyz/signup" data-cta="nav">Start free</a>
+      </div>
+    </div>
   </header>
 
-  <main>
-    <!-- ===================== HERO ===================== -->
-    <section class="hero hero--center">
+  <main id="main">
+    <div class="fold">
+    <section class="hero">
       <div class="hero__text">
-        <h1>Marketing,<br />on autopilot.</h1>
+        <p class="pill pill--accent">Your AI CMO</p>
+        <h1>Cuso does your marketing.</h1>
         <p class="lead">
-          Cuso is an AI that does your marketing. He writes your posts, runs
-          your ads, and gets your site found on Google. You just say yes.
+          He learns your brand, plans your month, then makes and runs it all:
+          social media, ads, SEO and newsletter. You approve the plan. Cuso
+          does the rest.
         </p>
-        <form class="waitlist" id="waitlist" data-waitlist data-endpoint="/api/waitlist" novalidate>
-          <input class="waitlist__input" type="email" name="email" required
-                 placeholder="Enter your email" aria-label="Email address" />
-          <input class="waitlist__input waitlist__input--url" type="text" inputmode="url" name="website"
-                 placeholder="yourcompany.com (optional)" aria-label="Website (optional)" />
-          <button class="btn btn--lg" type="submit">Join the waitlist</button>
-        </form>
-        <p class="waitlist__msg" data-waitlist-msg role="status" aria-live="polite"></p>
+        <a class="btn btn--accent btn--xl" href="https://app.cmo.xyz/signup" data-cta="hero">Meet your CMO</a>
+        <p class="hero__note">See your plan first. Pay nothing until you subscribe.</p>
       </div>
-      <div class="hero__visual">
-        <div class="orb" aria-hidden="true"></div>
-        <model-viewer class="hero__model" src="/assets/3d/mascot.glb"
-          disable-zoom disable-pan interaction-prompt="none"
-          camera-orbit="0deg 82deg 95%" min-camera-orbit="auto 0deg auto"
-          max-camera-orbit="auto 180deg auto" field-of-view="30deg"
-          environment-image="neutral" exposure="1.15" shadow-intensity="0.5" shadow-softness="1"
-          loading="eager" reveal="auto" autoplay animation-name="Idle" aria-label="3D CMO.XYZ mascot that follows your cursor"></model-viewer>
+      <div class="hero__art">
+        <button class="cuso" type="button" data-cuso aria-label="Cuso, the CMO.XYZ mascot. Press to make him spin.">
+          <img src="/assets/cuso-walking.webp" alt="" width="627" height="649" fetchpriority="high" />
+        </button>
+        <span class="pill sticker sticker--top">&#10003; Plan approved</span>
+        <span class="pill pill--ink sticker sticker--bottom">Sounds like you</span>
       </div>
     </section>
 
-    <!-- ===================== PRODUCT DEMO ===================== -->
-    <section id="demo" class="section">
-      <div class="section__head">
-        <h2>Tell Cuso what you need.<br />He does it.</h2>
-        <p>Every answer comes from your own numbers. No guessing.</p>
+    <div class="marquee" role="img" aria-label="What Cuso runs: X, LinkedIn, Instagram, Facebook, Google Ads, Meta Ads, SEO, Newsletter">
+      <div class="marquee__track" aria-hidden="true">
+        <span>X</span><i>&#10022;</i><span>LinkedIn</span><i>&#10022;</i><span>Instagram</span><i>&#10022;</i><span>Facebook</span><i>&#10022;</i><span>Google Ads</span><i>&#10022;</i><span>Meta Ads</span><i>&#10022;</i><span>SEO</span><i>&#10022;</i><span>Newsletter</span><i>&#10022;</i>
+        <span>X</span><i>&#10022;</i><span>LinkedIn</span><i>&#10022;</i><span>Instagram</span><i>&#10022;</i><span>Facebook</span><i>&#10022;</i><span>Google Ads</span><i>&#10022;</i><span>Meta Ads</span><i>&#10022;</i><span>SEO</span><i>&#10022;</i><span>Newsletter</span><i>&#10022;</i>
+      </div>
+    </div>
+    </div>
+
+    <section class="month" id="month">
+      <div class="head">
+        <h2>A month with Cuso</h2>
+        <p>Five steps. You do the second one. The example is Moss &amp; Kettle, a made up tea shop.</p>
       </div>
 
-      <div class="frame">
-      <div class="chat">
-        <div class="chat__bar">
-          <span></span><span></span><span></span>
-          <p>Cuso</p>
-        </div>
-        <div class="chat__body" data-chat>
-          <div class="msg msg--agent" data-typing="1200">
-            <img src="/assets/cuso-avatar.png" alt="" loading="lazy" decoding="async" />
-            <p>
-              Here's my proposed strategy for you. Built from your setup answers
-              and your shop data. I'll use it to guide every post, ad and email.
-              Take a look, then I'll get started.
-            </p>
+      <ol class="steps">
+        <li class="step reveal">
+          <div class="step__text">
+            <p class="step__when"><span class="step__num">01</span> First</p>
+            <h3>He learns your brand</h3>
+            <p>Give Cuso your website and your goals. He studies your site, products, audience and competitors, and keeps it all in your Brand Brain.</p>
           </div>
-          <div class="msg msg--user"><p>Looks good. Draft the launch posts.</p></div>
-          <div class="msg msg--agent" data-typing="1200">
-            <img src="/assets/cuso-avatar.png" alt="" loading="lazy" decoding="async" />
-            <p>
-              On it. I'll draft that now and put anything that needs approval in
-              your Approvals. You'll get a note when it's ready.
-            </p>
+          <div class="step__show">
+            <div class="panel brain">
+              <p class="panel__label">Brand Brain</p>
+              <ul class="checks">
+                <li>Website read</li>
+                <li>Products listed</li>
+                <li>Audience found</li>
+                <li>Competitors checked</li>
+                <li>Past marketing reviewed</li>
+              </ul>
+            </div>
+            <img class="step__cuso step__cuso--right" src="/assets/cuso-step-learn.webp" alt="" width="601" height="641" loading="lazy" decoding="async" />
           </div>
-        </div>
-        <div class="chat__input"><span>Ask anything...</span><i aria-hidden="true">&rarr;</i></div>
-      </div>
-      </div>
+        </li>
 
-      <div class="trio">
-        <div>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H8l-4 3z"/></svg>
-          <h3>Learns your brand</h3>
-          <p>Give him your website. He reads it and writes like you.</p>
-        </div>
-        <div>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
-          <h3>Makes a plan</h3>
-          <p>He writes a plan from your data. You look it over once.</p>
-        </div>
-        <div>
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
-          <h3>Does the work</h3>
-          <p>Posts, ads, and SEO go out on time. Anything big waits for your OK.</p>
-        </div>
+        <li class="step step--flip reveal">
+          <div class="step__text">
+            <p class="step__when"><span class="step__num">02</span> Then</p>
+            <h3>He plans your month</h3>
+            <p>You see every post and ad he will make, and when. Ask for changes until you like it. Nothing goes out until you approve the plan.</p>
+          </div>
+          <div class="step__show">
+            <div class="panel plan">
+              <p class="panel__label">The goal</p>
+              <p class="plan__goal">Get tea lovers nearby to try the new Smoky Oolong.</p>
+              <dl class="facts">
+                <div><dt>Who</dt><dd>Tea drinkers in the city</dd></div>
+                <div><dt>The offer</dt><dd>Smoky Oolong, new this month</dd></div>
+                <div><dt>Where</dt><dd>Instagram, X, LinkedIn, Google</dd></div>
+                <div><dt>This month</dt><dd>24 pieces</dd></div>
+              </dl>
+              <div class="plan__actions" aria-hidden="true">
+                <span class="chip">Ask for a change</span>
+                <span class="chip chip--accent">Approve plan</span>
+              </div>
+            </div>
+            <img class="step__cuso step__cuso--left" src="/assets/cuso-step-plan.webp" alt="" width="495" height="657" loading="lazy" decoding="async" />
+          </div>
+        </li>
+
+        <li class="step step--band reveal">
+          <div class="step__text">
+            <p class="step__when"><span class="step__num">03</span> Once you approve</p>
+            <h3>He makes the whole month</h3>
+            <p>Cuso writes every piece and makes its pictures and videos, in your voice and sized for each channel.</p>
+          </div>
+          <div class="feed" tabindex="0" role="group" aria-label="Example posts and an ad made by Cuso">
+            <article class="post">
+              <header><span class="post__mark" aria-hidden="true">M&amp;K</span><b>Moss &amp; Kettle</b><span class="tag">X</span></header>
+              <p>New in the shop: Smoky Oolong. Roasted slow. Tastes like a campfire in a cup. In store and online from Monday.</p>
+              <div class="post__img post__img--wide" aria-hidden="true"><span>Smoky<br />Oolong</span></div>
+            </article>
+            <article class="post">
+              <header><span class="post__mark" aria-hidden="true">M&amp;K</span><b>Moss &amp; Kettle</b><span class="tag">LinkedIn</span></header>
+              <p>We started Moss &amp; Kettle with one rule: tea should be easy.</p>
+              <p>So every tin now comes with a one line brewing guide. No scales. No timers. No fuss.</p>
+            </article>
+            <article class="post">
+              <header><span class="post__mark" aria-hidden="true">M&amp;K</span><b>Moss &amp; Kettle</b><span class="tag">Instagram</span></header>
+              <div class="post__img post__img--ink" aria-hidden="true"><span>Brew it<br />in 3 min</span></div>
+              <p>Smoky Oolong, the easy way. One spoon, hot water, three minutes.</p>
+            </article>
+            <article class="post post--ad">
+              <header><b>Sponsored</b><span class="tag">Google Ads</span></header>
+              <p class="post__url">mossandkettle.example</p>
+              <p class="post__headline">Loose Leaf Tea, Made Easy</p>
+              <p>Small batch teas with a one line brewing guide. Order online today.</p>
+            </article>
+          </div>
+        </li>
+
+        <li class="step reveal">
+          <div class="step__text">
+            <p class="step__when"><span class="step__num">04</span> Every day</p>
+            <h3>He keeps it running</h3>
+            <p>Each piece goes out at its time. Want something different? Tell Cuso. You can change, pause or undo any piece.</p>
+          </div>
+          <div class="step__show">
+            <div class="panel week">
+              <p class="panel__label">Week 1</p>
+              <ul class="rows">
+                <li><span class="rows__when">Mon 9:00</span><span class="tag">X</span><b>Smoky Oolong is here</b><span class="status status--done">Published</span></li>
+                <li><span class="rows__when">Tue 12:00</span><span class="tag">LinkedIn</span><b>Why we print brewing guides</b><span class="status status--done">Published</span></li>
+                <li><span class="rows__when">Wed 18:00</span><span class="tag">Instagram</span><b>Brew it in 3 minutes</b><span class="status">Scheduled</span></li>
+                <li><span class="rows__when">Thu 8:00</span><span class="tag">Newsletter</span><b>This month's tea letter</b><span class="status">Scheduled</span></li>
+                <li class="rows__skipped"><span class="rows__when">Fri 10:00</span><span class="tag">Facebook</span><b>Friday tasting</b><span class="status status--off">Skipped</span></li>
+              </ul>
+              <div class="chat">
+                <p class="chat__you">We are closed on Friday. Skip that post.</p>
+                <p class="chat__cuso">Done. Friday's post is skipped.</p>
+              </div>
+            </div>
+            <img class="step__cuso step__cuso--right" src="/assets/cuso-step-work.webp" alt="" width="592" height="661" loading="lazy" decoding="async" />
+          </div>
+        </li>
+
+        <li class="step step--flip reveal">
+          <div class="step__text">
+            <p class="step__when"><span class="step__num">05</span> Every Monday</p>
+            <h3>He checks the numbers</h3>
+            <p>Cuso looks at what worked and what did not, and improves the plan. Every month he plans the next one.</p>
+          </div>
+          <div class="step__show">
+            <div class="panel review">
+              <p class="panel__label">Monday check</p>
+              <dl class="review__list">
+                <div><dt>Worked</dt><dd>The Smoky Oolong launch posts</dd></div>
+                <div><dt>Did not</dt><dd>Long text posts on X</dd></div>
+                <div><dt>Change</dt><dd>More short videos this week</dd></div>
+              </dl>
+            </div>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="channels" id="channels">
+      <img class="channels__art reveal" src="/assets/cuso-pointing.webp" alt="" width="624" height="652" loading="lazy" decoding="async" />
+      <div class="channels__text">
+        <h2>All your channels. <span>One voice.</span></h2>
+        <p>Cuso runs your social media, your ads, your website SEO and your newsletter. Every channel sounds like you.</p>
+        <dl class="groups">
+          <div>
+            <dt>Social media</dt>
+            <dd class="pill pill--accent">X</dd>
+            <dd class="pill pill--accent">LinkedIn</dd>
+            <dd class="pill pill--accent">Instagram</dd>
+            <dd class="pill pill--accent">Facebook</dd>
+            <dd class="pill pill--soon">TikTok soon</dd>
+          </div>
+          <div>
+            <dt>Ads</dt>
+            <dd class="pill">Google Ads</dd>
+            <dd class="pill">Meta Ads</dd>
+          </div>
+          <div>
+            <dt>Website and email</dt>
+            <dd class="pill">Website SEO</dd>
+            <dd class="pill">Newsletter</dd>
+          </div>
+        </dl>
       </div>
     </section>
 
-    <!-- ===================== PROBLEM FRAMING ===================== -->
-    <section class="problem" id="why">
-      <div class="section__head">
-        <h2>The marketing hire you can afford.</h2>
-        <p>A head of marketing, for the price of a tool. He never takes a day off.</p>
+    <section class="pricing" id="pricing">
+      <div class="head">
+        <h2>Pricing</h2>
+        <p>Every plan covers the same work. A bigger plan gives Cuso more credits, so he can make more each month.</p>
       </div>
-      <div class="problem__grid">
-        <div class="problem__col">
-          <h3>On your own</h3>
-          <ul class="problem__list problem__list--pain">
-            <li>Too many tools</li>
-            <li>Posts stop when you get busy</li>
-            <li>No real plan</li>
-            <li>Lots of guessing</li>
-          </ul>
+      <div class="pricing__grid">
+        <div class="promise reveal">
+          <p class="promise__big">See your plan first. Subscribe when you are ready.</p>
+          <p>Signing up is free. Cuso builds your plan and shows which subscription fits it. You pay nothing until you pick one.</p>
+          <a class="btn btn--accent" href="https://app.cmo.xyz/signup" data-cta="pricing">Start free</a>
         </div>
-        <div class="problem__col problem__col--fix">
-          <h3>With Cuso</h3>
-          <ul class="problem__list problem__list--win">
-            <li>One place for everything</li>
-            <li>Posts go out every week</li>
-            <li>A clear plan, kept up to date</li>
-            <li>Choices based on your numbers</li>
-          </ul>
-        </div>
+        <ul class="tiers">
+          <li class="tier">
+            <h3>Starter</h3>
+            <p class="tier__price">$200<span>/mo</span></p>
+            <p class="tier__meta">10,000 credits a month</p>
+            <p class="tier__meta tier__meta--soft">or $2,000 billed once a year</p>
+          </li>
+          <li class="tier">
+            <h3>Growth</h3>
+            <p class="tier__price">$500<span>/mo</span></p>
+            <p class="tier__meta">25,000 credits a month</p>
+            <p class="tier__meta tier__meta--soft">or $5,000 billed once a year</p>
+          </li>
+          <li class="tier">
+            <h3>Scale</h3>
+            <p class="tier__price">$1,000<span>/mo</span></p>
+            <p class="tier__meta">50,000 credits a month</p>
+            <p class="tier__meta tier__meta--soft">or $10,000 billed once a year</p>
+          </li>
+        </ul>
+      </div>
+      <p class="pricing__foot">
+        Pay yearly and you pay for ten months. Change or cancel any time in Settings.
+        Ad spend is not part of the subscription price. Need something bigger?
+        <a href="https://cal.com/patricktobler" target="_blank" rel="noopener" data-cta="pricing_call">Schedule a call</a>.
+      </p>
+    </section>
+
+    <section class="faq" id="faq">
+      <h2>Questions</h2>
+      <div class="faq__list">
+        <details>
+          <summary>Does it sound like AI?</summary>
+          <p>No. Cuso studies your website, your products and your past marketing, then writes in your voice. If a piece sounds off, tell him and he changes it.</p>
+        </details>
+        <details>
+          <summary>Do I approve posts?</summary>
+          <p>You approve the plan, and nothing goes out before you do. After that Cuso runs it. You can change, pause or undo any piece by telling him.</p>
+        </details>
+        <details>
+          <summary>Which channels does Cuso run?</summary>
+          <p>Social media on X, LinkedIn, Instagram and Facebook. Google Ads and Meta Ads. Your website SEO. Your newsletter. TikTok is coming soon.</p>
+        </details>
+        <details>
+          <summary>What does it cost?</summary>
+          <p>Starter is $200 a month, Growth is $500 and Scale is $1,000. Pay yearly and you pay for ten months. Ad spend is not part of the subscription price.</p>
+        </details>
+        <details>
+          <summary>Can I cancel?</summary>
+          <p>Yes. You can change or cancel any time in Settings. Your plan runs to the end of the period you paid for.</p>
+        </details>
+        <details>
+          <summary>What do I need to start?</summary>
+          <p>Your website and your marketing goals. Cuso does the research from there.</p>
+        </details>
+        <details>
+          <summary>Can I ask for something that is not in the plan?</summary>
+          <p>Yes. Tell Cuso what you need, like a post for today or a short announcement. He does it, remembers it and adjusts the plan.</p>
+        </details>
       </div>
     </section>
 
-    <!-- ===================== CORE FEATURES ===================== -->
-    <section id="features" class="section">
-      <div class="section__head">
-        <h2>All of your marketing. Done.</h2>
-        <p>Pick a job to see how Cuso does it.</p>
-      </div>
-
-      <div class="tabs">
-        <div class="tabs__list" role="tablist" aria-label="What CMO.XYZ does">
-          <button class="tab is-active" role="tab" id="tab-social" aria-controls="panel-social" aria-selected="true" data-tab="0">
-            <span class="tab__label">Social media</span>
-            <span class="tab__bar" aria-hidden="true"></span>
-          </button>
-          <button class="tab" role="tab" id="tab-content" aria-controls="panel-content" aria-selected="false" tabindex="-1" data-tab="1">
-            <span class="tab__label">Content creation</span>
-            <span class="tab__bar" aria-hidden="true"></span>
-          </button>
-          <button class="tab" role="tab" id="tab-ads" aria-controls="panel-ads" aria-selected="false" tabindex="-1" data-tab="2">
-            <span class="tab__label">Ads (Google + Meta)</span>
-            <span class="tab__bar" aria-hidden="true"></span>
-          </button>
-          <button class="tab" role="tab" id="tab-seo" aria-controls="panel-seo" aria-selected="false" tabindex="-1" data-tab="3">
-            <span class="tab__label">Website SEO</span>
-            <span class="tab__bar" aria-hidden="true"></span>
-          </button>
-          <button class="tab" role="tab" id="tab-images" aria-controls="panel-images" aria-selected="false" tabindex="-1" data-tab="4">
-            <span class="tab__label">Images &amp; graphics</span>
-            <span class="tab__bar" aria-hidden="true"></span>
-          </button>
-          <button class="tab" role="tab" id="tab-news" aria-controls="panel-news" aria-selected="false" tabindex="-1" data-tab="5">
-            <span class="tab__label">Newsletter</span>
-            <span class="tab__bar" aria-hidden="true"></span>
-          </button>
+    <section class="final">
+      <div class="final__card reveal">
+        <div class="brand brand--xl">
+          <img src="/assets/logo-mark.svg" alt="" width="1020" height="1390" />
+          <span>CMO.XYZ</span>
         </div>
-
-        <div class="tabs__panels">
-          <div class="panel is-active" role="tabpanel" id="panel-social" aria-labelledby="tab-social" data-panel="0">
-            <div class="panel__text">
-              <h3>Runs your social media</h3>
-              <p>Cuso picks what to post and when. He does more of what works.</p>
-              <ul class="panel__list">
-                <li>Plans your posts</li>
-                <li>Posts on time, every week</li>
-                <li>Learns what works</li>
-              </ul>
-            </div>
-            <div class="panel__media">
-              <div class="cap" aria-hidden="true">
-                <div class="cap-card">
-                  <div class="cap-hd">
-                    <span class="cap-avatar"></span>
-                    <div class="cap-lines"><span class="cap-name">CMO.XYZ</span><span class="cap-sub">Today · 9:00 AM</span></div>
-                    <span class="cap-more"><i></i><i></i><i></i></span>
-                  </div>
-                  <p class="cap-txt">New drop is live. 20% off this week only. Tap to shop&nbsp;→</p>
-                  <div class="cap-thumb"></div>
-                  <div class="cap-react">
-                    <span class="cap-stat"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-6.7-4.3-9.1-8.6A5 5 0 0 1 12 6.5 5 5 0 0 1 21.1 12.4C18.7 16.7 12 21 12 21z"/></svg>128</span>
-                    <span class="cap-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-7-6 16-3.5-6.5L4 12z"/></svg>24</span>
-                    <span class="cap-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h12a4 4 0 0 1 0 8h-2"/><path d="M7 5 4 8l3 3"/></svg>9</span>
-                  </div>
-                </div>
-                <span class="cap-badge cap-badge--tr"><span class="cap-ping"></span>Scheduled</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-content" aria-labelledby="tab-content" data-panel="1" hidden>
-            <div class="panel__text">
-              <h3>Writes your posts</h3>
-              <p>Cuso writes posts and captions in your voice. You approve them first.</p>
-              <ul class="panel__list">
-                <li>Sounds like you</li>
-                <li>Posts them for you</li>
-                <li>Asks before anything goes out</li>
-              </ul>
-            </div>
-            <div class="panel__media">
-              <div class="cap" aria-hidden="true">
-                <div class="cap-card">
-                  <div class="cap-winbar"><i></i><i></i><i></i><span class="cap-sub">launch-post.md</span></div>
-                  <span class="cap-name">Our new collection just landed</span>
-                  <p class="cap-txt">Meet the pieces you'll reach for all season. Clean lines, better materials, same fair price.<i class="cap-caret"></i></p>
-                  <div class="cap-meta"><span class="cap-pill">Draft</span><span class="cap-pill cap-pill--accent">In Approvals</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-ads" aria-labelledby="tab-ads" data-panel="2" hidden>
-            <div class="panel__text">
-              <h3>Runs your ads</h3>
-              <p>Cuso sets up your Google and Meta ads. He moves money to the ads that sell.</p>
-              <ul class="panel__list">
-                <li>Builds the ads</li>
-                <li>Finds the right people</li>
-                <li>Stops ads that don't work</li>
-              </ul>
-            </div>
-            <div class="panel__media">
-              <div class="cap" aria-hidden="true">
-                <div class="cap-card">
-                  <div class="cap-kpi"><div><span class="cap-label">Return on ad spend</span><strong>3.8&times;</strong></div><span class="cap-trend">&#9650; 42%</span></div>
-                  <div class="cap-chart"><i style="--h:35%"></i><i style="--h:58%"></i><i style="--h:46%"></i><i style="--h:74%"></i><i style="--h:100%"></i></div>
-                  <div class="cap-meta"><span class="cap-pill">Google</span><span class="cap-pill">Meta</span><span class="cap-pill">$1,240 spend</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-seo" aria-labelledby="tab-seo" data-panel="3" hidden>
-            <div class="panel__text">
-              <h3>Gets you found on Google</h3>
-              <p>Cuso finds what people search for. Then he updates your pages to match.</p>
-              <ul class="panel__list">
-                <li>Finds the right words</li>
-                <li>Updates your pages</li>
-                <li>Tracks where you rank</li>
-              </ul>
-            </div>
-            <div class="panel__media">
-              <div class="cap" aria-hidden="true">
-                <div class="cap-card">
-                  <div class="cap-search">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <span class="cap-txt">best running shoes</span>
-                  </div>
-                  <ul class="cap-rank">
-                    <li class="top"><span class="cap-pos">1</span><span class="cap-txt">yourstore.com/running</span><span class="cap-trend">&#9650; 12</span></li>
-                    <li><span class="cap-pos">2</span><span class="cap-txt">runhub.com/guide</span></li>
-                    <li><span class="cap-pos">3</span><span class="cap-txt">gearlab.com/reviews</span></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-images" aria-labelledby="tab-images" data-panel="4" hidden>
-            <div class="panel__text">
-              <h3>Makes your images</h3>
-              <p>Cuso makes the pictures for every post and ad, in the right size.</p>
-              <ul class="panel__list">
-                <li>Images for posts and ads</li>
-                <li>Right size for each app</li>
-                <li>In your brand colors</li>
-              </ul>
-            </div>
-            <div class="panel__media">
-              <div class="cap" aria-hidden="true">
-                <div class="cap-card">
-                  <span class="cap-name">Summer sale: hero set</span>
-                  <div class="cap-grid"><span></span><span></span><span></span><span></span></div>
-                  <div class="cap-meta"><span class="cap-pill cap-pill--accent">&#10022; Generated</span><span class="cap-pill">4 sizes</span><span class="cap-pill">On brand</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-news" aria-labelledby="tab-news" data-panel="5" hidden>
-            <div class="panel__text">
-              <h3>Sends your newsletter</h3>
-              <p>Cuso turns your news into an email people want to read. Then he sends it.</p>
-              <ul class="panel__list">
-                <li>Writes it from your news</li>
-                <li>Sends it on time</li>
-                <li>Tracks who opens it</li>
-              </ul>
-            </div>
-            <div class="panel__media">
-              <div class="cap" aria-hidden="true">
-                <div class="cap-card">
-                  <div class="cap-hd"><span class="cap-dot"></span><div class="cap-lines"><span class="cap-name">Your October update</span><span class="cap-sub">To 2,480 subscribers</span></div></div>
-                  <p class="cap-txt">Here's what we shipped this month, plus a little something for our regulars.</p>
-                  <div class="cap-openlabel"><span class="cap-sub">Open rate</span><span class="cap-sub">48%</span></div>
-                  <div class="cap-openrate"><span class="cap-openrate__fill" style="width:48%"></span></div>
-                  <div class="cap-meta"><span class="cap-pill">&#9993; Sent</span><span class="cap-pill cap-pill--accent">48% open</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <h2>Hire Cuso today.</h2>
+        <div class="final__actions">
+          <a class="btn btn--ink btn--accent-shadow btn--xl" href="https://app.cmo.xyz/signup" data-cta="final">Start free</a>
+          <a class="btn btn--xl" href="https://cal.com/patricktobler" target="_blank" rel="noopener" data-cta="final_call">Schedule a call</a>
         </div>
       </div>
-    </section>
-
-    <!-- ===================== PRICING ===================== -->
-    <section id="pricing" class="pricing">
-      <div class="section__head section__head--center">
-        <h2>Hire your CMO</h2>
-        <p>Priced like a tool. Works like a team.</p>
-        <div class="bill-toggle" role="group" aria-label="Billing period" data-bill>
-          <button type="button" class="bill-toggle__opt is-active" data-bill-opt="monthly" aria-pressed="true">Monthly</button>
-          <button type="button" class="bill-toggle__opt" data-bill-opt="yearly" aria-pressed="false">Yearly <span class="bill-toggle__save">Save 30%</span></button>
-        </div>
-      </div>
-      <div class="tiers">
-        <div class="tier">
-          <h3>Intern</h3>
-          <p class="tier__price"><span class="tier__amount" data-m="300" data-y="210">$300</span><span class="tier__per">/mo</span></p>
-          <p class="tier__bill" data-bill-note hidden>billed yearly</p>
-          <p class="tier__for">For founders who are just starting out.</p>
-          <ul class="tier__list">
-            <li>Standard AI usage, reset each month</li>
-            <li>Daily market research</li>
-            <li>Social posts written and scheduled</li>
-            <li>Images and graphics</li>
-            <li>Google and Meta ads</li>
-            <li>Basic SEO for your site</li>
-          </ul>
-          <a class="btn btn--ghost" href="#waitlist">Join the waitlist</a>
-        </div>
-        <div class="tier tier--featured">
-          <span class="tier__tag">Popular</span>
-          <h3>Manager</h3>
-          <p class="tier__price"><span class="tier__amount" data-m="800" data-y="560">$800</span><span class="tier__per">/mo</span></p>
-          <p class="tier__bill" data-bill-note hidden>billed yearly</p>
-          <p class="tier__for">For small teams and agencies.</p>
-          <p class="tier__plus">Everything in Intern, plus:</p>
-          <ul class="tier__list">
-            <li>4&times; more AI usage</li>
-            <li>Full SEO strategy</li>
-            <li>Priority support</li>
-          </ul>
-          <a class="btn" href="#waitlist">Join the waitlist</a>
-        </div>
-        <div class="tier">
-          <h3>Chief</h3>
-          <p class="tier__price tier__price--custom">Custom</p>
-          <p class="tier__for">Need something special? We build a plan just for you.</p>
-          <p class="tier__plus">Everything in Manager, plus:</p>
-          <ul class="tier__list">
-            <li>Tools built for you</li>
-            <li>We set it all up with you</li>
-          </ul>
-          <a class="btn btn--ghost" href="https://cal.com/patricktobler" target="_blank" rel="noopener">Schedule a call</a>
-        </div>
-      </div>
-      <div class="pricing__foot">
-        <p class="pricing__trust">No setup fees. Cancel anytime.</p>
-        <p class="pricing__note">Ad spend is not included. You pay platforms like Google and Meta directly.</p>
-      </div>
-    </section>
-
-    <!-- ===================== SECONDARY CTA ===================== -->
-    <section id="start" class="cta">
-      <div class="orb orb--sm" aria-hidden="true"></div>
-      <img class="cta__art" src="/assets/mascot.webp" alt="" width="800" height="800" loading="lazy" decoding="async" />
-      <h2>Be first to hire Cuso.</h2>
-      <p>Join the waitlist. We will email you when Cuso is ready.</p>
-      <form class="waitlist waitlist--center" data-waitlist data-endpoint="/api/waitlist" novalidate>
-        <input class="waitlist__input" type="email" name="email" required
-               placeholder="Enter your email" aria-label="Email address" />
-        <input class="waitlist__input waitlist__input--url" type="text" inputmode="url" name="website"
-               placeholder="yourcompany.com (optional)" aria-label="Website (optional)" />
-        <button class="btn btn--lg" type="submit">Save my spot</button>
-      </form>
-      <p class="waitlist__msg" data-waitlist-msg role="status" aria-live="polite"></p>
-      <p class="cta__fine">One email. No spam.</p>
     </section>
   </main>
 
   <footer class="footer">
-    <div class="footer__inner">
-      <a class="nav__brand" href="#top"><span>CMO.XYZ</span></a>
-      <p class="footer__tag">Cuso does your marketing, so you can run your business.</p>
+    <div class="footer__top">
+      <a class="brand brand--inverse" href="#top" aria-label="CMO.XYZ home">
+        <img src="/assets/logo-mark.svg" alt="" width="1020" height="1390" />
+        <span>CMO<b>.XYZ</b></span>
+      </a>
       <nav class="footer__links" aria-label="Footer">
-        <a href="#features">Features</a>
+        <a href="#month">How it works</a>
         <a href="#pricing">Pricing</a>
-        <a href="#waitlist">Join the waitlist</a>
+        <a href="#faq">FAQ</a>
+        <a href="https://app.cmo.xyz/login">Log in</a>
+        <a href="mailto:business@utxo.ag">Contact</a>
+        <a href="#imprint">Imprint</a>
       </nav>
     </div>
-    <div class="footer__bottom">
-      <small>&copy; 2026 utxo AG</small>
-      <small>Marketing, on autopilot.</small>
-    </div>
-    <address class="footer__imprint">
+    <address class="footer__imprint" id="imprint">
       <strong>Imprint</strong>
       <span>utxo AG, Dammstrasse 16, 6300 Zug, Switzerland</span>
       <span>Commercial register: CH-400.3.450.669-8</span>
@@ -456,13 +358,11 @@
       <span>German business registration: 76311831</span>
       <span>Represented by Patrick Tobler, CEO</span>
       <a href="mailto:business@utxo.ag">business@utxo.ag</a>
+      <span>&copy; 2026 utxo AG</span>
     </address>
   </footer>
 
-  <script type="module" src="/vendor/model-viewer.min.js"></script>
-  <script src="/vendor/lenis.min.js"></script>
-  <script src="/vendor/gsap.min.js"></script>
-  <script src="/vendor/ScrollTrigger.min.js"></script>
-  <script src="/script.js"></script>
+
+  <script src="/script.js" defer></script>
 </body>
 </html>
