@@ -503,6 +503,29 @@ h3 { font-size: var(--text-h3); }
 .faq details[open] summary::after { transform: rotate(45deg); }
 .faq details p { padding: 0 clamp(18px, 2vw, 26px) clamp(18px, 1.8vw, 24px); max-width: 640px; color: var(--text-soft); }
 
+/* ---------- founder ---------- */
+
+.founder {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(28px, 5vw, 80px);
+  padding: var(--section-y) var(--gutter);
+  border-bottom: var(--rule);
+}
+.founder__photo {
+  width: clamp(150px, 19vw, 260px);
+  border: var(--rule);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-lg);
+  rotate: -3deg;
+}
+.founder__note { display: grid; gap: var(--s-5); max-width: 860px; margin: 0; }
+.founder blockquote { display: grid; gap: var(--s-3); margin: 0; font: 600 var(--text-h3) / 1.12 var(--font-display); letter-spacing: -0.03em; text-wrap: balance; }
+.founder blockquote a { text-decoration-color: var(--iris); text-decoration-thickness: 0.14em; text-underline-offset: 0.12em; }
+.founder figcaption { display: flex; flex-wrap: wrap; gap: var(--s-2); color: var(--text-soft); font-size: var(--text-small); }
+.founder figcaption b { color: var(--ink); }
+
 /* ---------- final CTA ---------- */
 
 .final { display: flex; justify-content: center; padding: var(--section-y) var(--gutter); background: var(--ink); }
@@ -564,7 +587,7 @@ h3 { font-size: var(--text-h3); }
 @media (max-width: 960px) {
   .nav__links { display: none; }
   .nav__bar { grid-template-columns: 1fr auto; }
-  .hero, .step, .pricing__grid, .faq { grid-template-columns: minmax(0, 1fr); }
+  .hero, .step, .pricing__grid, .faq, .founder { grid-template-columns: minmax(0, 1fr); }
   .hero { display: flex; flex-direction: column; }
   .hero__art { flex: 1 1 0; align-self: center; width: auto; min-height: 150px; max-height: 360px; aspect-ratio: 627 / 649; padding: 0; }
   .cuso, .cuso img { height: 100%; }
