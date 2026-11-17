@@ -21,7 +21,7 @@ python3 -m http.server 8000
   channels, pricing, FAQ, final CTA, footer with imprint.
 - `styles.css`: all styles. Colors, fonts and sizes are tokens in `:root`.
 - `script.js`: sends the GA `cta_click` event, animates Cuso in the hero,
-  reveals sections on scroll and shows the sticky sign up bar on phones.
+  reveals sections on scroll.
   All motion is off under `prefers-reduced-motion`.
 - `assets/`: Cuso poses (WebP), the logo mark, icons and fonts.
 
