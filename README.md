@@ -1,10 +1,9 @@
 # CMO.XYZ website
 
-Marketing site for **CMO.XYZ**, an AI agent that automates a business's
-marketing, end to end, in one system.
+Landing page for **CMO.XYZ**, the AI CMO. The agent is named Cuso. See
+`PROJECT.md` for what he does and how to talk about him.
 
-Built against the CMO.XYZ Style Guide `DESIGN.md` (version: alpha). Visual
-direction is **premium dark** and dual theme (light + dark).
+Deployed by the Vercel project `cmo-xyz` to https://www.cmo.xyz.
 
 ## Run it
 
@@ -15,39 +14,21 @@ python3 -m http.server 8000
 # then open http://localhost:8000
 ```
 
-## Sections
+## Files
 
-Hero, channel strip, "See it work" (chat mockup), Capabilities (bento),
-How it works, Your agent (avatar picker), Who it's for, CTA, footer.
+- `index.html`: the page. Sections: nav, hero, marquee, How it works,
+  channels, pricing, final CTA, footer with imprint.
+- `styles.css`: all styles. Colors, fonts and sizes are tokens in `:root`.
+- `script.js`: sends the GA `cta_click` event when a sign up button is used.
+- `assets/`: Cuso poses (WebP), the logo mark, icons and fonts.
 
-## Motion
+## Look
 
-- **Lenis** smooth scroll + **GSAP / ScrollTrigger** entrance animations.
-  Libraries are bundled locally in `vendor/` (no CDN dependency).
-- **Cursor companion**: a small mascot trails the real pointer, leans into
-  motion, and grows over interactive elements. On-brand because the mascot
-  is a cursor.
-- All motion is disabled under `prefers-reduced-motion`, and the site is
-  fully visible if the animation libraries fail to load.
+Neo-brutalist and light only: white and black with one accent (`#FF51FF`),
+thick black borders, hard offset shadows and pill tags. Headings are PP Mori
+600, body text is Inter. Both fonts are served from `assets/fonts/`.
 
-## Mascot assets
+## Sign up
 
-The "The Cursor" mascot poses in `assets/` are transparent cutouts made from
-the source sheet (`~/Downloads/COMXYZ_Mascot.jpeg`). Used poses:
-`mascot-hero`, `expr-happy`, `act-creating`, `expr-excited`, `var-1..6`.
-
-## Following DESIGN.md
-
-- **Voice/tone (locked):** copy is plain, direct, tied to the user's data;
-  no em dashes or hyphens; chat lines are verbatim from the guide.
-- **Typeface (locked):** PP Mori is set first in the stack; not bundled
-  (license/source TBD), falls back to a neutral system stack.
-- **Scope:** in-scope capabilities shown; Newsletter is dimmed and tagged
-  "Roadmap", not built.
-- **Agent naming:** nothing hardcodes an agent name.
-
-## Temporary placeholders (per DESIGN.md, colors/shapes are OPEN)
-
-The dark palette is kept **strictly neutral grayscale** (no invented brand
-color), and the mascot is a placeholder avatar candidate. All of it is
-flagged as temporary in `styles.css`. Do not treat as final brand.
+Main CTAs go to https://app.cmo.xyz/signup. The hero website box is not sent
+to the app, because the app does not read a website parameter yet.
