@@ -242,6 +242,8 @@ h3 { font-size: var(--text-h3); }
   padding: clamp(20px, 4vh, 80px) var(--gutter);
   border-bottom: var(--rule);
 }
+.eyebrow { display: flex; align-items: center; gap: var(--s-2); font-weight: 700; font-size: var(--text-small); text-transform: uppercase; letter-spacing: 0.04em; }
+.eyebrow::before { content: ""; width: 0.8em; height: 0.8em; border: 3px solid var(--ink); border-radius: 50%; background: var(--iris); }
 .hero__text { display: flex; flex-direction: column; align-items: flex-start; gap: var(--fold-gap); }
 .lead { max-width: 600px; font-size: var(--text-lead); }
 .hero .btn--xl { margin-top: var(--s-2); }
