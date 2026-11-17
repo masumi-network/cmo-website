@@ -72,3 +72,10 @@ weekly -> improves. Forever.
    you approve the plan"), and can change, pause or undo any piece by
    telling Cuso. Prices shown are the app's Polar plans: Starter $200,
    Growth $500, Scale $1,000 a month; yearly costs ten months; no trial.
+5. **Who it is for and what a plan buys (Patrick, 2026-11-17).** The
+   customer is a small business owner with no marketing person, or a team
+   of one to three, who wants to grow and has no budget for an agency or a
+   full-time hire. The site describes plans by posting pace, as the app
+   does: Starter one post a day on each network, Growth two, Scale up to
+   three. On Scale a person on our team checks every post before it goes
+   out. The app does not have that review step yet.
