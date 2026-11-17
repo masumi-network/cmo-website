@@ -67,3 +67,8 @@ weekly -> improves. Forever.
 3. **Newsletter.** Per the brief, Cuso manages Newsletter as a capability.
    DESIGN.md's "roadmap only" note predates this brief; show Newsletter as
    a real capability on the site.
+4. **Approval and prices on the site (2026-11-17).** The site follows the
+   app: the user approves the plan, not each post ("Nothing goes out until
+   you approve the plan"), and can change, pause or undo any piece by
+   telling Cuso. Prices shown are the app's Polar plans: Starter $200,
+   Growth $500, Scale $1,000 a month; yearly costs ten months; no trial.

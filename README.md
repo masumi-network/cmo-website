@@ -16,10 +16,13 @@ python3 -m http.server 8000
 
 ## Files
 
-- `index.html`: the page. Sections: nav, hero, marquee, How it works,
-  channels, pricing, final CTA, footer with imprint.
+- `index.html`: the page. Sections: nav, hero, marquee, "A month with Cuso"
+  (five steps with example plan, posts, ad, schedule and weekly check),
+  channels, pricing, FAQ, final CTA, footer with imprint.
 - `styles.css`: all styles. Colors, fonts and sizes are tokens in `:root`.
-- `script.js`: sends the GA `cta_click` event when a sign up button is used.
+- `script.js`: sends the GA `cta_click` event, animates Cuso in the hero,
+  reveals sections on scroll and shows the sticky sign up bar on phones.
+  All motion is off under `prefers-reduced-motion`.
 - `assets/`: Cuso poses (WebP), the logo mark, icons and fonts.
 
 ## Look
@@ -30,5 +33,10 @@ thick black borders, hard offset shadows and pill tags. Headings are PP Mori
 
 ## Sign up
 
-Main CTAs go to https://app.cmo.xyz/signup. The hero website box is not sent
-to the app, because the app does not read a website parameter yet.
+Main CTAs go to https://app.cmo.xyz/signup.
+
+## Keeping the copy true
+
+The example business, Moss & Kettle, is made up and labelled as such. Prices
+are the app's Polar plans (Starter, Growth, Scale). If the plans change in
+Polar, change them in the pricing section and the FAQ.
