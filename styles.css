@@ -598,7 +598,7 @@ h3 { font-size: var(--text-h3); }
   .hero .btn--xl, .final__actions .btn { width: 100%; }
   :root { --bar-h: 64px; }
   .hero__art { align-self: flex-start; }
-  .sticker--top { top: 22%; right: auto; left: 100%; margin-left: var(--s-2); font-size: 14px; white-space: nowrap; }
+  .sticker--top { top: 22%; right: calc(100% + 2 * var(--gutter) - 100vw); font-size: 14px; white-space: nowrap; }
   .hero__note { font-size: var(--text-micro); }
   .nav__bar { padding: 0 8px 0 12px; gap: var(--s-2); }
   .nav__actions { gap: var(--s-1); }
