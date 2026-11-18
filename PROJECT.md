@@ -88,3 +88,9 @@ weekly -> improves. Forever.
 7. **Proof line (Patrick, 2026-11-17).** "30,000+ posts made by CMO.XYZ"
    is Patrick's own figure and includes data outside our database. Use it
    exactly as written, at most twice on the page.
+8. **A stranger must understand it (Patrick, 2026-11-17).** Every primary
+   button says "Try Cuso free". Product words never go on a button.
+   "Strategy" stays inside the page, explained where it first appears
+   ("Your strategy is every post and ad for the month"). The site does not
+   use "credits", "launch" or "Brand Brain"; it says what they mean.
+   Cuso is introduced as "an AI marketer for small businesses".

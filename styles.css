@@ -246,7 +246,8 @@ h3 { font-size: var(--text-h3); }
 .hero__text { display: flex; flex-direction: column; align-items: flex-start; gap: var(--fold-gap); }
 .lead { max-width: 600px; font-size: var(--text-lead); }
 .hero .btn--xl { margin-top: var(--s-2); }
-.hero__note { font-size: var(--text-small); text-wrap: balance; }
+.hero__note { font-size: var(--text-small); }
+.hero__note b { display: block; }
 
 .hero__art { position: relative; justify-self: center; width: 100%; max-width: min(480px, 54vh); padding: var(--s-4) 0; }
 .cuso {
@@ -608,7 +609,7 @@ h3 { font-size: var(--text-h3); }
   .hero .btn--xl, .final__actions .btn { width: 100%; }
   :root { --bar-h: 64px; }
   .hero__art { align-self: flex-start; }
-  .sticker--top { top: 22%; right: auto; left: 100%; margin-left: var(--s-2); }
+  .sticker--top { top: 22%; right: auto; left: 100%; margin-left: var(--s-2); font-size: 14px; white-space: nowrap; }
   .hero__note { font-size: var(--text-micro); }
   .nav__bar { padding: 0 8px 0 12px; gap: var(--s-2); border-radius: 18px; }
   .nav__actions { gap: var(--s-1); }
