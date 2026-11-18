@@ -101,3 +101,20 @@ weekly -> improves. Forever.
    uses the style and images from the business's own website and makes his
    own graphics on top. The team check on Scale is an extra of that plan;
    never word it so the other plans sound unchecked or worse.
+10. **One line, shadow and radius scale, shared with the app (Patrick,
+    2026-11-17).** Tokens in `styles.css` `:root`; never write a literal
+    line width or shadow offset.
+
+    | Token | Value | Use |
+    |---|---|---|
+    | `--line` | 3px ink | every outlined thing: cards, frames, pictures, buttons, section rules, focus ring |
+    | `--line-small` | 2px ink | chips, tags, labels, checkboxes, avatar circles |
+    | `--hairline` | 1px soft grey | row dividers inside a card |
+    | `--shadow` | 4px 4px 0 ink, no blur | anything you can click: buttons, FAQ rows |
+    | `--shadow-big` | 6px 6px 0 ink, no blur | only the hero button |
+    | no shadow | line only | everything you cannot click: the navbar frame, example cards, posts, plan table, photo, final card, labels |
+
+    Nothing has an offset above 6px. A button on a dark card keeps the 4px
+    offset in paper or Iris (`--shade`). Radii follow the app: 8px marks
+    (checkboxes), 12px controls (buttons, chips, images), 20px cards, 28px
+    panels (the final card), fully round pills and tags.

@@ -28,7 +28,9 @@ python3 -m http.server 8000
 ## Look
 
 Neo-brutalist and light only: white and black with one accent (`#FF51FF`),
-thick black borders, hard offset shadows and pill tags. Headings are PP Mori
+3px black lines, hard 4px shadows on things you can click, and pill tags.
+The line, shadow and radius scale is shared with the app (see `PROJECT.md`,
+decision 10) and lives as tokens in `:root`. Headings are PP Mori
 600, body text is Inter. Both fonts are served from `assets/fonts/`.
 
 ## Sign up
