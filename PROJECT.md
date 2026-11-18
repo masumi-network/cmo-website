@@ -93,4 +93,5 @@ weekly -> improves. Forever.
    "Strategy" stays inside the page, explained where it first appears
    ("Your strategy is every post and ad for the month"). The site does not
    use "credits", "launch" or "Brand Brain"; it says what they mean.
-   Cuso is introduced as "an AI marketer for small businesses".
+   Cuso is introduced in the line under the headline as "your AI CMO"
+   for a small business. There is no label above the headline.
