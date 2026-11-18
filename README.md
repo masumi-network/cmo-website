@@ -23,7 +23,10 @@ python3 -m http.server 8000
 - `script.js`: sends the GA `cta_click` event, animates Cuso in the hero
   and reveals sections on scroll.
   All motion is off under `prefers-reduced-motion`.
-- `assets/`: Cuso poses (WebP), the logo mark, icons and fonts.
+- `assets/`: Cuso poses (WebP), the logos (`assets/logo/`), icons and fonts.
+  The logos and `icon.svg` are copied unchanged from the
+  [Masumi Family Brand Guide](https://github.com/masumi-network/Masumi-Family-Brand-Guide)
+  (`logos/cmo-xyz/`); use each only on its approved background.
 
 ## Look
 
