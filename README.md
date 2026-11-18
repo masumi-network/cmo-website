@@ -17,7 +17,7 @@ python3 -m http.server 8000
 ## Files
 
 - `index.html`: the page. Sections: nav, hero, marquee, "A month with Cuso"
-  (five steps with example plan, posts, ad, schedule and weekly check),
+  (five steps with example strategy, posts, ad, schedule and weekly check),
   pricing, FAQ, final CTA, footer with imprint.
 - `styles.css`: all styles. Colors, fonts and sizes are tokens in `:root`.
 - `script.js`: sends the GA `cta_click` event, animates Cuso in the hero
