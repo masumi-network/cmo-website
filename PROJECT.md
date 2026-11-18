@@ -85,3 +85,6 @@ weekly -> improves. Forever.
    Brand Brain, Cuso (he), Subscribe, Launch, and the channel names (X,
    LinkedIn, Instagram, Facebook, Google Ads, Meta Ads, Newsletter).
    Voice: the pre-redesign site. One short line per idea, result first.
+7. **Proof line (Patrick, 2026-11-17).** "30,000+ posts made by CMO.XYZ"
+   is Patrick's own figure and includes data outside our database. Use it
+   exactly as written, at most twice on the page.
