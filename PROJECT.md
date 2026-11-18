@@ -95,3 +95,9 @@ weekly -> improves. Forever.
    use "credits", "launch" or "Brand Brain"; it says what they mean.
    Cuso is introduced in the line under the headline as "your AI CMO"
    for a small business. There is no label above the headline.
+9. **Facts for the copy (Patrick, 2026-11-17).** A card is required at
+   sign-up: never mention cards, and never say or imply "no card needed".
+   The owner always sets the ad budget; Cuso never spends beyond it. Cuso
+   uses the style and images from the business's own website and makes his
+   own graphics on top. The team check on Scale is an extra of that plan;
+   never word it so the other plans sound unchecked or worse.
