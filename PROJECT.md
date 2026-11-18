@@ -68,8 +68,8 @@ weekly -> improves. Forever.
    DESIGN.md's "roadmap only" note predates this brief; show Newsletter as
    a real capability on the site.
 4. **Approval and prices on the site (2026-11-17).** The site follows the
-   app: the user approves the plan, not each post ("Nothing goes out until
-   you approve the plan"), and can change, pause or undo any piece by
+   app: the user approves the strategy, not each post, and nothing goes
+   out before that. The user can change, pause or undo any piece by
    telling Cuso. Prices shown are the app's Polar plans: Starter $200,
    Growth $500, Scale $1,000 a month; yearly costs ten months; no trial.
 5. **Who it is for and what a plan buys (Patrick, 2026-11-17).** The
@@ -79,3 +79,9 @@ weekly -> improves. Forever.
    does: Starter one post a day on each network, Growth two, Scale up to
    three. On Scale a person on our team checks every post before it goes
    out. The app does not have that review step yet.
+6. **Words match the app (Patrick, 2026-11-17).** Cuso's month of
+   marketing is the **strategy**, never the "plan". "Plan" means only a
+   paid tier (Starter, Growth, Scale). Other app words to use as they are:
+   Brand Brain, Cuso (he), Subscribe, Launch, and the channel names (X,
+   LinkedIn, Instagram, Facebook, Google Ads, Meta Ads, Newsletter).
+   Voice: the pre-redesign site. One short line per idea, result first.
