@@ -118,3 +118,10 @@ weekly -> improves. Forever.
     offset in paper or Iris (`--shade`). Radii follow the app: 8px marks
     (checkboxes), 12px controls (buttons, chips, images), 20px cards, 28px
     panels (the final card), fully round pills and tags.
+11. **Company and logos (Patrick, 2026-11-17).** CMO.XYZ belongs to
+    **Sumico, Inc.**, not utxo AG; name Sumico, Inc. wherever the page names
+    its company. The logos are the approved files from the Masumi Family
+    Brand Guide (`logos/cmo-xyz/`), copied unchanged into `assets/logo/`:
+    the stacked-text lockup in the navbar (black) and footer (white), the
+    primary lockup on the final card, the monogram as the icon. A lockup
+    with the mascot is never narrower than 120px.
