@@ -295,6 +295,11 @@ h3 { font-size: var(--text-h3); }
 .sticker { position: absolute; }
 .sticker--top { top: 0; right: 0; transform: rotate(6deg); }
 .sticker--bottom { bottom: var(--s-3); left: 0; transform: rotate(-5deg); }
+/* While Cuso walks in, the stickers wait; they pop in when he turns to wave. */
+.cuso-anim .hero__art:not(.is-arrived) .sticker { visibility: hidden; }
+.cuso-anim .is-arrived .sticker { animation: sticker-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.cuso-anim .is-arrived .sticker--bottom { animation-delay: 140ms; }
+@keyframes sticker-pop { from { scale: 0.4; opacity: 0; } }
 
 /* ---------- marquee ---------- */
 

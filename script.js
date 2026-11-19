@@ -88,6 +88,7 @@ async function bringCusoToLife() {
     return { tubes: g.querySelectorAll("[data-tube]"), shoe: g.querySelector("[data-shoe]") };
   };
   const rig = { armL: part("armL"), armR: part("armR"), body: part("body"), wave: part("wave"), near: legEl("near"), far: legEl("far") };
+  const arrive = () => cuso.parentElement.classList.add("is-arrived"); // pops the stickers in
   const unit = () => cuso.clientWidth / poses.walk.viewBox.baseVal.width; // px per walking-pose unit
 
   const st = { x: 0, y: 0, gy: 0, rot: 0, scale: 1, squash: 0, alpha: 1, breathe: 1 }; // gy: where his ground is
@@ -181,6 +182,7 @@ async function bringCusoToLife() {
     // Short screens hide the hero art; with no size there is nothing to walk.
     if (!cuso.clientWidth) {
       show("friendly");
+      arrive();
       idle = true;
       return;
     }
@@ -220,6 +222,7 @@ async function bringCusoToLife() {
     if (!(await tween(110, (t) => { st.squash = 0.07 * t; walkPose(0, 0, 22 * t); }, easeOut))) return;
     turn(rig.wave, WAVE_PIVOT, 30); // before the next paint, or the raised hand flashes first
     show("friendly");
+    arrive();
     const turned = await tween(420, (t, r) => {
       st.squash = 0.07 * ring(r * 0.42, 3, 5);
       turn(rig.wave, WAVE_PIVOT, 30 * (1 - easeOut(r)));
@@ -234,6 +237,7 @@ async function bringCusoToLife() {
   async function react() {
     const mine = ++token;
     idle = false;
+    arrive();
     Object.assign(st, { x: 0, gy: 0, squash: 0, alpha: 1 }); // pressed mid walk-in: he is at his spot
     turn(rig.wave, WAVE_PIVOT, 0);
     show(REACTIONS[next++ % REACTIONS.length]);
