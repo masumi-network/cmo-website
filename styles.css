@@ -69,7 +69,6 @@
   --radius-panel: 28px;
   --radius-pill: 999px;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
 }
 
 /* Dark: ink and paper swap; values match the app's dark theme. */
@@ -267,7 +266,7 @@ h3 { font-size: var(--text-h3); }
   padding: clamp(20px, 4vh, 80px) var(--gutter);
   border-bottom: var(--line);
 }
-.hero__text { display: flex; flex-direction: column; align-items: flex-start; gap: var(--fold-gap); }
+.hero__text { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: var(--fold-gap); }
 .lead { max-width: 600px; font-size: var(--text-lead); }
 .hero .btn--xl { margin-top: var(--s-2); box-shadow: var(--shadow-big); }
 .hero .btn--xl:hover { box-shadow: var(--shadow); }
@@ -276,21 +275,22 @@ h3 { font-size: var(--text-h3); }
 .hero__note b { display: block; }
 
 .hero__art { position: relative; justify-self: center; width: 100%; max-width: min(480px, 54vh); padding: var(--s-4) 0; }
+/* Cuso walks in from behind the copy (script.js). Under reduced motion, or before his poses load, the still shows. */
 .cuso {
+  position: relative;
   display: block;
   width: 100%;
+  aspect-ratio: 1;
   padding: 0;
   border: 0;
   background: none;
   cursor: pointer;
-  transform-origin: 50% 96%;
-  perspective: 900px;
   -webkit-tap-highlight-color: transparent;
 }
-.cuso img { width: 100%; transform-origin: 50% 96%; }
-.cuso.is-alive { animation: sway 2.6s var(--ease-in-out) infinite alternate; }
-.cuso:active { transform: scale(0.97); animation-play-state: paused; }
-@keyframes sway { from { rotate: -1.6deg; } to { rotate: 1.6deg; } }
+.cuso__still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; }
+.cuso__fig { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 97%; }
+.cuso__shadow { position: absolute; left: 23%; bottom: 1%; width: 54%; height: 4.4%; border-radius: 50%; background: var(--night); opacity: 0; }
+.cuso-anim .cuso__still { display: none; }
 
 .sticker { position: absolute; }
 .sticker--top { top: 0; right: 0; transform: rotate(6deg); }
@@ -607,8 +607,8 @@ h3 { font-size: var(--text-h3); }
   .nav__bar { grid-template-columns: 1fr auto; }
   .hero, .step, .pricing__grid, .faq, .founder { grid-template-columns: minmax(0, 1fr); }
   .hero { display: flex; flex-direction: column; }
-  .hero__art { flex: 1 1 0; align-self: center; width: auto; min-height: 150px; max-height: 360px; aspect-ratio: 627 / 649; padding: 0; }
-  .cuso, .cuso img { height: 100%; }
+  .hero__art { flex: 1 1 0; align-self: center; width: auto; min-height: 150px; max-height: 360px; aspect-ratio: 1; padding: 0; }
+  .cuso { height: 100%; }
   .sticker--bottom { display: none; }
   .step--flip .step__text { order: 0; justify-self: start; }
   .step--flip .step__show .panel { margin-left: 0; }
@@ -650,5 +650,4 @@ h3 { font-size: var(--text-h3); }
   html { scroll-behavior: auto; }
   .marquee__track { animation: none; padding-left: var(--gutter); }
   .btn, .faq summary::after, .nav__links a, .nav__login { transition: none; }
-  .cuso.is-alive { animation: none; }
 }

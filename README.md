@@ -21,9 +21,17 @@ python3 -m http.server 8000
   pricing, FAQ, final CTA, footer with imprint.
 - `styles.css`: all styles. Colors, fonts and sizes are tokens in `:root`.
 - `script.js`: sends the GA `cta_click` event, animates Cuso in the hero
-  and reveals sections on scroll.
-  All motion is off under `prefers-reduced-motion`.
-- `assets/`: Cuso poses (WebP), the logos (`assets/logo/`), icons and fonts.
+  and reveals sections on scroll. Cuso walks in from the back of the page,
+  turns to wave, waves now and then and wobbles when pressed; his legs are
+  drawn live so his feet stay planted.
+  All motion is off under `prefers-reduced-motion`, where the hero shows
+  `assets/cuso/friendly.svg` instead.
+- `assets/cuso/`: Cuso from the brand guide's `Cuso 2D Mascot` folder. The
+  step poses and `friendly.svg` are its `-ground-shadow` SVGs, copied
+  unchanged. `poses.svg` is the hero's animated Cuso, made from its
+  `-default` SVGs by `python3 scripts/cuso-poses.py "<brand guide>/Cuso 2D Mascot"`;
+  re-run it when the poses change, then check the hero in a browser.
+- `assets/`: also the logos (`assets/logo/`), icons and fonts.
   The logos and `icon.svg` are copied unchanged from the
   [Masumi Family Brand Guide](https://github.com/masumi-network/Masumi-Family-Brand-Guide)
   (`logos/cmo-xyz/`); use each only on its approved background.
