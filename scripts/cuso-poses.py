@@ -26,6 +26,10 @@ def pose_svg(root: Path, name: str) -> str:
 
 def inner(svg: str, prefix: str) -> str:
     body = svg[svg.index(">") + 1 : svg.rindex("</svg>")]
+    # A mask without a size covers 120% of the box it is drawn in; in the smaller pose box that cut
+    # the idea pose's feet off. Pin each one to the drawing's own canvas.
+    x, y, w, h = re.search(r'viewBox="([^"]+)"', svg).group(1).split()
+    body = body.replace('maskUnits="userSpaceOnUse">', f'maskUnits="userSpaceOnUse" x="{x}" y="{y}" width="{w}" height="{h}">')
     body = re.sub(r'id="([^"]+)"', rf'id="{prefix}\1"', body)
     return re.sub(r"url\(#([^)]+)\)", rf"url(#{prefix}\1)", body)
 
