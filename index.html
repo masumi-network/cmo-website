@@ -15,7 +15,16 @@
   <title>CMO.XYZ | AI CMO & Autonomous Marketing Agent</title>
   <meta name="description" content="Meet Cuso, your AI Chief Marketing Officer. Put your social media, paid ads, SEO, and newsletters on autopilot with autonomous marketing execution." />
   <meta name="theme-color" content="#ffffff" />
-  <meta name="color-scheme" content="light" />
+  <meta name="color-scheme" content="light dark" />
+  <script>
+    // Before paint: the saved choice, else the system's.
+    (function () {
+      var saved;
+      try { saved = localStorage.getItem("theme"); } catch (e) {}
+      var dark = saved === "dark" || saved === "light" ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    })();
+  </script>
   <link rel="canonical" href="https://www.cmo.xyz/" />
   <link rel="icon" href="/assets/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/assets/icon.svg" />
@@ -43,7 +52,8 @@
   <header class="nav">
     <div class="nav__bar">
       <a class="brand" href="#top" aria-label="CMO.XYZ home">
-        <img src="/assets/logo/cmo-xyz-lockup-stacked-text-black.svg" alt="" width="1032" height="393" />
+        <img class="brand__light" src="/assets/logo/cmo-xyz-lockup-stacked-text-black.svg" alt="" width="1032" height="393" />
+        <img class="brand__dark" src="/assets/logo/cmo-xyz-lockup-stacked-text-white.svg" alt="" width="1044" height="393" />
       </a>
       <nav class="nav__links" aria-label="Main">
         <a href="#month">How it works</a>
@@ -333,6 +343,7 @@
         <a href="mailto:business@utxo.ag">Contact</a>
         <a href="#imprint">Imprint</a>
       </nav>
+      <button class="pill theme-toggle" type="button" data-theme-toggle>Theme: System</button>
     </div>
     <address class="footer__imprint" id="imprint">
       <strong>Imprint: CMO.XYZ is made by Sumico, Inc.</strong>
