@@ -30,11 +30,16 @@ python3 -m http.server 8000
 
 ## Look
 
-Neo-brutalist and light only: white and black with one accent (`#FF51FF`),
+Neo-brutalist: white and black with one accent (`#FF51FF`),
 3px black lines, hard 4px shadows on things you can click, and pill tags.
 The line, shadow and radius scale is shared with the app (see `PROJECT.md`,
 decision 10) and lives as tokens in `:root`. Headings are PP Mori
 600, body text is Inter. Both fonts are served from `assets/fonts/`.
+
+The footer toggle cycles System, Light and Dark; Light and Dark are saved in
+`localStorage`, System follows the visitor's setting live. It swaps `--ink` and `--paper`; the black
+bands use `--night` and stay dark; the Iris sections and the final card keep
+the light palette, since Iris takes black ink and that logo is black only.
 
 ## Sign up
 

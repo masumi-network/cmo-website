@@ -79,6 +79,35 @@ function bringCusoToLife() {
   setTimeout(idle, 5000);
 }
 
+// The footer toggle cycles System, Light, Dark. System clears the saved choice.
+function themeToggle() {
+  const root = document.documentElement;
+  const button = document.querySelector("[data-theme-toggle]");
+  const system = matchMedia("(prefers-color-scheme: dark)");
+  const NEXT = { system: "light", light: "dark", dark: "system" };
+  const LABEL = { system: "System", light: "Light", dark: "Dark" };
+  let choice = "system";
+  try { choice = localStorage.getItem("theme") || "system"; } catch {}
+  if (!LABEL[choice]) choice = "system";
+  const show = () => {
+    const theme = choice === "system" ? (system.matches ? "dark" : "light") : choice;
+    root.dataset.theme = theme;
+    button.textContent = `Theme: ${LABEL[choice]}`;
+    document.querySelector('meta[name="theme-color"]').content = theme === "dark" ? "#0c0c0c" : "#ffffff";
+  };
+  button.addEventListener("click", () => {
+    choice = NEXT[choice];
+    try {
+      if (choice === "system") localStorage.removeItem("theme");
+      else localStorage.setItem("theme", choice);
+    } catch {}
+    show();
+  });
+  system.addEventListener("change", show);
+  show();
+}
+
 trackCtas();
+themeToggle();
 revealOnScroll();
 bringCusoToLife();

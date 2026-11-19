@@ -1,5 +1,5 @@
 /* Hallmark · studied design: LandingMori (neo-brutalist) · structure: story-led · tone: brutalist
- * palette: white / black / Iris #FF51FF · PP Mori + Inter · light only
+ * palette: white / black / Iris #FF51FF · PP Mori + Inter · light and dark
  * pre-emit critique: P4 H4 E4 S5 R4 V4
  */
 
@@ -25,6 +25,9 @@
   --text-soft-inverse: #d6d6d6;
   --line-soft: #d9d9d9;
   --fill-soft: #f2f2f2;
+  /* The black bands (marquee, pricing promise, final CTA, footer) stay dark in both themes. */
+  --night: #000;
+  --on-night: #fff;
 
   --font-display: "PP Mori", "Inter", system-ui, sans-serif;
   --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -68,6 +71,36 @@
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
 }
+
+/* Dark: ink and paper swap; values match the app's dark theme. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #fafafa;
+  --paper: #0c0c0c;
+  --text-soft: #a3a3a3;
+  --line-soft: #262626;
+  --fill-soft: #171717;
+  --night: #171717;
+}
+/* Iris needs black ink, and the final card's logo is black only:
+   these keep the light palette in both themes. */
+:root[data-theme="dark"] :is(.step--band, .faq, .final__card) {
+  --ink: #000;
+  --paper: #fff;
+  --text-soft: #333;
+  --line-soft: #d9d9d9;
+  --fill-soft: #f2f2f2;
+  --line: 3px solid var(--ink);
+  --line-small: 2px solid var(--ink);
+  --hairline: 1px solid var(--line-soft);
+  --shadow: var(--offset) var(--offset) 0 var(--ink);
+  --shadow-big: var(--offset-big) var(--offset-big) 0 var(--ink);
+  color: var(--ink);
+}
+:root[data-theme="dark"] :is(.btn--accent, .chip--accent, .chat__cuso, .nav__links a:active, .nav__login:active),
+:root[data-theme="dark"] .checks li::before { color: #000; }
+.brand__dark, :root[data-theme="dark"] .brand__light { display: none; }
+:root[data-theme="dark"] .brand__dark { display: block; }
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { overflow-x: clip; }
@@ -265,7 +298,7 @@ h3 { font-size: var(--text-h3); }
 
 /* ---------- marquee ---------- */
 
-.marquee { overflow: hidden; background: var(--ink); border-bottom: var(--line); }
+.marquee { overflow: hidden; background: var(--night); border-bottom: var(--line); }
 .marquee__track {
   display: flex;
   align-items: center;
@@ -276,7 +309,7 @@ h3 { font-size: var(--text-h3); }
   animation: marquee 36s linear infinite;
 }
 .marquee span { color: var(--iris); font-size: clamp(22px, min(2.5vw, 4.4vh), 36px); text-transform: uppercase; }
-.marquee i { color: var(--paper); font-style: normal; }
+.marquee i { color: var(--on-night); font-style: normal; }
 @keyframes marquee { to { transform: translateX(-50%); } }
 
 /* ---------- a month with Cuso ---------- */
@@ -417,11 +450,11 @@ h3 { font-size: var(--text-h3); }
   padding: clamp(24px, 2.6vw, 40px);
   border: var(--line);
   border-radius: var(--radius-card);
-  background: var(--ink);
+  background: var(--night);
   color: var(--text-soft-inverse);
 }
-.promise__big { font-size: clamp(1.75rem, 2.9vw, 2.75rem); color: var(--paper); text-wrap: balance; }
-.promise .btn { --shade: var(--paper); margin-top: auto; }
+.promise__big { font-size: clamp(1.75rem, 2.9vw, 2.75rem); color: var(--on-night); text-wrap: balance; }
+.promise .btn { --shade: var(--on-night); margin-top: auto; }
 .promise :focus-visible { outline-color: var(--iris); }
 
 .tiers { display: grid; border: var(--line); border-radius: var(--radius-card); overflow: hidden; }
@@ -511,7 +544,7 @@ h3 { font-size: var(--text-h3); }
 
 /* ---------- final CTA ---------- */
 
-.final { display: flex; justify-content: center; padding: var(--section-y) var(--gutter); background: var(--ink); }
+.final { display: flex; justify-content: center; padding: var(--section-y) var(--gutter); background: var(--night); }
 .final__card {
   display: flex;
   flex-direction: column;
@@ -534,12 +567,12 @@ h3 { font-size: var(--text-h3); }
   display: grid;
   gap: 36px;
   padding: clamp(40px, 5vw, 64px) var(--gutter);
-  background: var(--ink);
+  background: var(--night);
   color: var(--text-soft-inverse);
   font-size: 17px;
 }
 .footer__top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--s-5) 36px; }
-.footer__links { display: flex; flex-wrap: wrap; gap: 14px 36px; }
+.footer__links { display: flex; flex-wrap: wrap; gap: 14px 36px; margin-left: auto; }
 .footer__imprint {
   display: flex;
   flex-wrap: wrap;
@@ -550,7 +583,8 @@ h3 { font-size: var(--text-h3); }
   font-style: normal;
   font-size: 14px;
 }
-.footer__imprint strong { flex-basis: 100%; color: var(--paper); }
+.footer__imprint strong { flex-basis: 100%; color: var(--on-night); }
+.theme-toggle { cursor: pointer; }
 
 /* ---------- responsive ---------- */
 
