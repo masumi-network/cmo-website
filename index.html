@@ -23,6 +23,12 @@
       try { saved = localStorage.getItem("theme"); } catch (e) {}
       var dark = saved === "dark" || saved === "light" ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
       document.documentElement.dataset.theme = dark ? "dark" : "light";
+      // Cuso walks in unless the visitor asked for less motion; until then the hero keeps his still.
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        document.documentElement.classList.add("cuso-anim");
+        // If script.js never brings him in, show the still after all.
+        setTimeout(function () { if (!document.querySelector(".cuso__fig")) document.documentElement.classList.remove("cuso-anim"); }, 4000);
+      }
     })();
   </script>
   <link rel="canonical" href="https://www.cmo.xyz/" />
@@ -81,8 +87,9 @@
         <p class="hero__note">Free to start. See your month of posts before you pay. <b>30,000+ posts made by CMO.XYZ.</b></p>
       </div>
       <div class="hero__art">
-        <button class="cuso" type="button" data-cuso aria-label="Cuso, the CMO.XYZ mascot. Press to make him spin.">
-          <img src="/assets/cuso-walking.webp" alt="" width="627" height="649" fetchpriority="high" />
+        <button class="cuso" type="button" data-cuso aria-label="Cuso, the CMO.XYZ mascot. Press him to see him react.">
+          <span class="cuso__shadow" aria-hidden="true"></span>
+          <img class="cuso__still" src="/assets/cuso/friendly.svg" alt="" width="1986" height="2048" />
         </button>
         <span class="pill sticker sticker--top">&#10003; Posted for you</span>
         <span class="pill pill--ink sticker sticker--bottom">&#10003; Writes like you</span>
@@ -121,7 +128,7 @@
                 <li>Past posts read</li>
               </ul>
             </div>
-            <img class="step__cuso step__cuso--right" src="/assets/cuso-step-learn.webp" alt="" width="601" height="641" loading="lazy" decoding="async" />
+            <img class="step__cuso step__cuso--right" src="/assets/cuso/researching.svg" alt="" width="1916" height="2048" loading="lazy" decoding="async" />
           </div>
         </li>
 
@@ -146,7 +153,7 @@
                 <span class="chip chip--accent">Approve strategy</span>
               </div>
             </div>
-            <img class="step__cuso step__cuso--left" src="/assets/cuso-step-plan.webp" alt="" width="495" height="657" loading="lazy" decoding="async" />
+            <img class="step__cuso step__cuso--left" src="/assets/cuso/thinking.svg" alt="" width="1598" height="2048" loading="lazy" decoding="async" />
           </div>
         </li>
 
@@ -202,7 +209,7 @@
                 <p class="chat__cuso">Done. Friday's post is skipped.</p>
               </div>
             </div>
-            <img class="step__cuso step__cuso--right" src="/assets/cuso-step-work.webp" alt="" width="592" height="661" loading="lazy" decoding="async" />
+            <img class="step__cuso step__cuso--right step__cuso--wide" src="/assets/cuso/done.svg" alt="" width="2048" height="1992" loading="lazy" decoding="async" />
           </div>
         </li>
 

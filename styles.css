@@ -69,7 +69,6 @@
   --radius-panel: 28px;
   --radius-pill: 999px;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
 }
 
 /* Dark: ink and paper swap; values match the app's dark theme. */
@@ -267,7 +266,7 @@ h3 { font-size: var(--text-h3); }
   padding: clamp(20px, 4vh, 80px) var(--gutter);
   border-bottom: var(--line);
 }
-.hero__text { display: flex; flex-direction: column; align-items: flex-start; gap: var(--fold-gap); }
+.hero__text { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: var(--fold-gap); }
 .lead { max-width: 600px; font-size: var(--text-lead); }
 .hero .btn--xl { margin-top: var(--s-2); box-shadow: var(--shadow-big); }
 .hero .btn--xl:hover { box-shadow: var(--shadow); }
@@ -276,25 +275,31 @@ h3 { font-size: var(--text-h3); }
 .hero__note b { display: block; }
 
 .hero__art { position: relative; justify-self: center; width: 100%; max-width: min(480px, 54vh); padding: var(--s-4) 0; }
+/* Cuso walks in from behind the copy (script.js). Under reduced motion, or before his poses load, the still shows. */
 .cuso {
+  position: relative;
   display: block;
   width: 100%;
+  aspect-ratio: 1;
   padding: 0;
   border: 0;
   background: none;
   cursor: pointer;
-  transform-origin: 50% 96%;
-  perspective: 900px;
   -webkit-tap-highlight-color: transparent;
 }
-.cuso img { width: 100%; transform-origin: 50% 96%; }
-.cuso.is-alive { animation: sway 2.6s var(--ease-in-out) infinite alternate; }
-.cuso:active { transform: scale(0.97); animation-play-state: paused; }
-@keyframes sway { from { rotate: -1.6deg; } to { rotate: 1.6deg; } }
+.cuso__still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; }
+.cuso__fig { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 97%; }
+.cuso__shadow { position: absolute; left: 23%; bottom: 1%; width: 54%; height: 4.4%; border-radius: 50%; background: var(--night); opacity: 0; }
+.cuso-anim .cuso__still { display: none; }
 
 .sticker { position: absolute; }
 .sticker--top { top: 0; right: 0; transform: rotate(6deg); }
 .sticker--bottom { bottom: var(--s-3); left: 0; transform: rotate(-5deg); }
+/* While Cuso walks in, the stickers wait; they pop in when he turns to wave. */
+.cuso-anim .hero__art:not(.is-arrived) .sticker { visibility: hidden; }
+.cuso-anim .is-arrived .sticker { animation: sticker-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.cuso-anim .is-arrived .sticker--bottom { animation-delay: 140ms; }
+@keyframes sticker-pop { from { scale: 0.4; opacity: 0; } }
 
 /* ---------- marquee ---------- */
 
@@ -339,6 +344,8 @@ h3 { font-size: var(--text-h3); }
 .step__cuso { position: absolute; bottom: 0; width: clamp(130px, 17vw, 230px); }
 .step__cuso--right { right: 0; z-index: 2; }
 .step__cuso--left { left: 0; z-index: 2; }
+/* The done pose is wider than tall (its check mark), so it gets more width to stand as tall as the others. */
+.step__cuso--wide { width: clamp(149px, 19.5vw, 264px); }
 .step--flip .step__show:has(.step__cuso) { padding-left: clamp(100px, 12vw, 170px); }
 
 .checks { display: grid; gap: var(--s-3); font-weight: 600; }
@@ -607,8 +614,8 @@ h3 { font-size: var(--text-h3); }
   .nav__bar { grid-template-columns: 1fr auto; }
   .hero, .step, .pricing__grid, .faq, .founder { grid-template-columns: minmax(0, 1fr); }
   .hero { display: flex; flex-direction: column; }
-  .hero__art { flex: 1 1 0; align-self: center; width: auto; min-height: 150px; max-height: 360px; aspect-ratio: 627 / 649; padding: 0; }
-  .cuso, .cuso img { height: 100%; }
+  .hero__art { flex: 1 1 0; align-self: center; width: auto; min-height: 150px; max-height: 360px; aspect-ratio: 1; padding: 0; }
+  .cuso { height: 100%; }
   .sticker--bottom { display: none; }
   .step--flip .step__text { order: 0; justify-self: start; }
   .step--flip .step__show .panel { margin-left: 0; }
@@ -619,6 +626,7 @@ h3 { font-size: var(--text-h3); }
   .step__show:has(.brain) { padding-bottom: 40px; }
   .step__show:has(.plan) { padding-bottom: 160px; }
   .step__cuso { width: 130px; }
+  .step__cuso--wide { width: 149px; }
   .step__show .week { margin-right: 0; }
   .plan__actions { justify-content: flex-start; }
 }
@@ -650,5 +658,4 @@ h3 { font-size: var(--text-h3); }
   html { scroll-behavior: auto; }
   .marquee__track { animation: none; padding-left: var(--gutter); }
   .btn, .faq summary::after, .nav__links a, .nav__login { transition: none; }
-  .cuso.is-alive { animation: none; }
 }
