@@ -659,3 +659,10 @@ h3 { font-size: var(--text-h3); }
   .marquee__track { animation: none; padding-left: var(--gutter); }
   .btn, .faq summary::after, .nav__links a, .nav__login { transition: none; }
 }
+
+.footer__disclosures { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-5); font-size: var(--text-small); }
+.foot-ai { display: flex; align-items: center; gap: var(--s-3); }
+.foot-ai img { flex: none; }
+.foot-ai p { margin: 0; }
+.foot-pref { display: inline-flex; align-items: center; gap: var(--s-2); min-height: 44px; text-underline-offset: 4px; }
+.foot-pref svg { flex: none; }
