@@ -1,0 +1,14 @@
+{
+  "name": "Sumico, Inc.",
+  "effective_date": "20 November 2026",
+  "address": "[SUMICO REGISTERED ADDRESS]",
+  "incorporation_state": "[STATE OF INCORPORATION]",
+  "registration_number": "[REGISTRATION NUMBER]",
+  "eu_representative": "[EU REPRESENTATIVE NAME, ADDRESS AND EMAIL]",
+  "uk_representative": "[UK REPRESENTATIVE NAME, ADDRESS AND EMAIL]",
+  "vat_id": "[VAT ID OR NONE]",
+  "legal_email": "[LEGAL CONTACT EMAIL]",
+  "governing_law_state": "[GOVERNING-LAW STATE]",
+  "authorized_representative": "Patrick Tobler, CEO",
+  "business_email": "business@utxo.ag"
+}

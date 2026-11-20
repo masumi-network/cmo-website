@@ -1,0 +1,8 @@
+.cookie-settings { color: inherit; font: inherit; background: transparent; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; min-height: 44px; padding: 0; }
+.cookie-panel { position: fixed; z-index: 1000; inset: auto 0 0; max-height: 80dvh; overflow-y: auto; padding: var(--s-5); background: var(--paper); color: var(--ink); border-top: var(--line); }
+.cookie-panel h2 { font: 600 var(--text-h3) / 1.2 var(--font-display); margin: 0 0 var(--s-3); }
+.cookie-panel p { max-width: 75ch; margin: 0 0 var(--s-3); font-size: var(--text-small); line-height: 1.5; }
+.cookie-panel a { text-decoration: underline; }
+.cookie-actions { display: flex; flex-wrap: wrap; gap: var(--s-4); margin-top: var(--s-4); }
+.cookie-actions button { background: var(--paper); color: var(--ink); font: inherit; border: var(--line); border-radius: var(--radius-control); padding: var(--s-3) var(--s-4); min-height: 44px; box-shadow: var(--shadow); cursor: pointer; }
+.cookie-actions button:disabled { opacity: 0.5; cursor: not-allowed; }

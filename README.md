@@ -18,7 +18,7 @@ python3 -m http.server 8000
 
 - `index.html`: the page. Sections: nav, hero, marquee, "A month with Cuso"
   (five steps with example strategy, posts, ad, schedule and weekly check),
-  pricing, FAQ, final CTA, footer with imprint.
+  pricing, FAQ, final CTA, footer with legal links and disclosures.
 - `styles.css`: all styles. Colors, fonts and sizes are tokens in `:root`.
 - `script.js`: sends the GA `cta_click` event, animates Cuso in the hero
   and reveals sections on scroll. Cuso walks in from the back of the page,
@@ -58,3 +58,32 @@ Main CTAs go to https://app.cmo.xyz/signup.
 The example business, Moss & Kettle, is made up and labelled as such. Prices
 are the app's Polar plans (Starter, Growth, Scale). If the plans change in
 Polar, change them in the pricing section and the FAQ.
+
+## Legal pages and cookie choices
+
+The Markdown in `legal/` is the source for `/terms`, `/privacy`, `/imprint`
+and `/dpa`. All company details come from `legal/company.json`; change them
+there rather than editing generated HTML. The DPA is incorporated into the
+Terms for customer-directed processing. The site remains static.
+
+```bash
+python3 scripts/render-legal.py
+python3 scripts/render-legal.py --check
+node --test scripts/test-cookie-consent.mjs
+```
+
+Before publication, fill the company facts and require this command to pass:
+
+```bash
+python3 scripts/render-legal.py --check --release-check
+```
+
+The legal feature branch has Vercel Git deployment disabled. Keep its PR
+unmerged until the company facts are complete. The footer disclosure change
+is independent and already published.
+
+`cookie-consent.js` gates marketing Google Analytics behind an explicit
+choice, honors Global Privacy Control and supports withdrawal through the
+footer. Legal pages do not load analytics. Keep the equivalent script in
+`apps/cmo/public/site` in the Sokosumi repository in sync when changing it.
+Consent is stored separately for each browser origin for 180 days.
