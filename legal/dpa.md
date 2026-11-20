@@ -48,7 +48,7 @@ The customer gives general written authorization for the subprocessors listed in
 
 Sumico will notify the customer's designated contact at least 30 days before adding or replacing a subprocessor, describing its role and location. The customer may object on reasonable data protection grounds during that period. The parties will work in good faith on an alternative. If none is reasonably available, the customer may terminate the affected service before the change takes effect and receive a refund of unused prepaid fees for that service.
 
-Services the customer independently selects as controllers, such as its social platforms or its merchant-of-record payment service, are not automatically Sumico subprocessors. Their actual roles must be recorded in the annex where relevant.
+Services the customer independently selects as controllers, such as its social platforms or its merchant-of-record payment service, are not automatically Sumico subprocessors. Their independent controller roles are described in the Privacy Policy.
 
 ## Assistance and accountability
 
@@ -74,7 +74,7 @@ Until deletion is complete, retained data remains protected under this DPA and m
 
 Where the CCPA/CPRA applies, Sumico acts as a service provider or contractor for the customer personal information covered by this DPA. Sumico will not sell or share that information; retain, use or disclose it outside the specified business purposes, the direct business relationship or what the law permits; or combine it with other personal information except as the law permits for service providers or contractors.
 
-Sumico will provide the level of privacy protection required by applicable law and notify the customer if it determines it can no longer meet its obligations. The customer may take reasonable steps to verify compliance and, on notice, stop and remedy unauthorized use. Sumico certifies that it understands these restrictions and will comply with them. Subcontractors must be bound by the applicable restrictions. These commitments concern customer-directed processing and do not settle the classification of Sumico's own website analytics.
+Sumico will provide the level of privacy protection required by applicable law and notify the customer if it determines it can no longer meet its obligations. The customer may take reasonable steps to verify compliance and, on notice, stop and remedy unauthorized use. Sumico certifies that it understands these restrictions and will comply with them. Subcontractors must be bound by the applicable restrictions. Sumico’s own website analytics is governed by the Privacy Policy.
 
 ## Security Annex
 
@@ -122,7 +122,7 @@ Annex I.C: the competent supervisory authority is determined under Clause 13. It
 
 Annex II consists of the Security Annex. The Subprocessor Annex and notices supplied under it provide the subprocessor information relevant to the selected module. Onward transfers must meet the clauses, including equivalent safeguards where required.
 
-For restricted UK transfers, the parties incorporate the [ICO International Data Transfer Addendum to the EU SCCs](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/appropriate-safeguards/what-are-standard-data-protection-clauses-the-uk-idta-and-the-addendum/), version B1.0 in force from 21 March 2022, including mandatory revisions under its terms. Table 1 uses the parties and contacts in Annex I.A; the start date is acceptance of this DPA. Table 2 selects the clauses and modules above. Table 3 uses Annexes I and II and the Subprocessor Annex. In Table 4, both importer and exporter may end the Addendum as permitted by Section 19. Its mandatory clauses apply and prevail where required. This is the UK Addendum route, not a separate claim to have executed an IDTA.
+For restricted UK transfers, the parties incorporate the [ICO International Data Transfer Addendum to the EU SCCs](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/appropriate-safeguards/what-are-standard-data-protection-clauses-the-uk-idta-and-the-addendum/), version B1.0 in force from 21 March 2022, including mandatory revisions under its terms. Table 1 uses the parties and contacts in Annex I.A; the start date is acceptance of this DPA. Table 2 selects the clauses and modules above. Table 3 uses Annexes I and II and the Subprocessor Annex. In Table 4, both importer and exporter may end the Addendum as permitted by Section 19. Its mandatory clauses apply and prevail where required.
 
 For restricted Swiss transfers, the clauses also protect data covered by the Swiss FADP. References to the GDPR include the FADP as applicable; references to a supervisory authority include the FDPIC; and references to an EU member state do not exclude Swiss data subjects from exercising their rights in Switzerland. The FDPIC is competent for processing governed exclusively by the FADP. For processing governed by both laws, each competent authority retains its authority. These adaptations must not reduce protections for transfers governed by the GDPR.
 
