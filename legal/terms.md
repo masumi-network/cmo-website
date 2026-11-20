@@ -4,7 +4,7 @@ Effective date: {{effective_date}}
 
 ## Who these terms are with
 
-CMO.XYZ is operated by {{name}}, a US company incorporated in {{incorporation_state}}, with Delaware Secretary of State File Number {{registration_number}} and registered address {{address}}. In these terms, “we”, “us” and “our” mean {{name}}. “You” means the business using CMO.XYZ and the person acting for it.
+CMO.XYZ is operated by {{name}}, a US company incorporated in {{incorporation_state}}, with Delaware Secretary of State File Number {{registration_number}} and registered address {{address}}. In these terms, “we”, “us” and “our” refer to that company. “You” means the business using CMO.XYZ and the person acting for it.
 
 These terms cover www.cmo.xyz, app.cmo.xyz and Cuso, our AI marketing agent. By creating a CMO account, subscribing or using the service, you agree to these terms. If you act for a business, you confirm that you can bind it. You must be at least 18 and use the service for business purposes. Do not use it if you cannot agree.
 
