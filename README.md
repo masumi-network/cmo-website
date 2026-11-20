@@ -72,7 +72,11 @@ python3 scripts/render-legal.py --check
 node --test scripts/test-cookie-consent.mjs
 ```
 
-Before publication, fill the company facts and require this command to pass:
+The remaining representative details are null only in `legal/company.json`;
+the renderer never prints missing-fact markers. Representative records use
+`name`, `email` and `address`. VAT information is omitted because Sumico has
+no VAT ID. Before publication, fill the representative facts and require
+this command to pass:
 
 ```bash
 python3 scripts/render-legal.py --check --release-check

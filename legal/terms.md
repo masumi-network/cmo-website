@@ -4,7 +4,7 @@ Effective date: {{effective_date}}
 
 ## Who these terms are with
 
-CMO.XYZ is operated by {{name}}, a US company incorporated in {{incorporation_state}}, with registration number {{registration_number}} and registered address {{address}}. In these terms, “we”, “us” and “our” mean {{name}}. “You” means the business using CMO.XYZ and the person acting for it.
+CMO.XYZ is operated by {{name}}, a US company incorporated in {{incorporation_state}}, with Delaware Secretary of State File Number {{registration_number}} and registered address {{address}}. In these terms, “we”, “us” and “our” mean {{name}}. “You” means the business using CMO.XYZ and the person acting for it.
 
 These terms cover www.cmo.xyz, app.cmo.xyz and Cuso, our AI marketing agent. By creating a CMO account, subscribing or using the service, you agree to these terms. If you act for a business, you confirm that you can bind it. You must be at least 18 and use the service for business purposes. Do not use it if you cannot agree.
 
@@ -22,7 +22,7 @@ Features can depend on third parties, available credits, account eligibility and
 
 ## Your account and authority
 
-Keep your account details accurate and protect access to your account. You are responsible for the people you authorize to use your business workspace and the instructions they give. Tell us promptly about unauthorized access at {{legal_email}}.
+Keep your account details accurate and protect access to your account. You are responsible for the people you authorize to use your business workspace and the instructions they give. Tell us promptly about unauthorized access at [{{legal_email}}](mailto:{{legal_email}}).
 
 Only connect websites, social accounts, company Pages, advertising accounts, stores and analytics properties that you are entitled to use. You authorize us and the integration providers to access them and carry out your instructions within the permissions you grant. This includes reading account information and performance data, uploading media, scheduling and publishing posts, and handling supported comments.
 
@@ -81,11 +81,11 @@ Tester credits are promotional. They have no scheduled expiry while that Cuso re
 
 Owners and administrators can manage billing in Settings. Upgrades within the same billing interval take effect immediately; Polar charges the prorated difference, and additional credits arrive after payment. Downgrades take effect at the next renewal. The current interface changes tiers within your existing monthly or yearly interval.
 
-Cancel renewal through Manage billing in Settings. A subscription scheduled to cancel remains available until the paid period ends. Cancellation does not automatically refund the current period or unused credits. For a billing error or refund request, contact {{legal_email}} with the purchase details, or use the support route on your Polar receipt.
+Cancel renewal through Manage billing in Settings. A subscription scheduled to cancel remains available until the paid period ends. Cancellation does not automatically refund the current period or unused credits. For a billing error or refund request, contact [{{legal_email}}](mailto:{{legal_email}}) with the purchase details, or use the support route on your Polar receipt.
 
 Start over is different. It permanently ends that Cuso's work, cancels his unsent posts and ends his subscription immediately, without an automatic refund. Unused credits assigned to him are written off. A new Cuso starts separately. This does not delete all stored records, retract published posts or cancel external advertising campaigns.
 
-Except where required by law, agreed by us or granted by Polar under its applicable terms, fees already paid are non-refundable. CMO is offered to businesses. If you sign up as a consumer, tell us promptly so we can assess eligibility and handle cancellation or any statutory withdrawal right. Where an EU or UK withdrawal period applies, it is generally 14 days from concluding the contract, subject to the applicable service or digital-content rules. Beginning performance or supplying digital content affects those rights only where the required express request, consent, acknowledgement and confirmation have been obtained. Merely accepting these terms does not waive them. Contact {{legal_email}} or the support route on your Polar receipt to withdraw. Nothing here excludes mandatory cancellation, withdrawal, refund or consumer rights where they apply, or Polar's authority to issue a refund. Refunded purchases can have their associated credits removed.
+Except where required by law, agreed by us or granted by Polar under its applicable terms, fees already paid are non-refundable. CMO is offered to businesses. If you sign up as a consumer, tell us promptly so we can assess eligibility and handle cancellation or any statutory withdrawal right. Where an EU or UK withdrawal period applies, it is generally 14 days from concluding the contract, subject to the applicable service or digital-content rules. Beginning performance or supplying digital content affects those rights only where the required express request, consent, acknowledgement and confirmation have been obtained. Merely accepting these terms does not waive them. Contact [{{legal_email}}](mailto:{{legal_email}}) or the support route on your Polar receipt to withdraw. Nothing here excludes mandatory cancellation, withdrawal, refund or consumer rights where they apply, or Polar's authority to issue a refund. Refunded purchases can have their associated credits removed.
 
 ## Personal data and confidentiality
 
@@ -101,7 +101,7 @@ You may stop using CMO and cancel as described above. We may suspend or end acce
 
 If we discontinue a paid service for reasons unrelated to your breach, we will give reasonable notice and refund the unused prepaid portion of the discontinued service. Otherwise, the refund rules above apply, subject to mandatory law.
 
-On termination, your access and our licence to provide ongoing service end, except as needed to wind down authorized work and meet legal obligations. Save content you need before ending the service. Contact {{legal_email}} about access, export or deletion. Retention follows the Privacy Policy and any applicable data processing agreement. Payment obligations already incurred and provisions about ownership, confidentiality, liability and disputes survive termination.
+On termination, your access and our licence to provide ongoing service end, except as needed to wind down authorized work and meet legal obligations. Save content you need before ending the service. Contact [{{legal_email}}](mailto:{{legal_email}}) about access, export or deletion. Retention follows the Privacy Policy and any applicable data processing agreement. Payment obligations already incurred and provisions about ownership, confidentiality, liability and disputes survive termination.
 
 ## Warranties and liability
 
@@ -113,7 +113,7 @@ These exclusions and the cap do not apply to fraud, fraudulent misrepresentation
 
 ## Illegal content and service contact
 
-Contact {{legal_email}} to report allegedly illegal content or an instruction that violates these terms. Include the content location, the reason for your report and a way to contact you. Our contact point for users and authorities is {{legal_email}}, with communication available in English. We assess reports and take proportionate action, including restricting content or accounts where warranted. Where applicable law requires reasons, a complaint route or other procedural protections, we provide them. Reports can be made by email without an account. We use automated checks and human assessment to enforce these terms. We take account of the circumstances, the seriousness of the issue and the rights of affected people. You can ask for a human review of a restriction by replying to our notice or contacting the same address. Where the Digital Services Act applies, its notice, reasons, complaint and representative requirements govern our handling of the affected service.
+Contact [{{legal_email}}](mailto:{{legal_email}}) to report allegedly illegal content or an instruction that violates these terms. Include the content location, the reason for your report and a way to contact you. Our contact point for users and authorities is [{{legal_email}}](mailto:{{legal_email}}), with communication available in English. We assess reports and take proportionate action, including restricting content or accounts where warranted. Where applicable law requires reasons, a complaint route or other procedural protections, we provide them. Reports can be made by email without an account. We use automated checks and human assessment to enforce these terms. We take account of the circumstances, the seriousness of the issue and the rights of affected people. You can ask for a human review of a restriction by replying to our notice or contacting the same address. Where the Digital Services Act applies, its notice, reasons, complaint and representative requirements govern our handling of the affected service.
 
 ## Marketing emails
 
@@ -123,8 +123,8 @@ Any marketing email sent by us must identify its sender, include the required po
 
 We may update these terms as the service or law changes. We will post the new version with its effective date and give reasonable advance notice of material changes through the service or your account contact. Changes will not take away rights already accrued. If you disagree, stop using the service and cancel before the change takes effect. Where the law requires express agreement, we will seek it.
 
-These terms are governed by the laws of the US state of {{governing_law_state}}, excluding its conflict-of-law rules. Disputes may be brought in the state and federal courts in {{governing_law_state}}, United States. Mandatory laws and rights that apply despite that choice remain unaffected. Before bringing a claim, contact {{legal_email}} so we can try to resolve it; this does not delay urgent remedies or statutory deadlines.
+These terms are governed by the laws of the US state of {{governing_law_state}}, excluding its conflict-of-law rules. Disputes may be brought in the state courts with jurisdiction in New Castle County, {{governing_law_state}}, or the United States District Court for the District of {{governing_law_state}}, subject to mandatory jurisdiction rules. This choice does not deprive an EU or UK consumer of mandatory protections under the law of their habitual residence or any right to bring proceedings in their home courts. Mandatory EU and UK data protection law, regulatory remedies and the governing-law and jurisdiction provisions of the DPA’s transfer clauses remain unaffected. Before bringing a claim, contact [{{legal_email}}](mailto:{{legal_email}}) so we can try to resolve it; this does not delay urgent remedies or statutory deadlines.
 
 If a provision cannot be enforced, the remaining provisions continue to apply. A delay in enforcing a right is not a waiver. Neither party may transfer this agreement without the other's consent, except to a successor in a merger or sale of the relevant business that assumes the obligations, with notice and without reducing your mandatory rights.
 
-Questions and legal notices: {{legal_email}}, or {{name}}, {{address}}.
+Questions and legal notices: [{{legal_email}}](mailto:{{legal_email}}), or {{name}}, {{address}}.

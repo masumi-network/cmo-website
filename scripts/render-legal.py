@@ -9,8 +9,29 @@ ROOT = Path(__file__).resolve().parents[1]
 PAGES = ('terms', 'privacy', 'imprint', 'dpa')
 COMPANY = json.loads((ROOT / 'legal' / 'company.json').read_text())
 
+def representatives() -> str:
+    paragraphs = []
+    for key, label in [('eu_representative', 'EU representative under GDPR Article 27'),
+                       ('uk_representative', 'UK representative under UK GDPR Article 27')]:
+        representative = COMPANY.get(key)
+        if not representative:
+            continue
+        details = [representative['name'], representative.get('address')]
+        email = representative['email']
+        details.append(f'[{email}](mailto:{email})')
+        paragraphs.append(f'{label}: ' + ', '.join(value for value in details if value) + '.')
+    return '\n\n'.join(paragraphs)
+
+
 def resolve(source: str) -> str:
-    return re.sub(r'\{\{([a-z_]+)\}\}', lambda match: COMPANY[match[1]], source)
+    values = {**COMPANY, 'representatives': representatives()}
+    return re.sub(r'\{\{([a-z_]+)\}\}', lambda match: values[match[1]], source)
+
+
+def missing_facts(value: object) -> bool:
+    if isinstance(value, dict):
+        return any(missing_facts(item) for item in value.values())
+    return value is None or value == '' or isinstance(value, str) and '[' in value
 
 
 def inline(text: str) -> str:
@@ -100,7 +121,7 @@ def main() -> None:
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--release-check', action='store_true')
     args = parser.parse_args()
-    if args.release_check and any('[' in value for value in COMPANY.values()):
+    if args.release_check and missing_facts(COMPANY):
         raise SystemExit('Fill legal/company.json before publishing legal pages.')
     assert inline('<script>') == '&lt;script&gt;'
     assert inline('[Privacy](/privacy)') == '<a href="/privacy">Privacy</a>'

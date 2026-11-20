@@ -6,7 +6,7 @@ Effective date: {{effective_date}}
 
 This Data Processing Agreement (DPA) forms part of the [CMO Terms of Service](/terms) between {{name}}, {{address}}, and the business identified in the customer's CMO account or order. It applies when Sumico processes personal data on that customer's behalf to provide CMO. It takes priority over conflicting service terms for that processing. Applicable mandatory transfer clauses take priority over this DPA.
 
-The customer is the controller, or a processor authorized by its controller to appoint Sumico as a subprocessor. Sumico is the processor or subprocessor respectively. The customer's account and order identify its legal name, address and authorized contact. Each party must keep those details current. Privacy contacts: the customer's account contact and Sumico at {{legal_email}}.
+The customer is the controller, or a processor authorized by its controller to appoint Sumico as a subprocessor. Sumico is the processor or subprocessor respectively. The customer's account and order identify its legal name, address and authorized contact. Each party must keep those details current. Privacy contacts: the customer's account contact and Sumico at [{{legal_email}}](mailto:{{legal_email}}).
 
 “Data protection law” means the EU GDPR, UK GDPR, Swiss Federal Act on Data Protection and applicable US privacy laws, including the CCPA/CPRA where relevant. Terms such as controller, processor, personal data and personal data breach have their meaning under the applicable law. This DPA does not govern Sumico's separate controller processing described in its [Privacy Policy](/privacy).
 
@@ -102,7 +102,7 @@ The customer authorizes the following providers for the functions used in its se
 - Exa Labs Inc., United States: public web search and research. DataForSEO OU, Estonia: keyword and search data for supported research tasks.
 - Ably Realtime Ltd, United Kingdom: realtime infrastructure. Plus Five Five, Inc. (Resend), United States: transactional messages. Functional Software, Inc. (Sentry), United States: error monitoring and diagnostic records.
 
-These authorizations are limited to service delivery under this DPA. They do not authorize provider use of customer personal data for independent model training, advertising, sale or sharing. Where a provider routes work to another model or infrastructure supplier, Sumico must ensure the downstream processing meets this DPA's requirements. The customer may obtain the current contracting-entity and processing-location details through {{legal_email}} and receives change notices under the subprocessor clause.
+These authorizations are limited to service delivery under this DPA. They do not authorize provider use of customer personal data for independent model training, advertising, sale or sharing. Where a provider routes work to another model or infrastructure supplier, Sumico must ensure the downstream processing meets this DPA's requirements. The customer may obtain the current contracting-entity and processing-location details through [{{legal_email}}](mailto:{{legal_email}}) and receives change notices under the subprocessor clause.
 
 Polar acts as merchant of record and independently processes payment information. Social networks, Google advertising and measurement services, and Shopify also have their own controller responsibilities for accounts the customer connects. They are not made Sumico subprocessors merely by being listed in the Privacy Policy. The customer directs the disclosure to those services.
 
@@ -114,7 +114,7 @@ The 2021/914 clauses do not cover an importer’s processing that is already sub
 
 Module 2 applies when the customer is controller and Sumico is processor. Module 3 applies when the customer is processor and Sumico is subprocessor. Clause 7, the docking clause, applies. Clause 9 uses general written authorization, with 30 days' advance notice. The optional language in Clause 11 does not apply. Clause 17 uses Irish law, which permits third-party beneficiary rights. Clause 18 designates the courts of Ireland, without restricting the data subject's rights under the clauses.
 
-Annex I.A: the exporter is the customer identified by its legal name, address and contact in the account or order. Its role is controller or processor as described above. The importer is {{name}}, {{address}}, contact {{legal_email}}, acting as processor or subprocessor. Their relevant activities are the services and instructions described in this DPA. Their signatures and date are their electronic acceptance of the service agreement, or their separate signatures where used.
+Annex I.A: the exporter is the customer identified by its legal name, address and contact in the account or order. Its role is controller or processor as described above. The importer is {{name}}, {{address}}, contact [{{legal_email}}](mailto:{{legal_email}}), acting as processor or subprocessor. Their relevant activities are the services and instructions described in this DPA. Their signatures and date are their electronic acceptance of the service agreement, or their separate signatures where used.
 
 Annex I.B: data subjects, data categories, purpose, nature, frequency and duration are set out under Processing details. Transfers occur as required for ongoing service delivery. The return and deletion schedule sets retention. Sensitive categories are excluded unless separately agreed with appropriate restrictions. The subject matter and duration of subprocessing follow the same limits.
 
@@ -128,4 +128,4 @@ For restricted Swiss transfers, the clauses also protect data covered by the Swi
 
 ## Contact
 
-Contact {{legal_email}} for a copy of these terms, transfer safeguards, provider details, audit information or assistance with data protection requests.
+Contact [{{legal_email}}](mailto:{{legal_email}}) for a copy of these terms, transfer safeguards, provider details, audit information or assistance with data protection requests.
