@@ -10,17 +10,9 @@ PAGES = ('terms', 'privacy', 'imprint', 'dpa')
 COMPANY = json.loads((ROOT / 'legal' / 'company.json').read_text())
 
 def representatives() -> str:
-    paragraphs = []
-    for key, label in [('eu_representative', 'EU representative under GDPR Article 27'),
-                       ('uk_representative', 'UK representative under UK GDPR Article 27')]:
-        representative = COMPANY.get(key)
-        if not representative:
-            continue
-        details = [representative['name'], representative.get('address')]
-        email = representative['email']
-        details.append(f'[{email}](mailto:{email})')
-        paragraphs.append(f'{label}: ' + ', '.join(value for value in details if value) + '.')
-    return '\n\n'.join(paragraphs)
+    representative = COMPANY['eu_representative']
+    name, email = representative['name'], representative['email']
+    return f'EU representative under GDPR Article 27: {name}, [{email}](mailto:{email}).'
 
 
 def resolve(source: str) -> str:

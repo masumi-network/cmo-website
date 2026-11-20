@@ -6,10 +6,8 @@
   "registration_number": "10825778",
   "eu_representative": {
     "name": "Phil Isenmann",
-    "email": "phil@utxoag.com",
-    "address": null
+    "email": "phil@utxoag.com"
   },
-  "uk_representative": null,
   "legal_email": "legal@sumico.io",
   "governing_law_state": "Delaware",
   "authorized_representative": "Patrick Tobler, CEO",

@@ -16,11 +16,11 @@ Legal, privacy, authority and illegal-content enquiries: [{{legal_email}}](mailt
 
 Postal correspondence: {{name}}, {{address}}.
 
-## European representatives
+## EU representative
 
 {{representatives}}
 
-Representatives handle data protection matters for the jurisdictions stated. They are separate from the company operating CMO.
+The EU representative handles data protection matters under the GDPR. The representative is separate from the company operating CMO.
 
 ## European service information
 

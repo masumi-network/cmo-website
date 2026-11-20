@@ -72,19 +72,13 @@ python3 scripts/render-legal.py --check
 node --test scripts/test-cookie-consent.mjs
 ```
 
-The remaining representative details are null only in `legal/company.json`;
-the renderer never prints missing-fact markers. Representative records use
-`name`, `email` and `address`. VAT information is omitted because Sumico has
-no VAT ID. Before publication, fill the representative facts and require
-this command to pass:
+The EU representative is listed by name and email. VAT information is
+omitted because Sumico has no VAT ID. Before publication, require the
+rendered pages and company facts to pass:
 
 ```bash
 python3 scripts/render-legal.py --check --release-check
 ```
-
-The legal feature branch has Vercel Git deployment disabled. Keep its PR
-unmerged until the company facts are complete. The footer disclosure change
-is independent and already published.
 
 `cookie-consent.js` gates marketing Google Analytics behind an explicit
 choice, honors Global Privacy Control and supports withdrawal through the
