@@ -3,6 +3,7 @@
   const MAX_AGE = 180 * 24 * 60 * 60 * 1000;
   const tagId = document.currentScript?.dataset.analytics;
   const privacyUrl = "https://www.cmo.xyz/privacy#cookies-and-similar-storage";
+  const gpc = navigator.globalPrivacyControl === true;
   let panel;
   let opener;
   let loaded = false;
@@ -10,10 +11,20 @@
   function readChoice() {
     try {
       const saved = JSON.parse(localStorage.getItem(KEY));
-      if (saved && ["accepted", "rejected"].includes(saved.choice) &&
-          Number.isFinite(saved.at) && saved.at <= Date.now() && Date.now() - saved.at < MAX_AGE) return saved.choice;
+      if (saved?.choice === "rejected") return "rejected";
+      if (saved?.choice === "accepted" && Number.isFinite(saved.at) &&
+          saved.at <= Date.now() && Date.now() - saved.at < MAX_AGE) return "accepted";
     } catch {}
     return null;
+  }
+
+  async function consentRequired() {
+    try {
+      const response = await fetch("/api/geo", { cache: "no-store" });
+      return (await response.json()).consentRequired !== false;
+    } catch {
+      return true;
+    }
   }
 
   function clearAnalyticsCookies() {
@@ -28,7 +39,7 @@
   }
 
   function loadAnalytics() {
-    if (!tagId || loaded || navigator.globalPrivacyControl === true) return;
+    if (!tagId || loaded || gpc) return;
     loaded = true;
     window[`ga-disable-${tagId}`] = false;
     window.dataLayer = window.dataLayer || [];
@@ -49,7 +60,7 @@
   }
 
   function saveChoice(choice) {
-    if (navigator.globalPrivacyControl === true) choice = "rejected";
+    if (gpc) choice = "rejected";
     try { localStorage.setItem(KEY, JSON.stringify({ choice, at: Date.now() })); } catch {}
     panel?.remove();
     panel = null;
@@ -67,14 +78,16 @@
     if (panel) return;
     panel = document.createElement("section");
     panel.className = "cookie-panel";
-    panel.setAttribute("aria-label", "Cookie choices");
+    panel.setAttribute("aria-label", "Your privacy choices");
     const title = document.createElement("h2");
-    title.textContent = "Your cookie choices";
+    title.textContent = "Your privacy choices";
     const copy = document.createElement("p");
-    copy.textContent = "We use necessary storage to remember your choices. With your permission, Google Analytics helps us understand visits and clicks. You can change your choice at any time.";
+    copy.textContent = gpc
+      ? "Your browser's Global Privacy Control signal is on, so Google Analytics stays off."
+      : "Google Analytics helps us see which pages people visit. Allow it or turn it off. You can change this any time from Your Privacy Choices in the footer.";
     const link = document.createElement("a");
     link.href = privacyUrl;
-    link.textContent = "Read about cookies";
+    link.textContent = "How we use cookies";
     const buttons = document.createElement("div");
     buttons.className = "cookie-actions";
     for (const [choice, label] of [["rejected", "Reject analytics"], ["accepted", "Allow analytics"]]) {
@@ -82,12 +95,9 @@
       button.type = "button";
       button.textContent = label;
       button.dataset.cookieChoice = choice;
-      button.disabled = choice === "accepted" && navigator.globalPrivacyControl === true;
+      button.disabled = choice === "accepted" && gpc;
       button.addEventListener("click", () => saveChoice(choice));
       buttons.append(button);
-    }
-    if (navigator.globalPrivacyControl === true) {
-      copy.textContent = "Your Global Privacy Control signal blocks optional analytics. Necessary storage still works. You can keep this choice by choosing Reject analytics.";
     }
     panel.append(title, copy, link, buttons);
     document.body.append(panel);
@@ -98,13 +108,17 @@
     button.addEventListener("click", () => { opener = button; showChoices(); });
   }
   const choice = readChoice();
-  if (navigator.globalPrivacyControl === true || choice === "rejected") {
+  if (gpc || choice === "rejected") {
     clearAnalyticsCookies();
   } else if (choice === "accepted") {
     loadAnalytics();
   } else if (tagId) {
     clearAnalyticsCookies();
-    showChoices();
+    consentRequired().then((required) => {
+      if (readChoice()) return;
+      if (required) showChoices();
+      else loadAnalytics();
+    });
   }
   window.addEventListener("storage", (event) => {
     if (event.key === KEY) location.reload();

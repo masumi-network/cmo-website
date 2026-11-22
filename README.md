@@ -18,7 +18,7 @@ python3 -m http.server 8000
 
 - `index.html`: the page. Sections: nav, hero, marquee, "A month with Cuso"
   (five steps with example strategy, posts, ad, schedule and weekly check),
-  pricing, FAQ, final CTA, footer with legal links and disclosures.
+  pricing, FAQ, final CTA, footer with legal links, privacy choices and disclosures.
 - `styles.css`: all styles. Colors, fonts and sizes are tokens in `:root`.
 - `script.js`: sends the GA `cta_click` event, animates Cuso in the hero
   and reveals sections on scroll. Cuso walks in from the back of the page,
@@ -80,8 +80,11 @@ rendered pages and company facts to pass:
 python3 scripts/render-legal.py --check --release-check
 ```
 
-`cookie-consent.js` gates marketing Google Analytics behind an explicit
-choice, honors Global Privacy Control and supports withdrawal through the
-footer. Legal pages do not load analytics. Keep the equivalent script in
+`cookie-consent.js` asks `/api/geo` (`api/geo.js`, Vercel's
+`x-vercel-ip-country` header) whether the visitor needs to consent. In the
+EU/EEA, UK and Switzerland, or when the country is unknown, Google Analytics
+waits for an explicit choice in a small banner. Elsewhere it loads by default.
+Global Privacy Control or an opt-out turns it off everywhere, and an opt-out
+does not expire. "Your Privacy Choices" in the footer reopens the choice. Legal pages do not load analytics. Keep the equivalent script in
 `apps/cmo/public/site` in the Sokosumi repository in sync when changing it.
 Consent is stored separately for each browser origin for 180 days.
