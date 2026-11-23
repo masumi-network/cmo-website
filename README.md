@@ -27,8 +27,9 @@ python3 -m http.server 8000
   All motion is off under `prefers-reduced-motion`, where the hero shows
   `assets/cuso/friendly.svg` instead.
 - `assets/cuso/`: Cuso from the brand guide's `Cuso 2D Mascot` folder. The
-  step poses and `friendly.svg` are its `-ground-shadow` SVGs, copied
-  unchanged. `poses.svg` is the hero's animated Cuso, made from its
+  step poses and `friendly.svg` are its `-ground-shadow` SVGs, and the
+  `*-white-outline.svg` files its `-ground-shadow-white-outline` SVGs for dark,
+  all copied unchanged. `poses.svg` is the hero's animated Cuso, made from its
   `-default` SVGs by `python3 scripts/cuso-poses.py "<brand guide>/Cuso 2D Mascot"`;
   re-run it when the poses change, then check the hero in a browser.
 - `assets/`: also the logos (`assets/logo/`), icons and fonts.
@@ -45,9 +46,13 @@ decision 10) and lives as tokens in `:root`. Headings are PP Mori
 600, body text is Inter. Both fonts are served from `assets/fonts/`.
 
 The footer toggle cycles System, Light and Dark; Light and Dark are saved in
-`localStorage`, System follows the visitor's setting live. It swaps `--ink` and `--paper`; the black
-bands use `--night` and stay dark; the Iris sections and the final card keep
-the light palette, since Iris takes black ink and that logo is black only.
+`localStorage`, System follows the visitor's setting live. Dark uses the app's
+dark tokens: `--ink` and `--paper` swap, lines and hard shadows follow `--edge`
+(light in dark), Iris rests at `#D141D1` and brightens on hover, and the black
+bands go true black. Text on Iris stays black; the cards on the Iris bands
+stay dark. Cuso and the final logo have a dark file from the brand guide
+(`-white-outline` poses, `mascot-top-white`), paired with the light one by the
+`on-light` / `on-dark` classes; the animated hero Cuso gets the same white edge in CSS.
 
 ## Sign up
 

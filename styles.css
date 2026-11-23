@@ -20,7 +20,9 @@
   color-scheme: light;
   --ink: #000;
   --paper: #fff;
+  --edge: var(--ink);
   --iris: #ff51ff;
+  --iris-hover: #ff51ff;
   --text-soft: #333;
   --text-soft-inverse: #d6d6d6;
   --line-soft: #d9d9d9;
@@ -55,14 +57,9 @@
   --bar-h: 72px;
   --nav-h: calc(var(--bar-h) + var(--s-3));
   --fold-gap: clamp(12px, 2.6vh, 24px);
-  --line: 3px solid var(--ink);
-  --line-small: 2px solid var(--ink);
-  --hairline: 1px solid var(--line-soft);
   --offset: 4px;
   --offset-big: 6px;
   --offset-hover: 2px;
-  --shadow: var(--offset) var(--offset) 0 var(--ink);
-  --shadow-big: var(--offset-big) var(--offset-big) 0 var(--ink);
   --radius-mark: 8px;
   --radius-control: 12px;
   --radius-card: 20px;
@@ -71,35 +68,44 @@
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Dark: ink and paper swap; values match the app's dark theme. */
+/* Re-declared where --edge changes, so lines and shadows follow it. */
+:root, .step--band, .faq, .post, .faq details {
+  --line: 3px solid var(--edge);
+  --line-small: 2px solid var(--edge);
+  --hairline: 1px solid var(--line-soft);
+  --shadow: var(--offset) var(--offset) 0 var(--edge);
+  --shadow-big: var(--offset-big) var(--offset-big) 0 var(--edge);
+}
+
+/* Dark: the app's dark tokens. Lines and hard shadows turn light (--edge),
+   Iris rests darker and brightens on hover, the bands go true black. */
 :root[data-theme="dark"] {
   color-scheme: dark;
   --ink: #fafafa;
   --paper: #0c0c0c;
+  --edge: #fafafa;
+  --iris: #d141d1;
   --text-soft: #a3a3a3;
   --line-soft: #262626;
   --fill-soft: #171717;
-  --night: #171717;
+  --night: #000;
 }
-/* Iris needs black ink, and the final card's logo is black only:
-   these keep the light palette in both themes. */
-:root[data-theme="dark"] :is(.step--band, .faq, .final__card) {
-  --ink: #000;
-  --paper: #fff;
-  --text-soft: #333;
-  --line-soft: #d9d9d9;
-  --fill-soft: #f2f2f2;
-  --line: 3px solid var(--ink);
-  --line-small: 2px solid var(--ink);
-  --hairline: 1px solid var(--line-soft);
-  --shadow: var(--offset) var(--offset) 0 var(--ink);
-  --shadow-big: var(--offset-big) var(--offset-big) 0 var(--ink);
-  color: var(--ink);
-}
-:root[data-theme="dark"] :is(.btn--accent, .chip--accent, .chat__cuso, .nav__links a:active, .nav__login:active),
-:root[data-theme="dark"] .checks li::before { color: #000; }
-.brand__dark, :root[data-theme="dark"] .brand__light { display: none; }
-:root[data-theme="dark"] .brand__dark { display: block; }
+/* Text on Iris is always Neutral 950; the cards on an Iris band stay dark. */
+:root[data-theme="dark"] :is(.step--band, .faq) { --ink: #0c0c0c; --paper: #fafafa; --edge: #0c0c0c; color: var(--ink); }
+:root[data-theme="dark"] :is(.step--band, .faq) :is(.post, details) { --ink: #fafafa; --paper: #0c0c0c; --edge: #fafafa; color: var(--ink); }
+:root[data-theme="dark"] :is(.btn--accent, .chip--accent, .chat__cuso, .post__mark, .post__img:not(.post__img--ink), .nav__links a:active, .nav__login:active),
+:root[data-theme="dark"] .checks li::before,
+:root[data-theme="dark"] .faq summary::after { color: #0c0c0c; }
+:root[data-theme="dark"] .post__img--ink { background: var(--fill-soft); }
+:root[data-theme="dark"] .btn--accent:hover { background: var(--iris-hover); }
+:root[data-theme="dark"] .final__card { background: var(--fill-soft); }
+/* The animated hero Cuso is drawn from the -default poses: in dark he gets the
+   brand guide's white sticker edge, and his ground shadow keeps a white rim. */
+:root[data-theme="dark"] .cuso__fig { filter: drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff) drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff); }
+:root[data-theme="dark"] .cuso__shadow { box-shadow: 0 0 0 3px #fff; }
+/* Pictures with a light and a dark file (logos, Cuso): only one shows. */
+:root[data-theme="dark"] :is(.brand__light, .on-light),
+:root:not([data-theme="dark"]) :is(.brand__dark, .on-dark) { display: none; }
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { overflow-x: clip; }
