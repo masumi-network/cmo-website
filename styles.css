@@ -155,7 +155,7 @@ h3 { font-size: var(--text-h3); }
    with the mascot is never narrower than 120px: 46px tall is 121px wide. */
 .brand { display: inline-flex; }
 .brand img { height: 46px; width: auto; }
-.brand--footer img { height: clamp(56px, 5vw, 72px); }
+.brand--footer img { width: clamp(180px, 18vw, 260px); height: auto; }
 .brand-primary { width: clamp(200px, 28vw, 380px); height: auto; }
 
 .btn {
@@ -278,7 +278,6 @@ h3 { font-size: var(--text-h3); }
 .hero .btn--xl:hover { box-shadow: var(--shadow); }
 .hero .btn--xl:active { transform: translate(var(--offset-big), var(--offset-big)); box-shadow: 0 0 0 var(--shade); }
 .hero__note { font-size: var(--text-small); }
-.hero__note b { display: block; }
 
 .hero__art { position: relative; justify-self: center; width: 100%; max-width: min(480px, 54vh); padding: var(--s-4) 0; }
 /* Cuso walks in from behind the copy (script.js). Under reduced motion, or before his poses load, the still shows. */
@@ -301,10 +300,38 @@ h3 { font-size: var(--text-h3); }
 .sticker { position: absolute; }
 .sticker--top { top: 0; right: 0; transform: rotate(6deg); }
 .sticker--bottom { bottom: var(--s-3); left: 0; transform: rotate(-5deg); }
+/* The proof line is Cuso talking: a speech bubble beside his head. */
+.proof {
+  z-index: 1;
+  top: 26%;
+  right: calc(100% - 14%);
+  width: max-content;
+  max-width: 11.5em;
+  margin: 0;
+  padding: 12px 16px;
+  border: var(--line);
+  border-radius: var(--radius-card);
+  background: var(--paper);
+  font: 600 var(--text-small) / 1.3 var(--font-body);
+}
+.proof b { display: block; font: 600 clamp(1.75rem, 2.6vw, 2.25rem) / 1 var(--font-display); letter-spacing: -0.03em; }
+.proof::after {
+  content: "";
+  position: absolute;
+  right: -11px;
+  top: 38%;
+  width: 18px;
+  height: 18px;
+  border-top: var(--line);
+  border-right: var(--line);
+  background: var(--paper);
+  transform: rotate(45deg);
+}
 /* While Cuso walks in, the stickers wait; they pop in when he turns to wave. */
 .cuso-anim .hero__art:not(.is-arrived) .sticker { visibility: hidden; }
 .cuso-anim .is-arrived .sticker { animation: sticker-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .cuso-anim .is-arrived .sticker--bottom { animation-delay: 140ms; }
+.cuso-anim .is-arrived .proof { animation-delay: 280ms; }
 @keyframes sticker-pop { from { scale: 0.4; opacity: 0; } }
 
 /* ---------- marquee ---------- */
@@ -467,7 +494,8 @@ h3 { font-size: var(--text-h3); }
   color: var(--text-soft-inverse);
 }
 .promise__big { font-size: clamp(1.75rem, 2.9vw, 2.75rem); color: var(--on-night); text-wrap: balance; }
-.promise .btn { --shade: var(--on-night); margin-top: auto; }
+.promise .btn { --shade: var(--on-night); }
+.promise__logo { width: clamp(160px, 70%, 260px); margin: auto 0 var(--s-3); }
 .promise :focus-visible { outline-color: var(--iris); }
 
 .tiers { display: grid; border: var(--line); border-radius: var(--radius-card); overflow: hidden; }
@@ -501,6 +529,7 @@ h3 { font-size: var(--text-h3); }
   border-bottom: var(--line);
 }
 .faq__list { display: grid; gap: var(--s-4); }
+.faq__logo { width: clamp(160px, 17vw, 240px); margin-top: var(--s-7); }
 .faq details { border: var(--line); border-radius: var(--radius-card); background: var(--paper); box-shadow: var(--shadow); }
 .faq summary {
   display: flex;
@@ -649,7 +678,9 @@ h3 { font-size: var(--text-h3); }
   .hero .btn--xl, .final__actions .btn { width: 100%; }
   :root { --bar-h: 64px; }
   .hero__art { align-self: flex-start; }
-  .sticker--top { top: 22%; right: calc(100% + 2 * var(--gutter) - 100vw); font-size: 14px; white-space: nowrap; }
+  .sticker--top { top: auto; bottom: 18%; right: calc(100% + 2 * var(--gutter) - 100vw); font-size: 14px; white-space: nowrap; }
+  .proof { top: 6%; right: calc(100% + 2 * var(--gutter) - 100vw); max-width: 9.5em; padding: 10px 12px; font-size: var(--text-micro); }
+  .proof::after { right: auto; left: -11px; transform: rotate(-135deg); }
   .hero__note { font-size: var(--text-micro); }
   .nav__bar { padding: 0 8px 0 12px; gap: var(--s-2); }
   .nav__actions { gap: var(--s-1); }

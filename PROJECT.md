@@ -118,10 +118,24 @@ weekly -> improves. Forever.
     offset in paper or Iris (`--shade`). Radii follow the app: 8px marks
     (checkboxes), 12px controls (buttons, chips, images), 20px cards, 28px
     panels (the final card), fully round pills and tags.
+
 11. **Company and logos (Patrick, 2026-11-17).** CMO.XYZ belongs to
     **Sumico, Inc.**, not utxo AG; name Sumico, Inc. wherever the page names
     its company. The logos are the approved files from the Masumi Family
     Brand Guide (`logos/cmo-xyz/`), copied unchanged into `assets/logo/`:
-    the stacked-text lockup in the navbar (black) and footer (white), the
-    primary lockup on the final card, the monogram as the icon. A lockup
+    the stacked-text lockup in the navbar, the primary lockup on the final
+    card, the monogram as the icon. Decision 12 lists every placement. A lockup
     with the mascot is never narrower than 120px.
+
+12. **Logos on the page (Patrick, 2026-11-20).** Only the approved set from
+    `Masumi-Family-Brand-Guide/logos/cmo-xyz` (copied as is into
+    `assets/logo/`), each on the background the brand guide lists for it,
+    never recoloured, rotated, stretched or given a shadow, at least 120px
+    wide, with clear space around it. Where each one is used:
+    - Navbar: stacked wordmark (black on white, white on black in dark mode).
+    - Hero: no logo. The "30,000+ posts made by CMO.XYZ" proof is a speech
+      bubble beside Cuso.
+    - Pricing card (black): knockout block, white version.
+    - FAQ (Iris in both themes): framed panel, see-through version.
+    - Final card (white in both themes): the primary, outlined mascot on top.
+    - Footer (black): the Iris wordmark.
