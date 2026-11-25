@@ -1,5 +1,9 @@
 # CMO.XYZ website
 
+> **Moved.** This site now lives in the Sokosumi monorepo at
+> [`apps/cmo-website`](https://github.com/masumi-network/sokosumi/tree/main/apps/cmo-website)
+> and deploys from there. This repository is archived and read-only.
+
 Landing page for **CMO.XYZ**, the AI CMO. The agent is named Cuso. See
 `PROJECT.md` for what he does and how to talk about him.
 
